@@ -15,7 +15,7 @@
 3. [디렉토리 구조](#3-디렉토리-구조)
 4. [Plugin Manifest](#4-plugin-manifest)
 5. [Hooks 시스템](#5-hooks-시스템)
-6. [Agents 시스템](#6-agents-시스템)
+6. [Custom Droids 시스템](#6-custom-droids-시스템)
 7. [Skills 시스템](#7-skills-시스템)
 8. [상태 관리](#8-상태-관리)
 9. [설정](#9-설정)
@@ -136,7 +136,7 @@ oh-my-droid/
 │   ├── plugin.json               # Plugin 설정
 │   └── marketplace.json          # Marketplace 메타데이터
 │
-├── agents/                       # Agent 프롬프트 정의 (Markdown)
+├── droids/                       # Custom Droid 정의 (Droid 표준 형식)
 │   ├── architect.md              # 전략적 조언자 (Opus, READ-ONLY)
 │   ├── architect-medium.md       # 표준 분석 (Sonnet)
 │   ├── architect-low.md          # 빠른 조회 (Haiku)
@@ -167,8 +167,8 @@ oh-my-droid/
 │   ├── code-reviewer-low.md      # 빠른 확인 (Haiku)
 │   ├── writer.md                 # 문서화 (Haiku)
 │   ├── vision.md                 # 시각적 분석 (Sonnet)
-│   └── templates/                # Agent 생성 템플릿
-│       ├── base-agent.md
+│   └── templates/                # Droid 생성 템플릿
+│       ├── base-droid.md
 │       ├── tier-instructions.md
 │       └── README.md
 │
@@ -606,18 +606,48 @@ oh-my-droid/
 
 ---
 
-## 6. Agents 시스템
+## 6. Custom Droids 시스템
 
-### 6.1 Agent 정의 형식
+> **중요:** Droid의 Custom Droids 시스템을 사용합니다. 에이전트는 `.factory/droids/` 또는 `~/.factory/droids/` 디렉토리에 Markdown 파일로 정의됩니다.
 
-각 에이전트는 YAML frontmatter가 있는 Markdown 파일로 정의됩니다:
+### 6.1 Droid 정의 형식 (Droid 표준)
+
+각 Custom Droid는 YAML frontmatter가 있는 Markdown 파일로 정의됩니다.
+
+**위치:**
+- 프로젝트 범위: `<repo>/.factory/droids/<name>.md` (팀과 공유)
+- 개인 범위: `~/.factory/droids/<name>.md` (개인용)
+
+**필수 필드:**
+- `name`: 소문자, 숫자, `-`, `_`만 허용
+
+**선택 필드:**
+- `description`: 500자 이내, UI에 표시됨
+- `model`: `inherit` (부모 세션 모델 사용) 또는 모델 ID
+- `reasoningEffort`: `low`, `medium`, `high` (호환 모델에서만)
+- `tools`: 생략 시 모든 도구, 카테고리 문자열, 또는 도구 ID 배열
+
+**Tool 카테고리:**
+
+| 카테고리 | Tool IDs | 목적 |
+|---------|----------|------|
+| `read-only` | `Read`, `LS`, `Grep`, `Glob` | 안전한 분석 및 파일 탐색 |
+| `edit` | `Create`, `Edit`, `ApplyPatch` | 코드 생성 및 수정 |
+| `execute` | `Execute` | 쉘 명령 실행 |
+| `web` | `WebSearch`, `FetchUrl` | 인터넷 연구 |
+| `mcp` | 동적으로 채워짐 | MCP 도구 |
+
+> **참고:** `TodoWrite`는 모든 droid에 자동 포함됩니다.
+
+**예시 - Architect (READ-ONLY):**
 
 ```markdown
 ---
 name: architect
-description: Strategic Architecture & Debugging Advisor
-model: opus
-tools: Read, Grep, Glob, Bash, WebSearch
+description: 전략적 아키텍처 및 디버깅 조언자 (READ-ONLY)
+model: claude-opus-4-5-20251101
+reasoningEffort: high
+tools: read-only
 ---
 
 # Oracle (Strategic Architecture Advisor)
@@ -639,125 +669,203 @@ tools: Read, Grep, Glob, Bash, WebSearch
 
 ## 출력 형식
 
-### 분석
-[당신의 분석]
+Summary: <한 줄 요약>
+Findings:
+- <발견 사항>
 
-### 권장사항
-1. [권장사항 1]
-2. [권장사항 2]
+Recommendations:
+- <권장사항>
 
-### 위험
-- [위험 1]
-- [위험 2]
+Risks:
+- <위험 요소>
 ```
 
-### 6.2 완전한 Agent 카탈로그 (32개 Agents)
+**예시 - Executor (편집 가능):**
+
+```markdown
+---
+name: executor
+description: 집중된 작업 실행자 - 코드 변경 및 구현
+model: claude-sonnet-4-5-20250929
+tools: ["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute"]
+---
+
+# Sisyphus-Junior (Focused Task Executor)
+
+당신은 집중된 작업 실행자입니다. 주어진 작업을 직접 구현하세요.
+
+## 중요 제약사항
+
+- 다른 에이전트에게 위임하지 마세요 (당신이 실행자입니다)
+- 주어진 작업 범위 내에서만 작업하세요
+- 완료 전 변경사항을 검증하세요
+
+## 워크플로우
+
+1. 작업 이해
+2. 관련 파일 읽기
+3. 변경사항 구현
+4. 테스트/빌드로 검증
+
+Summary: <완료 요약>
+Files Changed:
+- <파일 목록>
+```
+
+**예시 - Explore (빠른 검색):**
+
+```markdown
+---
+name: explore
+description: 빠른 코드베이스 검색 전문가
+model: inherit
+tools: read-only
+---
+
+# Explore (Fast Codebase Search)
+
+빠르게 파일과 코드 패턴을 찾습니다.
+
+## 워크플로우
+
+1. 검색 쿼리 분석
+2. Glob/Grep으로 파일 찾기
+3. 관련 코드 읽기
+4. 결과 요약
+
+Summary: <검색 결과 요약>
+Files Found:
+- <파일:라인>
+```
+
+### 6.2 완전한 Custom Droid 카탈로그 (32개 Droids)
+
+> **Model ID 참고:**
+> - Opus: `claude-opus-4-5-20251101`
+> - Sonnet: `claude-sonnet-4-5-20250929`
+> - Haiku: `inherit` (부모 세션 모델) 또는 사용 가능한 Haiku 모델 ID
+>
+> `inherit`를 사용하면 부모 세션의 모델을 따릅니다.
 
 #### Analysis Family (READ-ONLY)
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `architect` | Opus | 전략적 조언자, 디버깅 | Read, Grep, Glob, Bash, WebSearch |
-| `architect-medium` | Sonnet | 표준 분석 | Read, Grep, Glob |
-| `architect-low` | Haiku | 빠른 질문 | Read, Grep, Glob |
-| `analyst` | Opus | 사전 계획 요구사항 | Read, Grep, Glob, WebSearch |
-| `critic` | Opus | 계획 검토 및 비평 | Read, Grep, Glob |
+| `architect` | `claude-opus-4-5-20251101` | 전략적 조언자, 디버깅 | `read-only` + `web` |
+| `architect-medium` | `claude-sonnet-4-5-20250929` | 표준 분석 | `read-only` |
+| `architect-low` | `inherit` | 빠른 질문 | `read-only` |
+| `analyst` | `claude-opus-4-5-20251101` | 사전 계획 요구사항 | `read-only` + `web` |
+| `critic` | `claude-opus-4-5-20251101` | 계획 검토 및 비평 | `read-only` |
 
 #### Execution Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `executor` | Sonnet | 표준 작업 실행 | Read, Grep, Glob, Edit, Write, Bash |
-| `executor-low` | Haiku | 단순 단일 파일 작업 | Read, Grep, Glob, Edit, Write, Bash |
-| `executor-high` | Opus | 복잡한 다중 파일 리팩토링 | Read, Grep, Glob, Edit, Write, Bash |
+| `executor` | `claude-sonnet-4-5-20250929` | 표준 작업 실행 | `["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute"]` |
+| `executor-low` | `inherit` | 단순 단일 파일 작업 | `["Read", "LS", "Grep", "Glob", "Edit", "Create"]` |
+| `executor-high` | `claude-opus-4-5-20251101` | 복잡한 다중 파일 리팩토링 | `["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute"]` |
 
 #### Search Family (READ-ONLY)
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `explore` | Haiku | 빠른 파일/코드 검색 | Read, Grep, Glob |
-| `explore-medium` | Sonnet | 철저한 크로스 모듈 검색 | Read, Grep, Glob |
+| `explore` | `inherit` | 빠른 파일/코드 검색 | `read-only` |
+| `explore-medium` | `claude-sonnet-4-5-20250929` | 철저한 크로스 모듈 검색 | `read-only` |
 
 #### Frontend Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `designer` | Sonnet | UI/UX 구현 | Read, Grep, Glob, Edit, Write, Bash |
-| `designer-low` | Haiku | 단순 스타일링 | Read, Grep, Glob, Edit, Write, Bash |
-| `designer-high` | Opus | 복잡한 UI 아키텍처 | Read, Grep, Glob, Edit, Write, Bash |
+| `designer` | `claude-sonnet-4-5-20250929` | UI/UX 구현 | `["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute"]` |
+| `designer-low` | `inherit` | 단순 스타일링 | `["Read", "LS", "Grep", "Glob", "Edit", "Create"]` |
+| `designer-high` | `claude-opus-4-5-20251101` | 복잡한 UI 아키텍처 | `["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute"]` |
 
 #### Data Science Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `scientist` | Sonnet | 데이터 분석, 통계 | Read, Grep, Glob, Bash, python_repl |
-| `scientist-low` | Haiku | 빠른 데이터 검사 | Read, Grep, Glob, Bash |
-| `scientist-high` | Opus | ML, 가설 검증 | Read, Grep, Glob, Bash, python_repl |
+| `scientist` | `claude-sonnet-4-5-20250929` | 데이터 분석, 통계 | `["Read", "LS", "Grep", "Glob", "Execute"]` |
+| `scientist-low` | `inherit` | 빠른 데이터 검사 | `read-only` |
+| `scientist-high` | `claude-opus-4-5-20251101` | ML, 가설 검증 | `["Read", "LS", "Grep", "Glob", "Execute"]` |
 
 #### QA & Testing Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `qa-tester` | Sonnet | 대화형 CLI 테스팅 | Read, Grep, Glob, Bash |
-| `tdd-guide` | Sonnet | TDD 워크플로우 | Read, Grep, Glob, Edit, Write, Bash |
-| `tdd-guide-low` | Haiku | 테스트 제안 | Read, Grep, Glob |
+| `qa-tester` | `claude-sonnet-4-5-20250929` | 대화형 CLI 테스팅 | `["Read", "LS", "Grep", "Glob", "Execute"]` |
+| `tdd-guide` | `claude-sonnet-4-5-20250929` | TDD 워크플로우 | `["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute"]` |
+| `tdd-guide-low` | `inherit` | 테스트 제안 | `read-only` |
 
 #### Security Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `security-reviewer` | Opus | OWASP 취약점 탐지 | Read, Grep, Glob, Bash |
-| `security-reviewer-low` | Haiku | 빠른 보안 스캔 | Read, Grep, Glob |
+| `security-reviewer` | `claude-opus-4-5-20251101` | OWASP 취약점 탐지 | `["Read", "LS", "Grep", "Glob", "WebSearch"]` |
+| `security-reviewer-low` | `inherit` | 빠른 보안 스캔 | `read-only` |
 
 #### Build & Quality Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `build-fixer` | Sonnet | TypeScript/빌드 에러 | Read, Grep, Glob, Edit, Write, Bash |
-| `build-fixer-low` | Haiku | 단순 빌드 수정 | Read, Grep, Glob, Edit, Write, Bash |
-| `code-reviewer` | Opus | 전문 코드 리뷰 | Read, Grep, Glob, Bash |
-| `code-reviewer-low` | Haiku | 빠른 품질 확인 | Read, Grep, Glob |
+| `build-fixer` | `claude-sonnet-4-5-20250929` | TypeScript/빌드 에러 | `["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute"]` |
+| `build-fixer-low` | `inherit` | 단순 빌드 수정 | `["Read", "LS", "Grep", "Glob", "Edit", "Create"]` |
+| `code-reviewer` | `claude-opus-4-5-20251101` | 전문 코드 리뷰 | `read-only` |
+| `code-reviewer-low` | `inherit` | 빠른 품질 확인 | `read-only` |
 
 #### Research & Documentation Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `researcher` | Sonnet | 외부 문서 연구 | Read, Grep, Glob, WebSearch, WebFetch |
-| `researcher-low` | Haiku | 빠른 문서 조회 | Read, Grep, Glob, WebSearch |
-| `writer` | Haiku | 기술 문서화 | Read, Grep, Glob, Edit, Write |
+| `researcher` | `claude-sonnet-4-5-20250929` | 외부 문서 연구 | `["Read", "LS", "Grep", "Glob", "WebSearch", "FetchUrl"]` |
+| `researcher-low` | `inherit` | 빠른 문서 조회 | `["Read", "LS", "Grep", "Glob", "WebSearch"]` |
+| `writer` | `inherit` | 기술 문서화 | `["Read", "LS", "Grep", "Glob", "Edit", "Create"]` |
 
 #### Planning Family
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `planner` | Opus | 전략적 계획 | Read, Grep, Glob, Edit, Write, Bash, WebSearch |
+| `planner` | `claude-opus-4-5-20251101` | 전략적 계획 | `["Read", "LS", "Grep", "Glob", "Edit", "Create", "Execute", "WebSearch"]` |
 
 #### Specialized
-| Agent | Model | 목적 | Tools |
+| Droid | Model | 목적 | Tools |
 |-------|-------|------|-------|
-| `vision` | Sonnet | 이미지/PDF 분석 | Read, Grep, Glob |
+| `vision` | `claude-sonnet-4-5-20250929` | 이미지/PDF 분석 | `read-only` |
 
 ### 6.3 계층 시스템
 
 | 계층 | Model | 비용 | 범위 | 파일 제한 | 사용 대상 |
 |------|-------|------|------|----------|----------|
-| **LOW** | Haiku | $ | 단순, 잘 정의된 | 1-5 파일 | 조회, 단순 편집 |
-| **MEDIUM** | Sonnet | $$ | 중간 복잡도 | 5-20 파일 | 기능, 표준 작업 |
-| **HIGH** | Opus | $$$ | 복잡, 아키텍처 | 무제한 | 리팩토링, 디버깅 |
+| **LOW** | `inherit` | $ | 단순, 잘 정의된 | 1-5 파일 | 조회, 단순 편집 |
+| **MEDIUM** | `claude-sonnet-4-5-20250929` | $$ | 중간 복잡도 | 5-20 파일 | 기능, 표준 작업 |
+| **HIGH** | `claude-opus-4-5-20251101` | $$$ | 복잡, 아키텍처 | 무제한 | 리팩토링, 디버깅 |
 
-### 6.4 Agent 선택 가이드
+> **참고:** `inherit`를 사용하면 부모 세션의 모델을 따르므로 비용 효율적입니다. LOW 계층의 droid들은 일반적으로 `inherit`를 사용하여 부모가 Haiku를 사용할 때 자동으로 Haiku를 사용합니다.
 
-| 작업 유형 | 최적 Agent | Model |
-|-----------|-----------|-------|
-| 빠른 코드 조회 | `explore` | haiku |
-| 파일/패턴 찾기 | `explore` 또는 `explore-medium` | haiku/sonnet |
-| 단순 코드 변경 | `executor-low` | haiku |
-| 기능 구현 | `executor` | sonnet |
-| 복잡한 리팩토링 | `executor-high` | opus |
-| 단순 이슈 디버깅 | `architect-low` | haiku |
-| 복잡한 이슈 디버깅 | `architect` | opus |
-| UI 컴포넌트 | `designer` | sonnet |
-| 복잡한 UI 시스템 | `designer-high` | opus |
-| 문서/주석 작성 | `writer` | haiku |
-| 문서/API 연구 | `researcher` | sonnet |
-| 이미지/다이어그램 분석 | `vision` | sonnet |
-| 전략 계획 | `planner` | opus |
-| 계획 검토/비평 | `critic` | opus |
-| 보안 리뷰 | `security-reviewer` | opus |
-| 빌드 에러 수정 | `build-fixer` | sonnet |
-| TDD 워크플로우 | `tdd-guide` | sonnet |
-| 코드 리뷰 | `code-reviewer` | opus |
-| 데이터 분석 | `scientist` | sonnet |
+### 6.4 Droid 선택 가이드
+
+| 작업 유형 | 최적 Droid | Model 계층 |
+|-----------|-----------|-----------|
+| 빠른 코드 조회 | `explore` | LOW (inherit) |
+| 파일/패턴 찾기 | `explore` 또는 `explore-medium` | LOW/MEDIUM |
+| 단순 코드 변경 | `executor-low` | LOW (inherit) |
+| 기능 구현 | `executor` | MEDIUM (Sonnet) |
+| 복잡한 리팩토링 | `executor-high` | HIGH (Opus) |
+| 단순 이슈 디버깅 | `architect-low` | LOW (inherit) |
+| 복잡한 이슈 디버깅 | `architect` | HIGH (Opus) |
+| UI 컴포넌트 | `designer` | MEDIUM (Sonnet) |
+| 복잡한 UI 시스템 | `designer-high` | HIGH (Opus) |
+| 문서/주석 작성 | `writer` | LOW (inherit) |
+| 문서/API 연구 | `researcher` | MEDIUM (Sonnet) |
+| 이미지/다이어그램 분석 | `vision` | MEDIUM (Sonnet) |
+| 전략 계획 | `planner` | HIGH (Opus) |
+| 계획 검토/비평 | `critic` | HIGH (Opus) |
+| 보안 리뷰 | `security-reviewer` | HIGH (Opus) |
+| 빌드 에러 수정 | `build-fixer` | MEDIUM (Sonnet) |
+| TDD 워크플로우 | `tdd-guide` | MEDIUM (Sonnet) |
+| 코드 리뷰 | `code-reviewer` | HIGH (Opus) |
+| 데이터 분석 | `scientist` | MEDIUM (Sonnet) |
+
+### 6.5 Droid 호출 방법
+
+Custom Droid는 **Task tool**을 통해 `subagent_type` 파라미터로 호출됩니다:
+
+```
+사용자: "code-reviewer droid로 이 diff를 검토해줘"
+또는
+사용자: "Run the subagent `architect` to analyze this architecture"
+```
+
+Droid는 사용자 요청 없이도 자율적으로 Custom Droid를 호출할 수 있습니다.
 
 ---
 
@@ -1137,10 +1245,10 @@ try {
    - `skills/omd-setup/SKILL.md`
    - `skills/orchestrate/SKILL.md`
 
-4. **필수 Agents**
-   - `agents/architect.md`
-   - `agents/executor.md`
-   - `agents/explore.md`
+4. **필수 Custom Droids**
+   - `droids/architect.md`
+   - `droids/executor.md`
+   - `droids/explore.md`
 
 ### 2단계: 실행 모드 (2주차)
 
@@ -1172,10 +1280,10 @@ try {
    - `skills/ralplan/SKILL.md`
    - `skills/review/SKILL.md`
 
-### 4단계: 전체 Agent 카탈로그 (4주차)
+### 4단계: 전체 Custom Droids 카탈로그 (4주차)
 
-1. **모든 계층형 Agents**
-   - 32개의 에이전트 정의 완료
+1. **모든 계층형 Custom Droids**
+   - 32개의 droid 정의 완료 (`droids/*.md`)
    - 템플릿 시스템
 
 2. **고급 Skills**
@@ -1208,7 +1316,7 @@ try {
 1. **테스팅**
    - Hook 스크립트 테스팅
    - Skill 통합 테스팅
-   - Agent 검증
+   - Custom Droids 검증
 
 2. **릴리스**
    - npm 패키지 준비
