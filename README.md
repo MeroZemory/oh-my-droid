@@ -2,7 +2,7 @@
 
 Multi-agent orchestration plugin for Factory AI Droid CLI.
 
-> **Based on [oh-my-claudecode](https://github.com/anthropics/claude-code)** - This project is a port of the oh-my-claudecode plugin, adapted for Factory AI's Droid CLI platform. All core architecture, agent definitions, skills, and orchestration patterns are derived from oh-my-claudecode.
+> **Based on [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode)** by Yeachan Heo - This project is a port of the oh-my-claudecode plugin, adapted for Factory AI's Droid CLI platform. All core architecture, agent definitions, skills, and orchestration patterns are derived from oh-my-claudecode.
 
 ## Overview
 
@@ -53,7 +53,7 @@ npm run lint
 
 ## Credits
 
-This project is based on **[oh-my-claudecode](https://github.com/anthropics/claude-code)**, the multi-agent orchestration plugin for Claude Code CLI. Oh My Droid adapts the same architecture and patterns for the Factory AI Droid platform.
+This project is based on **[oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode)** by **Yeachan Heo**, the multi-agent orchestration plugin for Claude Code CLI. Oh My Droid adapts the same architecture and patterns for the Factory AI Droid platform.
 
 ### Key Adaptations from oh-my-claudecode
 
@@ -66,4 +66,9 @@ This project is based on **[oh-my-claudecode](https://github.com/anthropics/clau
 
 ## License
 
-MIT
+MIT License
+
+Copyright (c) 2025 Jio Kim
+Based on oh-my-claudecode - Copyright (c) 2025 Yeachan Heo
+
+See [LICENSE](./LICENSE) for details.
