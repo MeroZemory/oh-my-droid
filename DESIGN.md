@@ -206,7 +206,15 @@ oh-my-droid/
 │   ├── omd-setup/SKILL.md        # 일회성 설정
 │   ├── omd-default/SKILL.md      # 로컬 프로젝트 설정
 │   ├── omd-default-global/SKILL.md # 글로벌 설정
-│   └── ralph-init/SKILL.md       # PRD 초기화
+│   ├── ralph-init/SKILL.md       # PRD 초기화
+│   ├── build-fix/SKILL.md        # 빌드 에러 수정
+│   ├── code-review/SKILL.md      # 종합 코드 리뷰
+│   ├── security-review/SKILL.md  # 종합 보안 리뷰
+│   ├── release/SKILL.md          # 릴리스 워크플로우
+│   ├── skill/SKILL.md            # 로컬 skill 관리
+│   ├── local-skills-setup/SKILL.md # 로컬 skill 설정
+│   ├── mcp-setup/SKILL.md        # MCP 서버 설정
+│   └── learn-about-omd/SKILL.md  # OMD 학습 가이드
 │
 ├── commands/                     # Command 문서
 │   ├── help.md
@@ -399,6 +407,50 @@ oh-my-droid/
             "type": "command",
             "command": "${DROID_PLUGIN_ROOT}/scripts/session-end.mjs",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Error": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${DROID_PLUGIN_ROOT}/scripts/error-recovery.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${DROID_PLUGIN_ROOT}/scripts/session-idle.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "MessagesTransform": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${DROID_PLUGIN_ROOT}/scripts/messages-transform.mjs",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "ChatParams": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${DROID_PLUGIN_ROOT}/scripts/chat-params.mjs",
+            "timeout": 3
           }
         ]
       }
@@ -603,6 +655,265 @@ oh-my-droid/
 - Ralph: 최대 10회 반복
 - Ultrawork: 최대 10회 강화
 - Generic: 최대 15회 시도
+
+#### 5.2.8 error-recovery.mjs
+
+**목적:** 에러 복구 (context-window, edit-error, session-recovery 통합)
+
+**입력 (stdin):**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "/path/to/transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "Error",
+  "error_type": "context_window_overflow|edit_conflict|tool_execution|session_corrupt|unknown",
+  "error_message": "Context window exceeded maximum token limit",
+  "error_details": {
+    "tool_name": "Edit",
+    "file_path": "/path/to/file.ts",
+    "additional_info": {}
+  }
+}
+```
+
+**작업:**
+1. 에러 타입별 복구 전략 결정
+2. context_window_overflow → 압축 권장 및 중요 상태 보존
+3. edit_conflict → 파일 상태 확인 및 재시도 가이드
+4. tool_execution → 대안 접근법 제안
+5. session_corrupt → 상태 파일 복구 시도 및 안내
+6. 복구 가이드 컨텍스트 생성
+
+**출력:**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "Error",
+    "additionalContext": "<error-recovery type=\"context_window_overflow\">\n## 복구 가이드\n1. 컨텍스트 압축이 필요합니다\n2. 중요 상태가 보존되었습니다\n3. 다음 단계: ...\n</error-recovery>"
+  }
+}
+```
+
+**에러 타입별 복구 전략:**
+| 에러 타입 | 복구 전략 |
+|----------|----------|
+| `context_window_overflow` | 자동 압축 트리거, notepad에 상태 백업 |
+| `edit_conflict` | 파일 현재 상태 읽기, 충돌 해결 가이드 |
+| `tool_execution` | 대안 도구/접근법 제안 |
+| `session_corrupt` | 상태 파일 재초기화, 마지막 유효 상태 복원 |
+| `unknown` | 일반 복구 가이드, 디버그 정보 수집 |
+
+#### 5.2.9 session-idle.mjs
+
+**목적:** 유휴 상태 감지 및 지속성 루프 계속
+
+**입력 (stdin):**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "/path/to/transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "SessionIdle",
+  "idle_duration_ms": 30000,
+  "last_activity": "tool_use",
+  "last_activity_timestamp": "2024-01-26T10:00:00Z"
+}
+```
+
+**작업:**
+1. 활성 지속성 모드 확인 (ralph, ultrawork, autopilot)
+2. 미완료 todos 확인
+3. boulder 상태 확인
+4. 유휴 상태에서 계속해야 할 작업 결정
+5. 계속 프롬프트 생성 또는 유휴 허용
+
+**출력 (계속 필요):**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionIdle",
+    "additionalContext": "<session-idle-continuation>\nRalph loop가 활성화되어 있습니다. 미완료 작업이 있습니다:\n- [ ] Task 1\n- [ ] Task 2\n계속 진행하세요.\n</session-idle-continuation>"
+  }
+}
+```
+
+**출력 (유휴 허용):**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionIdle"
+  }
+}
+```
+
+**지속성 우선순위:**
+1. Ralph Loop 활성 → 즉시 계속 프롬프트
+2. Ultrawork 활성 → 미완료 태스크 확인 후 계속
+3. Autopilot 활성 → 현재 단계 계속
+4. Boulder 활성 → 다음 boulder 항목 진행
+5. 미완료 Todos → 알림 후 사용자 결정 대기
+
+#### 5.2.10 messages-transform.mjs
+
+**목적:** API 호출 전 메시지 변환 (empty-message-sanitizer, thinking-block-validator)
+
+**입력 (stdin):**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "/path/to/transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "MessagesTransform",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Let me analyze..."
+        },
+        {
+          "type": "text",
+          "text": "Response"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**작업:**
+1. 빈 메시지 제거 (empty-message-sanitizer)
+2. 연속된 동일 역할 메시지 병합
+3. thinking 블록 검증 및 정리 (thinking-block-validator)
+4. 잘못된 형식의 content 블록 수정
+5. 토큰 최적화를 위한 중복 제거
+
+**출력:**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "MessagesTransform",
+    "transformedMessages": [
+      {
+        "role": "user",
+        "content": "Hello"
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Response"
+          }
+        ]
+      }
+    ],
+    "transformationLog": [
+      "Removed empty assistant message at index 1",
+      "Removed thinking block from user message at index 2"
+    ]
+  }
+}
+```
+
+**변환 규칙:**
+| 규칙 | 설명 |
+|------|------|
+| Empty Message | 빈 content를 가진 메시지 제거 |
+| Consecutive Roles | 연속된 동일 역할 메시지 병합 |
+| Thinking Blocks | user 역할에서 thinking 블록 제거 |
+| Invalid Content | 잘못된 content 타입 수정 |
+| Whitespace Only | 공백만 있는 텍스트 정리 |
+
+#### 5.2.11 chat-params.mjs
+
+**목적:** think-mode 활성화 시 모델/파라미터 조정
+
+**입력 (stdin):**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "/path/to/transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "ChatParams",
+  "current_params": {
+    "model": "claude-sonnet-4-5-20250929",
+    "max_tokens": 8192,
+    "temperature": 0.7,
+    "thinking": {
+      "type": "disabled"
+    }
+  },
+  "active_modes": ["ultrawork"],
+  "task_context": {
+    "complexity": "high",
+    "task_type": "debugging"
+  }
+}
+```
+
+**작업:**
+1. 활성 모드에 따른 파라미터 조정
+2. think-mode 활성화 여부 결정
+3. 모델 업그레이드/다운그레이드 결정
+4. thinking budget 조정
+5. 온도(temperature) 최적화
+
+**출력:**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "ChatParams",
+    "modifiedParams": {
+      "model": "claude-opus-4-5-20251101",
+      "max_tokens": 16384,
+      "temperature": 0.3,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 10000
+      }
+    },
+    "parameterChangeLog": [
+      "Upgraded model to Opus for high complexity debugging",
+      "Enabled thinking mode with 10000 token budget",
+      "Reduced temperature for more deterministic output"
+    ]
+  }
+}
+```
+
+**파라미터 조정 규칙:**
+| 조건 | 조정 내용 |
+|------|----------|
+| `ultrathink` 키워드 감지 | thinking.type = "enabled", budget_tokens = 20000 |
+| 복잡한 디버깅 작업 | model → Opus, thinking 활성화 |
+| ecomode 활성 | model → inherit/Haiku, thinking 비활성화 |
+| 단순 조회 작업 | model 유지, max_tokens 감소 |
+| 창의적 작업 | temperature 증가 (0.7-0.9) |
+| 코드 생성 | temperature 감소 (0.1-0.3) |
+
+**모드별 기본 파라미터:**
+| 모드 | Model | Thinking | Temperature |
+|------|-------|----------|-------------|
+| `ultrathink` | Opus | enabled (20k) | 0.3 |
+| `ultrawork` | Sonnet | enabled (8k) | 0.5 |
+| `ecomode` | inherit | disabled | 0.5 |
+| `autopilot` | Sonnet | enabled (10k) | 0.5 |
+| `ralph` | 현재 유지 | 현재 유지 | 현재 유지 |
 
 ---
 
@@ -869,6 +1180,43 @@ Custom Droid는 **Task tool**을 통해 `subagent_type` 파라미터로 호출�
 
 Droid는 사용자 요청 없이도 자율적으로 Custom Droid를 호출할 수 있습니다.
 
+### 6.6 Delegation Categories (위임 카테고리)
+
+의미론적 작업 분류 시스템으로, 프롬프트 키워드를 기반으로 자동으로 모델 계층, 온도, thinking 예산을 결정합니다.
+
+**카테고리 정의:**
+
+| 카테고리 | 계층 | 온도 | Thinking | 용도 |
+|---------|------|------|----------|------|
+| `visual-engineering` | HIGH | 0.7 | high | UI/UX, 프론트엔드, 디자인 시스템 |
+| `ultrabrain` | HIGH | 0.3 | max | 복잡한 추론, 아키텍처, 심층 디버깅 |
+| `artistry` | MEDIUM | 0.9 | medium | 창의적 솔루션, 브레인스토밍 |
+| `quick` | LOW | 0.1 | low | 단순 조회, 기본 작업 |
+| `writing` | MEDIUM | 0.5 | medium | 문서화, 기술 작성 |
+
+**자동 감지 키워드:**
+
+| 카테고리 | 감지 키워드 |
+|---------|------------|
+| `visual-engineering` | UI, UX, frontend, design, component, styling, layout |
+| `ultrabrain` | debug, complex, architecture, refactor, analyze deeply |
+| `artistry` | creative, brainstorm, innovative, explore options |
+| `quick` | simple, quick, lookup, find, what is |
+| `writing` | document, write, README, comment, explain |
+
+**사용 예시:**
+
+```
+// "UI 컴포넌트 만들어줘" → visual-engineering 감지
+Task(subagent_type="designer", model="opus", temperature=0.7, thinking="high")
+
+// "이 버그 디버깅해줘" → ultrabrain 감지
+Task(subagent_type="architect", model="opus", temperature=0.3, thinking="max")
+
+// "UserService 찾아줘" → quick 감지
+Task(subagent_type="explore", model="haiku", temperature=0.1, thinking="low")
+```
+
 ---
 
 ## 7. Skills 시스템
@@ -944,6 +1292,9 @@ description: Maximum parallel execution mode
 | `frontend-ui-ux` | 조용한 디자인 감각 (자동 활성화) |
 | `git-master` | Git 전문성 (자동 활성화) |
 | `ralph-init` | 스토리가 있는 PRD 초기화 |
+| `build-fix` | 빌드/TypeScript 에러 최소 변경으로 수정 |
+| `code-review` | 종합 코드 리뷰 실행 |
+| `security-review` | 종합 보안 리뷰 실행 |
 
 #### 유틸리티
 | Skill | 목적 |
@@ -961,6 +1312,11 @@ description: Maximum parallel execution mode
 | `omd-setup` | 일회성 설정 마법사 |
 | `omd-default` | 로컬 프로젝트 설정 |
 | `omd-default-global` | 글로벌 설정 |
+| `release` | 자동화된 릴리스 워크플로우 |
+| `skill` | 로컬 skill 관리 (list, add, remove, search, edit) |
+| `local-skills-setup` | 로컬 skill 설정 및 관리 |
+| `mcp-setup` | MCP 서버 설정 |
+| `learn-about-omd` | OMD 사용 패턴 분석 및 추천 |
 
 ### 7.3 Skill 호출
 
@@ -1001,6 +1357,12 @@ description: Maximum parallel execution mode
 | Session Stats | - | `~/.factory/omd/.session-stats.json` |
 | Learned Skills | `.omd/skills/*.md` | `~/.factory/omd/skills/*.md` |
 | Todos | `.omd/todos.json` | `~/.factory/omd/todos/*.json` |
+| Boulder | `.omd/boulder.json` | - |
+| Progress Log | `.omd/progress.txt` | - |
+| Metrics Log | `.omd/logs/metrics.jsonl` | - |
+| Delegation Audit | `.omd/logs/delegation-audit.jsonl` | - |
+| Global State | - | `~/.factory/omd/state/{name}.json` |
+| Global Droids | - | `~/.factory/droids/` |
 
 ### 8.2 상태 파일 스키마
 
@@ -1045,6 +1407,27 @@ description: Maximum parallel execution mode
 }
 ```
 
+#### boulder.json
+```json
+{
+  "active_plan": "plan-name",
+  "started_at": "2024-01-26T10:00:00Z",
+  "session_ids": ["session-1", "session-2"],
+  "plan_name": "feature-implementation"
+}
+```
+
+#### progress.txt
+```
+=== Codebase Patterns ===
+- TypeScript monorepo with pnpm
+- React frontend, Node.js backend
+
+=== Progress Entries ===
+[2024-01-26 10:00] Started implementation
+[2024-01-26 10:30] Completed phase 1
+```
+
 ### 8.3 Notepad Wisdom 시스템
 
 위치: `.omd/notepads/{plan-name}/`
@@ -1055,6 +1438,63 @@ description: Maximum parallel execution mode
 | `decisions.md` | 아키텍처 선택, 근거 |
 | `issues.md` | 알려진 문제, 해결 방법 |
 | `problems.md` | 차단 요소, 도전 과제 |
+
+#### Notepad API 함수
+
+| 함수 | 설명 | 반환값 |
+|------|------|--------|
+| `initPlanNotepad(planName)` | 플랜용 notepad 디렉토리 초기화 | `{ path: string }` |
+| `addLearning(planName, content)` | 기술적 발견 추가 | `{ success: boolean }` |
+| `addDecision(planName, content)` | 아키텍처 결정 추가 | `{ success: boolean }` |
+| `addIssue(planName, content)` | 알려진 이슈 추가 | `{ success: boolean }` |
+| `addProblem(planName, content)` | 차단 요소 추가 | `{ success: boolean }` |
+| `getWisdomSummary(planName)` | 전체 지혜 요약 | `{ learnings, decisions, issues, problems }` |
+| `readPlanWisdom(planName)` | 특정 플랜 지혜 읽기 | `PlanWisdom` object |
+
+### 8.4 Context Persistence (컨텍스트 지속성)
+
+`<remember>` 태그를 사용하여 대화 압축(compaction)에서 살아남는 컨텍스트를 저장합니다.
+
+**태그 형식:**
+
+| 태그 | 수명 | 용도 |
+|------|------|------|
+| `<remember>info</remember>` | 7일 | 세션별 컨텍스트 |
+| `<remember priority>info</remember>` | 영구 | 중요 패턴/사실 |
+
+**캡처 대상:**
+- 아키텍처 결정
+- 에러 해결 방법
+- 사용자 선호도
+- 중요한 코드 패턴
+
+**캡처하지 않을 대상:**
+- 진행 상황 (todos 사용)
+- 임시 상태
+- AGENTS.md에 있는 정보
+
+**처리 흐름:**
+1. PostToolUse hook에서 `<remember>` 태그 감지
+2. 태그 내용을 notepad에 저장
+3. PreCompact hook에서 priority 항목 보존
+4. SessionStart hook에서 활성 컨텍스트 복원
+
+### 8.5 Directory Diagnostics (디렉토리 진단)
+
+프로젝트 레벨 타입 체킹을 위한 `lsp_diagnostics_directory` 도구.
+
+**전략:**
+
+| 전략 | 설명 | 우선순위 |
+|------|------|---------|
+| `auto` | 자동 선택 (tsconfig.json 존재 시 tsc 선호) | 기본값 |
+| `tsc` | TypeScript 컴파일러 사용 (빠름) | tsconfig.json 필요 |
+| `lsp` | Language Server 사용 (폴백) | 모든 파일 순회 |
+
+**사용 시점:**
+- 커밋 전 전체 프로젝트 에러 확인
+- 리팩토링 후 타입 검증
+- 빌드 실패 진단
 
 ---
 
@@ -1081,6 +1521,37 @@ description: Maximum parallel execution mode
   "delegation": {
     "enforceForSourceFiles": true,
     "warnedExtensions": [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rs"]
+  },
+  "delegationCategories": {
+    "visual-engineering": { "tier": "HIGH", "temperature": 0.7, "thinking": "high" },
+    "ultrabrain": { "tier": "HIGH", "temperature": 0.3, "thinking": "max" },
+    "artistry": { "tier": "MEDIUM", "temperature": 0.9, "thinking": "medium" },
+    "quick": { "tier": "LOW", "temperature": 0.1, "thinking": "low" },
+    "writing": { "tier": "MEDIUM", "temperature": 0.5, "thinking": "medium" }
+  },
+  "categoryKeywords": {
+    "visual-engineering": ["UI", "UX", "frontend", "design", "component"],
+    "ultrabrain": ["debug", "complex", "architecture", "refactor"],
+    "artistry": ["creative", "brainstorm", "innovative"],
+    "quick": ["simple", "quick", "lookup", "find"],
+    "writing": ["document", "write", "README"]
+  },
+  "backgroundExecution": {
+    "maxConcurrentTasks": 5,
+    "commands": ["npm install", "npm run build", "npm test", "docker build"]
+  },
+  "circuitBreaker": {
+    "threshold": 3,
+    "cooldownSeconds": 60
+  },
+  "contextPersistence": {
+    "defaultTTL": "7d",
+    "priorityTTL": "permanent"
+  },
+  "diagnostics": {
+    "strategy": "auto",
+    "tscEnabled": true,
+    "lspFallback": true
   }
 }
 ```
@@ -1565,6 +2036,210 @@ try {
 
 > **참고:** SessionEnd hooks는 세션 종료를 차단할 수 없습니다. 정리 작업만을 위한 것입니다. 출력은 디버그에만 로그됩니다.
 
+### A.8 Error
+
+**입력:**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "~/.factory/projects/.../transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "Error",
+  "error_type": "context_window_overflow|edit_conflict|tool_execution|session_corrupt|unknown",
+  "error_message": "Context window exceeded maximum token limit",
+  "error_details": {
+    "tool_name": "Edit",
+    "file_path": "/path/to/file.ts",
+    "stack_trace": "...",
+    "additional_info": {}
+  }
+}
+```
+
+**출력 (복구 가이드 주입):**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "Error",
+    "additionalContext": "<error-recovery type=\"context_window_overflow\">\n## 복구 가이드\n1. 컨텍스트 압축이 필요합니다\n2. 중요 상태가 보존되었습니다\n3. 다음 단계: ...\n</error-recovery>"
+  }
+}
+```
+
+**출력 (자동 복구 시도):**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "Error",
+    "recoveryAction": "auto_compact|retry|skip|abort",
+    "recoveryContext": {
+      "preserved_state": {},
+      "retry_params": {}
+    },
+    "additionalContext": "자동 복구가 시도됩니다..."
+  }
+}
+```
+
+> **참고:** Error hooks는 에러 발생 시 복구 가이드를 제공하거나 자동 복구를 시도할 수 있습니다. `recoveryAction`으로 복구 전략을 지정할 수 있습니다.
+
+### A.9 SessionIdle
+
+**입력:**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "~/.factory/projects/.../transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "SessionIdle",
+  "idle_duration_ms": 30000,
+  "last_activity": "tool_use|user_message|assistant_response",
+  "last_activity_timestamp": "2024-01-26T10:00:00Z"
+}
+```
+
+**출력 (계속 프롬프트):**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionIdle",
+    "additionalContext": "<session-idle-continuation>\nRalph loop가 활성화되어 있습니다. 미완료 작업이 있습니다:\n- [ ] Task 1\n- [ ] Task 2\n계속 진행하세요.\n</session-idle-continuation>",
+    "continueSession": true
+  }
+}
+```
+
+**출력 (유휴 허용):**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionIdle",
+    "continueSession": false
+  }
+}
+```
+
+> **참고:** SessionIdle hooks는 세션이 일정 시간 유휴 상태일 때 호출됩니다. 지속성 모드(ralph, ultrawork 등)가 활성화된 경우 계속 프롬프트를 주입하여 작업을 재개할 수 있습니다.
+
+### A.10 MessagesTransform
+
+**입력:**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "~/.factory/projects/.../transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "MessagesTransform",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello"
+    },
+    {
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Let me analyze..."
+        },
+        {
+          "type": "text",
+          "text": "Response"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**출력:**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "MessagesTransform",
+    "transformedMessages": [
+      {
+        "role": "user",
+        "content": "Hello"
+      },
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Response"
+          }
+        ]
+      }
+    ],
+    "transformationLog": [
+      "Removed empty assistant message at index 1",
+      "Removed thinking block from user message at index 2"
+    ]
+  }
+}
+```
+
+> **참고:** MessagesTransform hooks는 API 호출 전 메시지 배열을 변환합니다. 빈 메시지 제거, thinking 블록 정리, 연속 역할 병합 등을 수행할 수 있습니다. `transformedMessages`가 제공되면 원본 메시지를 대체합니다.
+
+### A.11 ChatParams
+
+**입력:**
+```json
+{
+  "session_id": "abc123",
+  "transcript_path": "~/.factory/projects/.../transcript.jsonl",
+  "cwd": "/project/path",
+  "permission_mode": "default",
+  "hook_event_name": "ChatParams",
+  "current_params": {
+    "model": "claude-sonnet-4-5-20250929",
+    "max_tokens": 8192,
+    "temperature": 0.7,
+    "thinking": {
+      "type": "disabled"
+    }
+  },
+  "active_modes": ["ultrawork", "ecomode"],
+  "task_context": {
+    "complexity": "low|medium|high",
+    "task_type": "coding|debugging|documentation|analysis|other"
+  }
+}
+```
+
+**출력:**
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "ChatParams",
+    "modifiedParams": {
+      "model": "claude-opus-4-5-20251101",
+      "max_tokens": 16384,
+      "temperature": 0.3,
+      "thinking": {
+        "type": "enabled",
+        "budget_tokens": 10000
+      }
+    },
+    "parameterChangeLog": [
+      "Upgraded model to Opus for high complexity debugging",
+      "Enabled thinking mode with 10000 token budget",
+      "Reduced temperature for more deterministic output"
+    ]
+  }
+}
+```
+
+> **참고:** ChatParams hooks는 API 호출 전 모델 파라미터를 조정합니다. 활성 모드, 작업 복잡도, 작업 유형에 따라 모델, thinking 설정, 온도 등을 동적으로 조정할 수 있습니다. `modifiedParams`가 제공되면 해당 필드만 원본 파라미터를 덮어씁니다.
+
 ---
 
 ## 부록 B: 환경 변수
@@ -1575,6 +2250,9 @@ try {
 | `DROID_PLUGIN_ROOT` | 플러그인 디렉토리의 절대 경로 |
 | `OMD_DEBUG` | 디버그 로깅 활성화 |
 | `OMD_CONFIG_PATH` | 커스텀 설정 파일 경로 |
+| `OMD_MAX_BACKGROUND_TASKS` | 최대 동시 백그라운드 작업 수 (기본값: 5) |
+| `OMD_CIRCUIT_BREAKER_THRESHOLD` | 회로 차단기 임계값 (기본값: 3) |
+| `OMD_DIAGNOSTICS_STRATEGY` | 진단 전략 (auto, tsc, lsp) |
 
 ---
 
