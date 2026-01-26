@@ -1,0 +1,415 @@
+#!/usr/bin/env node
+
+/**
+ * oh-my-droid Persistent Mode Hook (Node.js)
+ * Unified handler for ultrawork, ralph-loop, autopilot, and todo continuation
+ * Cross-platform: Windows, macOS, Linux
+ */
+
+import { existsSync, readFileSync, writeFileSync, readdirSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
+
+// Read all stdin
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+// Read JSON file safely
+function readJsonFile(path) {
+  try {
+    if (!existsSync(path)) return null;
+    return JSON.parse(readFileSync(path, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+// Write JSON file safely
+function writeJsonFile(path, data) {
+  try {
+    writeFileSync(path, JSON.stringify(data, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Read PRD and get status
+function getPrdStatus(projectDir) {
+  // Check both root and .omd for prd.json
+  const paths = [
+    join(projectDir, 'prd.json'),
+    join(projectDir, '.omd', 'prd.json')
+  ];
+
+  for (const prdPath of paths) {
+    const prd = readJsonFile(prdPath);
+    if (prd && Array.isArray(prd.userStories)) {
+      const stories = prd.userStories;
+      const completed = stories.filter(s => s.passes === true);
+      const pending = stories.filter(s => s.passes !== true);
+      const sortedPending = [...pending].sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+      return {
+        hasPrd: true,
+        total: stories.length,
+        completed: completed.length,
+        pending: pending.length,
+        allComplete: pending.length === 0,
+        nextStory: sortedPending[0] || null,
+        incompleteIds: pending.map(s => s.id)
+      };
+    }
+  }
+
+  return { hasPrd: false, allComplete: false, nextStory: null };
+}
+
+// Read progress.txt patterns for context
+function getProgressPatterns(projectDir) {
+  const paths = [
+    join(projectDir, 'progress.txt'),
+    join(projectDir, '.omd', 'progress.txt')
+  ];
+
+  for (const progressPath of paths) {
+    if (existsSync(progressPath)) {
+      try {
+        const content = readFileSync(progressPath, 'utf-8');
+        const patterns = [];
+        let inPatterns = false;
+
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (trimmed === '## Codebase Patterns') {
+            inPatterns = true;
+            continue;
+          }
+          if (trimmed === '---') {
+            inPatterns = false;
+            continue;
+          }
+          if (inPatterns && trimmed.startsWith('-')) {
+            const pattern = trimmed.slice(1).trim();
+            if (pattern && !pattern.includes('No patterns')) {
+              patterns.push(pattern);
+            }
+          }
+        }
+
+        return patterns;
+      } catch {}
+    }
+  }
+
+  return [];
+}
+
+// Count incomplete todos
+function countIncompleteTodos(todosDir, projectDir) {
+  let count = 0;
+
+  // Check global todos
+  if (existsSync(todosDir)) {
+    try {
+      const files = readdirSync(todosDir).filter(f => f.endsWith('.json'));
+      for (const file of files) {
+        const todos = readJsonFile(join(todosDir, file));
+        if (Array.isArray(todos)) {
+          count += todos.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length;
+        }
+      }
+    } catch {}
+  }
+
+  // Check project todos
+  for (const path of [
+    join(projectDir, '.omd', 'todos.json'),
+    join(projectDir, '.factory', 'todos.json')
+  ]) {
+    const data = readJsonFile(path);
+    const todos = data?.todos || data;
+    if (Array.isArray(todos)) {
+      count += todos.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length;
+    }
+  }
+
+  return count;
+}
+
+async function main() {
+  try {
+    const input = await readStdin();
+    let data = {};
+    try { data = JSON.parse(input); } catch {}
+
+    const directory = data.directory || process.cwd();
+    const todosDir = join(homedir(), '.factory', 'todos');
+
+    // Check for ultrawork state
+    let ultraworkState = readJsonFile(join(directory, '.omd', 'ultrawork-state.json'))
+      || readJsonFile(join(homedir(), '.factory', 'omd', 'ultrawork-state.json'));
+
+    // Check for autopilot state
+    const autopilotState = readJsonFile(join(directory, '.omd', 'autopilot-state.json'));
+
+    // Check for ralph loop state
+    const ralphState = readJsonFile(join(directory, '.omd', 'ralph-state.json'));
+
+    // Check for verification state
+    const verificationState = readJsonFile(join(directory, '.omd', 'ralph-verification.json'));
+
+    // Count incomplete todos
+    const incompleteCount = countIncompleteTodos(todosDir, directory);
+
+    // Check PRD status
+    const prdStatus = getPrdStatus(directory);
+    const progressPatterns = getProgressPatterns(directory);
+
+    // Priority 1: Ralph Loop with PRD and Architect Verification
+    if (ralphState?.active) {
+      const iteration = ralphState.iteration || 1;
+      const maxIter = ralphState.max_iterations || 100;
+
+      // If PRD exists and all stories are complete, allow completion
+      if (prdStatus.hasPrd && prdStatus.allComplete) {
+        console.log(JSON.stringify({
+          continue: true,
+          reason: `[RALPH LOOP COMPLETE - PRD] All ${prdStatus.total} stories are complete! Great work!`
+        }));
+        return;
+      }
+
+      // Check if architect verification is pending
+      if (verificationState?.pending) {
+        const attempt = (verificationState.verification_attempts || 0) + 1;
+        const maxAttempts = verificationState.max_verification_attempts || 3;
+
+        console.log(JSON.stringify({
+          continue: false,
+          reason: `<ralph-verification>
+
+[ARCHITECT VERIFICATION REQUIRED - Attempt ${attempt}/${maxAttempts}]
+
+The droid claims the task is complete. Before accepting, YOU MUST verify with Architect.
+
+**Original Task:**
+${verificationState.original_task || ralphState.prompt || 'No task specified'}
+
+**Completion Claim:**
+${verificationState.completion_claim || 'Task marked complete'}
+
+${verificationState.architect_feedback ? `**Previous Architect Feedback (rejected):**
+${verificationState.architect_feedback}
+` : ''}
+
+## MANDATORY VERIFICATION STEPS
+
+1. **Spawn Architect Droid** (opus tier) for verification
+2. **Architect must check:**
+   - Are ALL requirements from the original task met?
+   - Is the implementation complete, not partial?
+   - Are there any obvious bugs or issues?
+   - Does the code compile/run without errors?
+   - Are tests passing (if applicable)?
+
+3. **Based on Architect's response:**
+   - If APPROVED: Output \`<architect-approved>VERIFIED_COMPLETE</architect-approved>\`
+   - If REJECTED: Continue working on the identified issues
+
+</ralph-verification>
+
+---
+`
+        }));
+        return;
+      }
+
+      if (iteration < maxIter) {
+        const newIter = iteration + 1;
+        ralphState.iteration = newIter;
+        writeJsonFile(join(directory, '.omd', 'ralph-state.json'), ralphState);
+
+        // Build continuation message with PRD context if available
+        let prdContext = '';
+        if (prdStatus.hasPrd) {
+          prdContext = `
+## PRD STATUS
+${prdStatus.completed}/${prdStatus.total} stories complete. Remaining: ${prdStatus.incompleteIds.join(', ')}
+`;
+          if (prdStatus.nextStory) {
+            prdContext += `
+## CURRENT STORY: ${prdStatus.nextStory.id} - ${prdStatus.nextStory.title}
+
+${prdStatus.nextStory.description || ''}
+
+**Acceptance Criteria:**
+${(prdStatus.nextStory.acceptanceCriteria || []).map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+**Instructions:**
+1. Implement this story completely
+2. Verify ALL acceptance criteria are met
+3. Run quality checks (tests, typecheck, lint)
+4. Update prd.json to set passes: true for ${prdStatus.nextStory.id}
+5. Append progress to progress.txt
+6. Move to next story or output completion promise
+`;
+          }
+        }
+
+        // Add patterns from progress.txt
+        let patternsContext = '';
+        if (progressPatterns.length > 0) {
+          patternsContext = `
+## CODEBASE PATTERNS (from previous iterations)
+${progressPatterns.map(p => `- ${p}`).join('\n')}
+`;
+        }
+
+        console.log(JSON.stringify({
+          continue: false,
+          reason: `<ralph-loop-continuation>
+
+[RALPH LOOP - ITERATION ${newIter}/${maxIter}]
+
+Your previous attempt did not output the completion promise. The work is NOT done yet.
+${prdContext}${patternsContext}
+CRITICAL INSTRUCTIONS:
+1. Review your progress and the original task
+2. ${prdStatus.hasPrd ? 'Check prd.json - are ALL stories marked passes: true?' : 'Check your todo list - are ALL items marked complete?'}
+3. Continue from where you left off
+4. When FULLY complete, output: <promise>${ralphState.completion_promise || 'RALPH_VERIFIED_COMPLETE'}</promise>
+5. Do NOT stop until the task is truly done
+
+${ralphState.prompt ? `Original task: ${ralphState.prompt}` : ''}
+
+</ralph-loop-continuation>
+
+---
+`
+        }));
+        return;
+      }
+    }
+
+    // Priority 2: Autopilot with incomplete todos
+    if (autopilotState?.active && incompleteCount > 0) {
+      console.log(JSON.stringify({
+        continue: false,
+        reason: `<autopilot-continuation>
+
+[AUTOPILOT MODE STILL ACTIVE]
+
+Your autopilot session is NOT complete. ${incompleteCount} incomplete todos remain.
+
+Continue working autonomously on the next pending task. DO NOT STOP until all tasks are marked complete.
+
+${autopilotState.original_prompt ? `Original task: ${autopilotState.original_prompt}` : ''}
+
+</autopilot-continuation>
+
+---
+`
+      }));
+      return;
+    }
+
+    // Priority 3: Ultrawork with incomplete todos
+    if (ultraworkState?.active && incompleteCount > 0) {
+      const newCount = (ultraworkState.reinforcement_count || 0) + 1;
+      const maxReinforcements = ultraworkState.max_reinforcements || 10;
+
+      // Escape mechanism: after max reinforcements, allow stopping
+      if (newCount > maxReinforcements) {
+        console.log(JSON.stringify({
+          continue: true,
+          reason: `[ULTRAWORK ESCAPE] Maximum reinforcements (${maxReinforcements}) reached. Allowing stop despite ${incompleteCount} incomplete todos. If tasks are genuinely stuck, consider cancelling them or asking the user for help.`
+        }));
+        return;
+      }
+
+      ultraworkState.reinforcement_count = newCount;
+      ultraworkState.last_checked_at = new Date().toISOString();
+
+      writeJsonFile(join(directory, '.omd', 'ultrawork-state.json'), ultraworkState);
+
+      console.log(JSON.stringify({
+        continue: false,
+        reason: `<ultrawork-persistence>
+
+[ULTRAWORK MODE STILL ACTIVE - Reinforcement #${newCount}]
+
+Your ultrawork session is NOT complete. ${incompleteCount} incomplete todos remain.
+
+REMEMBER THE ULTRAWORK RULES:
+- **PARALLEL**: Fire independent calls simultaneously - NEVER wait sequentially
+- **BACKGROUND FIRST**: Use Task(run_in_background=true) for exploration (10+ concurrent)
+- **TODO**: Track EVERY step. Mark complete IMMEDIATELY after each
+- **VERIFY**: Check ALL requirements met before done
+- **NO Premature Stopping**: ALL TODOs must be complete
+
+Continue working on the next pending task. DO NOT STOP until all tasks are marked complete.
+
+${ultraworkState.original_prompt ? `Original task: ${ultraworkState.original_prompt}` : ''}
+
+</ultrawork-persistence>
+
+---
+`
+      }));
+      return;
+    }
+
+    // Priority 4: Todo Continuation (with escape mechanism)
+    if (incompleteCount > 0) {
+      // Track continuation attempts in a lightweight way
+      const contFile = join(directory, '.omd', 'continuation-count.json');
+      let contState = readJsonFile(contFile) || { count: 0 };
+      contState.count = (contState.count || 0) + 1;
+      contState.last_checked_at = new Date().toISOString();
+      writeJsonFile(contFile, contState);
+
+      const maxContinuations = 15;
+
+      // Escape mechanism: after max continuations, allow stopping
+      if (contState.count > maxContinuations) {
+        console.log(JSON.stringify({
+          continue: true,
+          reason: `[TODO ESCAPE] Maximum continuation attempts (${maxContinuations}) reached. Allowing stop despite ${incompleteCount} incomplete todos. Tasks may be stuck - consider reviewing and clearing them.`
+        }));
+        return;
+      }
+
+      console.log(JSON.stringify({
+        continue: false,
+        reason: `<todo-continuation>
+
+[SYSTEM REMINDER - TODO CONTINUATION ${contState.count}/${maxContinuations}]
+
+Incomplete tasks remain in your todo list (${incompleteCount} remaining). Continue working on the next pending task.
+
+- Proceed without asking for permission
+- Mark each task complete when finished
+- Do not stop until all tasks are done
+
+</todo-continuation>
+
+---
+`
+      }));
+      return;
+    }
+
+    // No blocking needed - clean session stop
+    console.log(JSON.stringify({ continue: true }));
+  } catch (error) {
+    console.log(JSON.stringify({ continue: true }));
+  }
+}
+
+main();

@@ -1,0 +1,15 @@
+{
+  "name": "oh-my-droid",
+  "shortName": "omd",
+  "displayName": "Oh My Droid - Multi-Agent Orchestration",
+  "version": "1.0.0",
+  "description": "Transform Droid into an orchestration conductor with 33 specialized agents and 35 skills",
+  "categories": ["productivity", "automation", "development"],
+  "tags": ["agents", "orchestration", "parallel", "autopilot", "droids"],
+  "icon": "https://example.com/omd-icon.png",
+  "screenshots": [],
+  "author": {
+    "name": "Jio Kim",
+    "url": "https://github.com/jiokim"
+  }
+}

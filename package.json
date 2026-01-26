@@ -1,0 +1,22 @@
+{
+  "name": "oh-my-droid",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestration plugin for Factory AI Droid CLI",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "lint": "eslint src/",
+    "test": "vitest"
+  },
+  "keywords": ["droid", "factory-ai", "orchestration", "agents", "cli"],
+  "author": "Jio Kim",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "eslint": "^8.0.0",
+    "vitest": "^1.0.0"
+  }
+}

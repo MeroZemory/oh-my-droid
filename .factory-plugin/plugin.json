@@ -1,0 +1,14 @@
+{
+  "name": "oh-my-droid",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestration plugin for Factory AI Droid",
+  "skills": "skills",
+  "droids": "droids",
+  "hooks": "hooks/hooks.json",
+  "author": "Jio Kim",
+  "repository": "https://github.com/jiokim/oh-my-droid",
+  "license": "MIT",
+  "engines": {
+    "droid": ">=1.0.0"
+  }
+}

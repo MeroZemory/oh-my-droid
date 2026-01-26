@@ -43,7 +43,7 @@ oh-my-droid는 Factory AI의 Droid CLI를 단일 수행자에서 복잡도 계�
 
 | 기능 | 설명 |
 |------|------|
-| **33개의 계층형 Droids** | LOW/MEDIUM/HIGH 계층(Haiku/Sonnet/Opus)의 특화된 Custom Droids |
+| **32개의 계층형 Droids** | LOW/MEDIUM/HIGH 계층(Haiku/Sonnet/Opus)의 특화된 Custom Droids |
 | **35개 이상의 Skill** | 조합 가능한 동작 (autopilot, ralph, ultrawork, planner 등) |
 | **매직 키워드** | 학습 곡선이 없는 자연어 트리거 |
 | **검증 프로토콜** | 완료 주장 전 필수 증거 |
@@ -151,6 +151,7 @@ oh-my-droid/
 │   ├── analyst.md                # 사전 계획 (Opus)
 │   ├── explore.md                # 빠른 검색 (Haiku)
 │   ├── explore-medium.md         # 철저한 검색 (Sonnet)
+│   ├── explore-high.md           # 아키텍처 검색 (Opus)
 │   ├── researcher.md             # 문서 연구 (Sonnet)
 │   ├── researcher-low.md         # 빠른 조회 (Haiku)
 │   ├── scientist.md              # 데이터 분석 (Sonnet)
@@ -271,8 +272,8 @@ oh-my-droid/
   "description": "Multi-agent orchestration plugin for Factory AI Droid",
   "skills": "skills",
   "hooks": "hooks/hooks.json",
-  "author": "T-Soft",
-  "repository": "https://github.com/t-soft/oh-my-droid",
+  "author": "Jio Kim",
+  "repository": "https://github.com/jiokim/oh-my-droid",
   "license": "MIT",
   "engines": {
     "droid": ">=1.0.0"
@@ -296,8 +297,8 @@ oh-my-droid/
   "icon": "https://example.com/omd-icon.png",
   "screenshots": [],
   "author": {
-    "name": "T-Soft",
-    "url": "https://t-soft.io"
+    "name": "Jio Kim",
+    "url": "https://jiokim.com"
   }
 }
 ```
@@ -1052,7 +1053,7 @@ Files Found:
 - <파일:라인>
 ```
 
-### 6.2 완전한 Custom Droid 카탈로그 (33개 Droids)
+### 6.2 완전한 Custom Droid 카탈로그 (32개 Droids)
 
 > **Model ID 참고:**
 > - Opus: `claude-opus-4-5-20251101`
@@ -1082,6 +1083,7 @@ Files Found:
 |-------|-------|------|-------|
 | `explore` | `inherit` | 빠른 파일/코드 검색 | `read-only` |
 | `explore-medium` | `claude-sonnet-4-5-20250929` | 철저한 크로스 모듈 검색 | `read-only` |
+| `explore-high` | `claude-opus-4-5-20251101` | 복잡한 아키텍처 검색, 설계 패턴 발견 | `read-only` |
 
 #### Frontend Family
 | Droid | Model | 목적 | Tools |
@@ -1152,6 +1154,7 @@ Files Found:
 |-----------|-----------|-----------|
 | 빠른 코드 조회 | `explore` | LOW (inherit) |
 | 파일/패턴 찾기 | `explore` 또는 `explore-medium` | LOW/MEDIUM |
+| 복잡한 아키텍처 검색 | `explore-high` | HIGH (Opus) |
 | 단순 코드 변경 | `executor-low` | LOW (inherit) |
 | 기능 구현 | `executor` | MEDIUM (Sonnet) |
 | 복잡한 리팩토링 | `executor-high` | HIGH (Opus) |
@@ -1406,6 +1409,65 @@ description: Maximum parallel execution mode
     "tasks_total": 10,
     "agents_spawned": 12
   }
+}
+```
+
+#### ultraqa-state.json
+```json
+{
+  "active": true,
+  "goal_type": "tests|build|lint|typecheck|custom",
+  "goal_pattern": null,
+  "cycle": 1,
+  "max_cycles": 5,
+  "failures": [],
+  "started_at": "2024-01-26T10:00:00Z",
+  "session_id": "abc123"
+}
+```
+
+| 필드 | 설명 |
+|-----|------|
+| `goal_type` | QA 목표 유형 (tests, build, lint, typecheck, custom) |
+| `goal_pattern` | 커스텀 목표 패턴 |
+| `cycle` | 현재 사이클 번호 |
+| `max_cycles` | 최대 사이클 수 (기본: 5) |
+| `failures` | 실패 로그 배열 |
+
+#### ultrapilot-state.json
+```json
+{
+  "active": true,
+  "iteration": 1,
+  "maxIterations": 3,
+  "originalTask": "Build a REST API",
+  "subtasks": ["Create models", "Add routes", "Write tests"],
+  "workers": [],
+  "ownership": {},
+  "startedAt": "2024-01-26T10:00:00Z",
+  "completedAt": null,
+  "totalWorkersSpawned": 0,
+  "successfulWorkers": 0,
+  "failedWorkers": 0,
+  "sessionId": "abc123"
+}
+```
+
+| 필드 | 설명 |
+|-----|------|
+| `workers` | 활성 워커 상태 배열 |
+| `ownership` | 파일 소유권 맵핑 |
+| `totalWorkersSpawned` | 생성된 총 워커 수 |
+| `successfulWorkers` | 성공한 워커 수 |
+| `failedWorkers` | 실패한 워커 수 |
+
+#### ecomode-state.json
+```json
+{
+  "active": true,
+  "tier": "LOW",
+  "startedAt": "2024-01-26T10:00:00Z",
+  "sessionId": "abc123"
 }
 ```
 
@@ -1758,7 +1820,7 @@ try {
 ### 4단계: 전체 Custom Droids 카탈로그 (4주차)
 
 1. **모든 계층형 Custom Droids**
-   - 33개의 droid 정의 완료 (`droids/*.md`)
+   - 32개의 droid 정의 완료 (`droids/*.md`)
    - 템플릿 시스템
 
 2. **고급 Skills**
