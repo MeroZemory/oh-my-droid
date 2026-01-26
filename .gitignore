@@ -2,6 +2,9 @@
 .omd/
 .omc/
 
+# Reference repos (not part of this project)
+oh-my-claudecode/
+
 # Dependencies
 node_modules/
 package-lock.json
