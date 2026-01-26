@@ -54,6 +54,7 @@ droid
 
 Install hooks globally for all projects:
 
+**macOS/Linux:**
 ```bash
 # Clone the repository
 git clone https://github.com/MeroZemory/oh-my-droid.git ~/.factory/plugins/oh-my-droid
@@ -61,6 +62,16 @@ git clone https://github.com/MeroZemory/oh-my-droid.git ~/.factory/plugins/oh-my
 # Run the install script
 cd ~/.factory/plugins/oh-my-droid
 ./install.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+# Clone the repository
+git clone https://github.com/MeroZemory/oh-my-droid.git $env:USERPROFILE\.factory\plugins\oh-my-droid
+
+# Run the install script
+cd $env:USERPROFILE\.factory\plugins\oh-my-droid
+.\install.ps1
 ```
 
 ### Method 4: Manual Global Setup
