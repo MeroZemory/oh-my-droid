@@ -3,7 +3,7 @@ name: omd-setup
 description: Setup and configure oh-my-droid (the ONLY command you need to learn)
 ---
 
-# OMC Setup
+# OMD Setup
 
 This is the **only command you need to learn**. After running this, everything else is automatic.
 
@@ -343,7 +343,7 @@ Clear old cached plugin versions to avoid conflicts:
 
 ```bash
 # Clear stale plugin cache versions
-CACHE_DIR="$HOME/.factory/plugins/cache/omc/oh-my-droid"
+CACHE_DIR="$HOME/.factory/plugins/cache/oh-my-droid/oh-my-droid"
 if [ -d "$CACHE_DIR" ]; then
   LATEST=$(ls -1 "$CACHE_DIR" | sort -V | tail -1)
   CLEARED=0
@@ -368,8 +368,8 @@ Notify user if a newer version is available:
 INSTALLED_VERSION=""
 
 # Try cache directory first
-if [ -d "$HOME/.factory/plugins/cache/omc/oh-my-droid" ]; then
-  INSTALLED_VERSION=$(ls -1 "$HOME/.factory/plugins/cache/omc/oh-my-droid" | sort -V | tail -1)
+if [ -d "$HOME/.factory/plugins/cache/oh-my-droid/oh-my-droid" ]; then
+  INSTALLED_VERSION=$(ls -1 "$HOME/.factory/plugins/cache/oh-my-droid/oh-my-droid" | sort -V | tail -1)
 fi
 
 # Try .omc-version.json second
@@ -623,11 +623,11 @@ This ensures you have the newest features and agent configurations.
 When user runs `/oh-my-droid:omd-setup --help` or just `--help`, display:
 
 ```
-OMC Setup - Configure oh-my-droid
+OMD Setup - Configure oh-my-droid
 
 USAGE:
   /oh-my-droid:omd-setup           Run initial setup wizard
-  /oh-my-droid:omd-setup --local   Configure local project (.claude/FACTORY.md)
+  /oh-my-droid:omd-setup --local   Configure local project (.factory/FACTORY.md)
   /oh-my-droid:omd-setup --global  Configure global settings (~/.factory/FACTORY.md)
   /oh-my-droid:omd-setup --help    Show this help
 
@@ -641,7 +641,7 @@ MODES:
 
   Local Configuration (--local)
     - Downloads fresh FACTORY.md to ./.factory/
-    - Backs up existing FACTORY.md to .claude/FACTORY.md.backup.YYYY-MM-DD
+    - Backs up existing FACTORY.md to .factory/FACTORY.md.backup.YYYY-MM-DD
     - Project-specific settings
     - Use this to update project config after OMC upgrades
 
@@ -657,5 +657,5 @@ EXAMPLES:
   /oh-my-droid:omd-setup --local   # Update this project
   /oh-my-droid:omd-setup --global  # Update all projects
 
-For more info: https://github.com/Yeachan-Heo/oh-my-droid
+For more info: https://github.com/MeroZemory/oh-my-droid
 ```
