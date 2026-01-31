@@ -102,10 +102,7 @@ interface UltraworkState {
   reinforcement_count: number;
 }
 
-/**
- * Read Ultrawork state for HUD display.
- * Checks both local .omd and global ~/.factory locations.
- */
+/** Read Ultrawork state for HUD display (project-scoped). */
 export function readUltraworkStateForHud(
   directory: string
 ): UltraworkStateForHud | null {
@@ -121,22 +118,6 @@ export function readUltraworkStateForHud(
       stateFile = localFile;
     } catch {
       // Try global
-    }
-  }
-
-  // Check global state if local not found or stale
-  if (!state) {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const globalFile = join(homeDir, '.claude', 'ultrawork-state.json');
-
-    if (existsSync(globalFile) && !isStateFileStale(globalFile)) {
-      try {
-        const content = readFileSync(globalFile, 'utf-8');
-        state = JSON.parse(content) as UltraworkState;
-        stateFile = globalFile;
-      } catch {
-        return null;
-      }
     }
   }
 

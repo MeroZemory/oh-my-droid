@@ -89,9 +89,8 @@ async function main() {
 </system-reminder>`);
     }
 
-    // Check for ultrawork state
-    const ultraworkState = readJsonFile(join(directory, '.omd', 'state', 'ultrawork-state.json'))
-      || readJsonFile(join(homedir(), '.omd', 'state', 'ultrawork-state.json'));
+    // Check for ultrawork state (project-scoped; no global fallback)
+    const ultraworkState = readJsonFile(join(directory, '.omd', 'state', 'ultrawork-state.json'));
 
     if (ultraworkState?.active) {
       messages.push(`<session-restore>
@@ -128,8 +127,8 @@ Continue working until the task is verified complete.
 `);
     }
 
-    // Check for incomplete todos
-    const todosDir = join(homedir(), '.claude', 'todos');
+    // Check for incomplete todos (Factory Droid)
+    const todosDir = join(homedir(), '.factory', 'todos');
     const incompleteCount = countIncompleteTodos(todosDir);
 
     if (incompleteCount > 0) {
