@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "omd-tools": {
+      "command": "node",
+      "args": ["${DROID_PLUGIN_ROOT}/bridge/mcp-server.cjs"]
+    }
+  }
+}

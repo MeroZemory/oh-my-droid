@@ -11,8 +11,6 @@
  * 3. Architect agent is invoked to verify the work
  * 4. If architect approves -> truly complete
  * 5. If architect finds flaws -> continue ralph with architect feedback
- *
- * Adapted from oh-my-claudecode.
  */
 
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
@@ -177,7 +175,7 @@ ${state.architect_feedback ? `**Previous Architect Feedback (rejected):**\n${sta
 
 1. **Spawn Architect Agent** for verification:
    \`\`\`
-   Task(subagent_type="oh-my-droid:architect", prompt="Verify this task completion claim...")
+   Task(subagent_type="architect", prompt="Verify this task completion claim...")
    \`\`\`
 
 2. **Architect must check:**

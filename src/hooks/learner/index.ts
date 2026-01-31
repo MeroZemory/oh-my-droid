@@ -5,6 +5,7 @@
  * based on message content triggers.
  */
 
+import { contextCollector } from '../../features/context-injector/index.js';
 import { loadAllSkills, findMatchingSkills } from './loader.js';
 import { MAX_SKILLS_PER_SESSION } from './constants.js';
 import { loadConfig } from './config.js';
@@ -24,7 +25,7 @@ export * from './promotion.js';
 export * from './config.js';
 export * from './matcher.js';
 export * from './auto-invoke.js';
-// Note: auto-learner exports are renamed to avoid collision with other modules
+// Note: auto-learner exports are renamed to avoid collision with ralph's recordPattern
 export {
   type PatternDetection,
   type AutoLearnerState,
@@ -111,8 +112,18 @@ export function processMessageForSkills(
     injectedHashes.add(skill.contentHash);
   }
 
-  // Format for context (context injection is handled by caller)
+  // Register with context collector
   const content = formatSkillsForContext(newSkills);
+  contextCollector.register(sessionId, {
+    id: 'learner',
+    source: 'learner',
+    content,
+    priority: 'normal',
+    metadata: {
+      skillCount: newSkills.length,
+      skillIds: newSkills.map(s => s.metadata.id),
+    },
+  });
 
   return { injected: newSkills.length, skills: newSkills };
 }
@@ -132,7 +143,7 @@ export function getAllSkills(projectRoot: string | null): LearnedSkill[] {
 }
 
 /**
- * Create the learned skills hook for Android Factory.
+ * Create the learned skills hook for Factory Droid.
  */
 export function createLearnedSkillsHook(projectRoot: string | null) {
   return {

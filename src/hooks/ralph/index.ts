@@ -3,8 +3,6 @@
  *
  * Self-referential work loop with PRD support, progress tracking, and architect verification.
  * All ralph-related functionality is now consolidated in this single module.
- *
- * Adapted from oh-my-claudecode.
  */
 
 // ============================================================================

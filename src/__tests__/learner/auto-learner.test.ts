@@ -1,6 +1,6 @@
 /**
  * Auto-Learner Module Tests
- *
+ * 
  * Comprehensive QA tests for the auto-learner module.
  */
 
@@ -20,7 +20,7 @@ describe('Auto-Learner Module', () => {
   describe('1. State Initialization', () => {
     it('initAutoLearner creates correct initial state', () => {
       const state = initAutoLearner('test-session-123');
-
+      
       expect(state).toBeDefined();
       expect(state.sessionId).toBe('test-session-123');
       expect(state.patterns).toBeInstanceOf(Map);
@@ -127,7 +127,7 @@ describe('Auto-Learner Module', () => {
       // Should extract capitalized terms like React or TypeScript
       const hasReact = triggers.some(t => t.toLowerCase() === 'react');
       const hasTypeScript = triggers.some(t => t.toLowerCase() === 'typescript');
-
+      
       expect(hasReact || hasTypeScript).toBe(true);
     });
 
@@ -284,7 +284,7 @@ describe('Auto-Learner Module', () => {
       const detailedSolution: PatternDetection = {
         id: 'test-detailed',
         problem: 'Error in the application configuration loading',
-        solution: `The configuration file was missing the required DATABASE_URL environment variable.
+        solution: `The configuration file was missing the required DATABASE_URL environment variable. 
                    To fix this, add DATABASE_URL=postgresql://user:pass@localhost:5432/dbname to your .env file.
                    Also ensure the .env file is in the project root and not gitignored accidentally.
                    You can verify with: node -e "console.log(process.env.DATABASE_URL)"`,
@@ -321,7 +321,7 @@ describe('Auto-Learner Module', () => {
         3. Setting up environment variable fallbacks
         This resolved the ENOENT error and made the app work properly.
       `;
-
+      
       // Record it multiple times to boost occurrences
       recordPattern(state, highQualityProblem, highQualitySolution);
       recordPattern(state, highQualityProblem, highQualitySolution);
@@ -477,7 +477,7 @@ describe('Auto-Learner Module', () => {
     });
 
     it('handles Unicode content', () => {
-      const problem = 'Error: File not found in path/component.tsx';
+      const problem = 'Error: 文件未找到 - File not found in 日本語パス/コンポーネント.tsx';
       const solution = 'The file path contained CJK characters. Fixed by using proper encoding.';
 
       const pattern = recordPattern(state, problem, solution);
@@ -541,7 +541,7 @@ describe('Auto-Learner Module', () => {
 
       // Get suggestions
       const suggestions = getSuggestedSkills(state, 60);
-
+      
       // Should have at least one suggestion if quality is high enough
       if (suggestions.length > 0) {
         expect(suggestions[0].problem).toBe(problem.trim());

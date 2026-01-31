@@ -3,7 +3,7 @@
  *
  * Persistent storage for tracking injected rules per session.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's rules-injector hook.
  */
 
 import {

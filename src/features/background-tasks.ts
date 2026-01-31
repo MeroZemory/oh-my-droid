@@ -1,10 +1,10 @@
 /**
  * Background Task Management
  *
- * Provides utilities for managing background task execution.
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Provides utilities for managing background task execution,
+ * similar to oh-my-opencode's Background Task Manager.
  *
- * In Android Factory, background execution is controlled via:
+ * In Factory Droid, background execution is controlled via:
  * - Bash tool's `run_in_background` parameter
  * - Task tool's `run_in_background` parameter
  * - TaskOutput tool for retrieving results
@@ -16,7 +16,7 @@
  * - System prompt guidance for agents
  */
 
-import type { BackgroundTask, SessionState, PluginConfig } from './types.js';
+import type { BackgroundTask, SessionState, PluginConfig } from '../shared/types.js';
 
 /**
  * Default maximum concurrent background tasks
@@ -66,10 +66,6 @@ export const LONG_RUNNING_PATTERNS = [
 
   // Git operations on large repos
   /\bgit\s+(clone|fetch|pull)\b/i,
-
-  // Android-specific
-  /\b(gradlew|gradle)\s+(assembleDebug|assembleRelease|build|test)\b/i,
-  /\badb\s+(install|push|pull)\b/i,
 ];
 
 /**
@@ -102,9 +98,6 @@ export const BLOCKING_PATTERNS = [
   /\bnode\s+-[vpe]\b/i,
   /\bnpm\s+-v\b/i,
   /\bpython\s+--version\b/i,
-
-  // Android quick checks
-  /\badb\s+(devices|shell\s+getprop)\b/i,
 ];
 
 /**
@@ -326,7 +319,6 @@ For long-running operations, use the \`run_in_background\` parameter to avoid bl
 - Docker operations: \`docker build\`, \`docker pull\`
 - Git operations on large repos: \`git clone\`, \`git fetch\`
 - Database migrations: \`prisma migrate\`, \`typeorm migration:run\`
-- Android builds: \`./gradlew assembleDebug\`, \`./gradlew build\`
 
 **Run Blocking** (foreground, immediate):
 - Quick status checks: \`git status\`, \`ls\`, \`pwd\`
@@ -357,9 +349,9 @@ For long-running operations, use the \`run_in_background\` parameter to avoid bl
 ### Decision Checklist
 
 Before running a command, ask:
-1. Will this take more than 5 seconds? -> Consider background
-2. Do I need the result immediately? -> Run blocking
-3. Can I do other useful work while waiting? -> Use background
-4. Am I at the background task limit? -> Run blocking or wait
+1. Will this take more than 5 seconds? → Consider background
+2. Do I need the result immediately? → Run blocking
+3. Can I do other useful work while waiting? → Use background
+4. Am I at the background task limit? → Run blocking or wait
 `;
 }

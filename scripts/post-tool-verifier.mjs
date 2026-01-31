@@ -1,13 +1,42 @@
 #!/usr/bin/env node
 
 /**
- * oh-my-droid Post-Tool Verifier Hook (Node.js)
- * Verifies tool execution results and updates context
+ * PostToolUse Hook: Verification Reminder System (Node.js)
+ * Monitors tool execution and provides contextual guidance
  * Cross-platform: Windows, macOS, Linux
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { homedir } from 'os';
+import { fileURLToPath } from 'url';
+
+// Get the directory of this script to resolve the dist module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const distDir = join(__dirname, '..', 'dist', 'hooks', 'notepad');
+
+// Try to import notepad functions (may fail if not built)
+let setPriorityContext = null;
+let addWorkingMemoryEntry = null;
+try {
+  const notepadModule = await import(join(distDir, 'index.js'));
+  setPriorityContext = notepadModule.setPriorityContext;
+  addWorkingMemoryEntry = notepadModule.addWorkingMemoryEntry;
+} catch {
+  // Notepad module not available - remember tags will be silently ignored
+}
+
+// State file for session tracking
+const STATE_FILE = join(homedir(), '.claude', '.session-stats.json');
+
+// Ensure state directory exists
+try {
+  const stateDir = join(homedir(), '.claude');
+  if (!existsSync(stateDir)) {
+    mkdirSync(stateDir, { recursive: true });
+  }
+} catch {}
 
 // Read all stdin
 async function readStdin() {
@@ -18,166 +47,234 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
-// Edit error patterns (from oh-my-claudecode)
-const EDIT_ERROR_PATTERNS = [
-  'could not be found',
-  'not found in the file',
-  'does not match',
-  'could not find',
-  'failed to find',
-  'unable to locate',
-  'no match found',
-  'string not found',
-  'text not found',
-  'pattern not found'
-];
-
-// Detect edit error
-function detectEditError(output) {
-  if (!output) return false;
-  const outputLower = output.toLowerCase();
-  return EDIT_ERROR_PATTERNS.some(pattern => outputLower.includes(pattern.toLowerCase()));
-}
-
-// Update session statistics
-function updateSessionStats(directory, toolName, success) {
-  const statsPath = join(directory, '.omd', 'session-stats.json');
-
+// Load session statistics
+function loadStats() {
   try {
-    mkdirSync(join(directory, '.omd'), { recursive: true });
-
-    let stats = { toolUsage: {}, errors: 0, timestamp: new Date().toISOString() };
-    if (existsSync(statsPath)) {
-      stats = JSON.parse(readFileSync(statsPath, 'utf-8'));
+    if (existsSync(STATE_FILE)) {
+      return JSON.parse(readFileSync(STATE_FILE, 'utf-8'));
     }
-
-    // Update tool usage
-    if (!stats.toolUsage) stats.toolUsage = {};
-    if (!stats.toolUsage[toolName]) stats.toolUsage[toolName] = 0;
-    stats.toolUsage[toolName]++;
-
-    // Update error count
-    if (!success && !stats.errors) stats.errors = 0;
-    if (!success) stats.errors++;
-
-    stats.lastUpdated = new Date().toISOString();
-
-    writeFileSync(statsPath, JSON.stringify(stats, null, 2));
-  } catch {
-    // Silently fail
-  }
+  } catch {}
+  return { sessions: {} };
 }
 
-// Extract <remember> tags
-function extractRememberTags(output) {
-  if (!output) return [];
+// Save session statistics
+function saveStats(stats) {
+  try {
+    writeFileSync(STATE_FILE, JSON.stringify(stats, null, 2));
+  } catch {}
+}
 
-  const remembered = [];
-  const priorityRegex = /<remember\s+priority>([\s\S]*?)<\/remember>/g;
-  const normalRegex = /<remember>([\s\S]*?)<\/remember>/g;
+// Update stats for this session
+function updateStats(toolName, sessionId) {
+  const stats = loadStats();
 
+  if (!stats.sessions[sessionId]) {
+    stats.sessions[sessionId] = {
+      tool_counts: {},
+      last_tool: '',
+      total_calls: 0,
+      started_at: Math.floor(Date.now() / 1000)
+    };
+  }
+
+  const session = stats.sessions[sessionId];
+  session.tool_counts[toolName] = (session.tool_counts[toolName] || 0) + 1;
+  session.last_tool = toolName;
+  session.total_calls = (session.total_calls || 0) + 1;
+  session.updated_at = Math.floor(Date.now() / 1000);
+
+  saveStats(stats);
+  return session.tool_counts[toolName];
+}
+
+// Detect failures in Bash output
+function detectBashFailure(output) {
+  const errorPatterns = [
+    /error:/i,
+    /failed/i,
+    /cannot/i,
+    /permission denied/i,
+    /command not found/i,
+    /no such file/i,
+    /exit code: [1-9]/i,
+    /exit status [1-9]/i,
+    /fatal:/i,
+    /abort/i,
+  ];
+
+  return errorPatterns.some(pattern => pattern.test(output));
+}
+
+// Detect background operation
+function detectBackgroundOperation(output) {
+  const bgPatterns = [
+    /started/i,
+    /running/i,
+    /background/i,
+    /async/i,
+    /task_id/i,
+    /spawned/i,
+  ];
+
+  return bgPatterns.some(pattern => pattern.test(output));
+}
+
+/**
+ * Process <remember> tags from agent output
+ * <remember>content</remember> -> Working Memory
+ * <remember priority>content</remember> -> Priority Context
+ */
+function processRememberTags(output, directory) {
+  if (!setPriorityContext || !addWorkingMemoryEntry) {
+    return; // Notepad module not available
+  }
+
+  if (!output || !directory) {
+    return;
+  }
+
+  // Process priority remember tags first
+  const priorityRegex = /<remember\s+priority>([\s\S]*?)<\/remember>/gi;
   let match;
   while ((match = priorityRegex.exec(output)) !== null) {
-    remembered.push({ priority: true, content: match[1].trim() });
-  }
-  while ((match = normalRegex.exec(output)) !== null) {
-    remembered.push({ priority: false, content: match[1].trim() });
+    const content = match[1].trim();
+    if (content) {
+      try {
+        setPriorityContext(directory, content);
+      } catch {}
+    }
   }
 
-  return remembered;
+  // Process regular remember tags
+  const regularRegex = /<remember>([\s\S]*?)<\/remember>/gi;
+  while ((match = regularRegex.exec(output)) !== null) {
+    const content = match[1].trim();
+    if (content) {
+      try {
+        addWorkingMemoryEntry(directory, content);
+      } catch {}
+    }
+  }
 }
 
-// Save remembered items to notepad
-function saveRememberedItems(directory, remembered) {
-  if (remembered.length === 0) return;
+// Detect write failure
+function detectWriteFailure(output) {
+  const errorPatterns = [
+    /error/i,
+    /failed/i,
+    /permission denied/i,
+    /read-only/i,
+    /not found/i,
+  ];
 
-  const notepadPath = join(directory, '.omd', 'notepad.md');
+  return errorPatterns.some(pattern => pattern.test(output));
+}
 
-  try {
-    mkdirSync(join(directory, '.omd'), { recursive: true });
+// Generate contextual message
+function generateMessage(toolName, toolOutput, sessionId, toolCount) {
+  let message = '';
 
-    let content = '';
-    if (existsSync(notepadPath)) {
-      content = readFileSync(notepadPath, 'utf-8');
-    } else {
-      content = '# oh-my-droid Notepad\n\n## Priority Context\n\n## Recent Learnings\n\n';
-    }
-
-    const timestamp = new Date().toISOString();
-
-    for (const item of remembered) {
-      const section = item.priority ? '## Priority Context' : '## Recent Learnings';
-      const insertion = `\n\n[${timestamp}]\n${item.content}\n`;
-
-      // Find section and append
-      const sectionIndex = content.indexOf(section);
-      if (sectionIndex !== -1) {
-        const nextSectionIndex = content.indexOf('##', sectionIndex + section.length);
-        const insertIndex = nextSectionIndex !== -1 ? nextSectionIndex : content.length;
-        content = content.slice(0, insertIndex) + insertion + content.slice(insertIndex);
-      } else {
-        content += `\n${section}${insertion}`;
+  switch (toolName) {
+    case 'Bash':
+      if (detectBashFailure(toolOutput)) {
+        message = 'Command failed. Please investigate the error and fix before continuing.';
+      } else if (detectBackgroundOperation(toolOutput)) {
+        message = 'Background operation detected. Remember to verify results before proceeding.';
       }
-    }
+      break;
 
-    writeFileSync(notepadPath, content);
-  } catch {
-    // Silently fail
+    case 'Task':
+      if (detectWriteFailure(toolOutput)) {
+        message = 'Task delegation failed. Verify agent name and parameters.';
+      } else if (detectBackgroundOperation(toolOutput)) {
+        message = 'Background task launched. Use TaskOutput to check results when needed.';
+      } else if (toolCount > 5) {
+        message = `Multiple tasks delegated (${toolCount} total). Track their completion status.`;
+      }
+      break;
+
+    case 'Edit':
+      if (detectWriteFailure(toolOutput)) {
+        message = 'Edit operation failed. Verify file exists and content matches exactly.';
+      } else {
+        message = 'Code modified. Verify changes work as expected before marking complete.';
+      }
+      break;
+
+    case 'Write':
+      if (detectWriteFailure(toolOutput)) {
+        message = 'Write operation failed. Check file permissions and directory existence.';
+      } else {
+        message = 'File written. Test the changes to ensure they work correctly.';
+      }
+      break;
+
+    case 'TodoWrite':
+      if (/created|added/i.test(toolOutput)) {
+        message = 'Todo list updated. Proceed with next task on the list.';
+      } else if (/completed|done/i.test(toolOutput)) {
+        message = 'Task marked complete. Continue with remaining todos.';
+      } else if (/in_progress/i.test(toolOutput)) {
+        message = 'Task marked in progress. Focus on completing this task.';
+      }
+      break;
+
+    case 'Read':
+      if (toolCount > 10) {
+        message = `Extensive reading (${toolCount} files). Consider using Grep for pattern searches.`;
+      }
+      break;
+
+    case 'Grep':
+      if (/^0$|no matches/i.test(toolOutput)) {
+        message = 'No matches found. Verify pattern syntax or try broader search.';
+      }
+      break;
+
+    case 'Glob':
+      if (!toolOutput.trim() || /no files/i.test(toolOutput)) {
+        message = 'No files matched pattern. Verify glob syntax and directory.';
+      }
+      break;
   }
+
+  return message;
 }
 
-// Main
 async function main() {
   try {
     const input = await readStdin();
-    let data = {};
-    try { data = JSON.parse(input); } catch {}
+    const data = JSON.parse(input);
 
-    const toolName = data.tool_name || '';
-    const toolResponse = data.tool_response || {};
-    const directory = data.cwd || process.cwd();
-
-    // Convert response to string for analysis
-    const outputStr = typeof toolResponse === 'string'
-      ? toolResponse
-      : JSON.stringify(toolResponse);
-
-    // Check for edit errors
-    let message = '';
-    if (toolName === 'Edit' && detectEditError(outputStr)) {
-      message = '<edit-error-recovery>\n\n';
-      message += '[EDIT ERROR DETECTED]\n\n';
-      message += 'The Edit tool failed to find the target string. Common causes:\n\n';
-      message += '1. Line number prefix included in old_string (remove line numbers)\n';
-      message += '2. Indentation mismatch (preserve exact whitespace)\n';
-      message += '3. String not unique (provide more context)\n\n';
-      message += 'Action: Re-read the file and try again with the exact string.\n\n';
-      message += '</edit-error-recovery>\n\n';
-    }
-
-    // Extract <remember> tags
-    const remembered = extractRememberTags(outputStr);
-    if (remembered.length > 0) {
-      saveRememberedItems(directory, remembered);
-    }
+    const toolName = data.toolName || '';
+    const toolOutput = data.toolOutput || '';
+    const sessionId = data.sessionId || 'unknown';
+    const directory = data.directory || process.cwd();
 
     // Update session statistics
-    const success = toolResponse.success !== false;
-    updateSessionStats(directory, toolName, success);
+    const toolCount = updateStats(toolName, sessionId);
 
-    // Return result
-    if (message) {
-      console.log(JSON.stringify({
-        continue: true,
-        hookSpecificOutput: {
-          hookEventName: 'PostToolUse',
-          additionalContext: message
-        }
-      }));
-    } else {
-      console.log(JSON.stringify({ continue: true }));
+    // Process <remember> tags from Task agent output
+    if (toolName === 'Task' || toolName === 'task') {
+      processRememberTags(toolOutput, directory);
     }
+
+    // Generate contextual message
+    const message = generateMessage(toolName, toolOutput, sessionId, toolCount);
+
+    // Build response - use hookSpecificOutput.additionalContext for PostToolUse
+    const response = { continue: true };
+    const contextMessage = message;
+    if (contextMessage) {
+      response.hookSpecificOutput = {
+        hookEventName: 'PostToolUse',
+        additionalContext: contextMessage
+      };
+    }
+
+    console.log(JSON.stringify(response, null, 2));
   } catch (error) {
+    // On error, always continue
     console.log(JSON.stringify({ continue: true }));
   }
 }

@@ -4,6 +4,7 @@
  * Promotes learnings from ralph-progress to full skills.
  */
 
+import { readProgress } from '../ralph/index.js';
 import { writeSkill } from './writer.js';
 import type { SkillExtractionRequest } from './types.js';
 import type { WriteSkillResult } from './writer.js';
@@ -34,16 +35,38 @@ function extractTriggers(text: string): string[] {
 }
 
 /**
- * Get promotion candidates from progress learnings.
- * Note: Requires ralph module integration for full functionality.
+ * Get promotion candidates from ralph-progress learnings.
  */
 export function getPromotionCandidates(
   directory: string,
   limit: number = 10
 ): PromotionCandidate[] {
-  // This would integrate with ralph/progress module when ported
-  // For now, return empty array as placeholder
-  return [];
+  const progress = readProgress(directory);
+  if (!progress) {
+    return [];
+  }
+
+  const candidates: PromotionCandidate[] = [];
+
+  // Get recent entries with learnings
+  const recentEntries = progress.entries.slice(-limit);
+
+  for (const entry of recentEntries) {
+    for (const learning of entry.learnings) {
+      // Skip very short learnings
+      if (learning.length < 20) continue;
+
+      candidates.push({
+        learning,
+        storyId: entry.storyId,
+        timestamp: entry.timestamp,
+        suggestedTriggers: extractTriggers(learning),
+      });
+    }
+  }
+
+  // Sort by number of triggers (more specific = better candidate)
+  return candidates.sort((a, b) => b.suggestedTriggers.length - a.suggestedTriggers.length);
 }
 
 /**
@@ -73,13 +96,13 @@ export function listPromotableLearnings(directory: string): string {
   const candidates = getPromotionCandidates(directory);
 
   if (candidates.length === 0) {
-    return 'No promotion candidates found in progress learnings.';
+    return 'No promotion candidates found in ralph-progress learnings.';
   }
 
   const lines = [
     '# Promotion Candidates',
     '',
-    'The following learnings from progress could be promoted to skills:',
+    'The following learnings from ralph-progress could be promoted to skills:',
     '',
   ];
 

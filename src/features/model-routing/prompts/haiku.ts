@@ -6,8 +6,6 @@
  * - Concise, direct instructions
  * - Simple, focused tasks
  * - Minimal cognitive overhead
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 /**
@@ -135,7 +133,7 @@ TOOLS: Glob, Grep, Read
 
 OUTPUT:
 <files>
-- /path/file.ts - [why relevant]
+- /path/file.ts — [why relevant]
 </files>
 
 <answer>

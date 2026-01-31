@@ -2,7 +2,6 @@
  * Auto-Update System
  *
  * Provides version checking and auto-update functionality for oh-my-droid.
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  *
  * Features:
  * - Check for new versions from GitHub releases
@@ -17,20 +16,20 @@ import { homedir, tmpdir } from 'os';
 import { execSync } from 'child_process';
 
 /** GitHub repository information */
-export const REPO_OWNER = 't-soft';
+export const REPO_OWNER = 'Yeachan-Heo';
 export const REPO_NAME = 'oh-my-droid';
 export const GITHUB_API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 export const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}`;
 
-/** Installation paths - using ~/.factory/omd/ instead of ~/.claude/ */
-export const FACTORY_CONFIG_DIR = join(homedir(), '.factory', 'omd');
+/** Installation paths */
+export const FACTORY_CONFIG_DIR = join(homedir(), '.claude');
 export const VERSION_FILE = join(FACTORY_CONFIG_DIR, '.omd-version.json');
 export const CONFIG_FILE = join(FACTORY_CONFIG_DIR, '.omd-config.json');
 
 /**
- * OMD configuration (stored in .omd-config.json)
+ * OMC configuration (stored in .omd-config.json)
  */
-export interface OmdConfig {
+export interface DroidConfig {
   /** Whether silent auto-updates are enabled (opt-in for security) */
   silentAutoUpdate: boolean;
   /** When the configuration was set */
@@ -40,9 +39,9 @@ export interface OmdConfig {
 }
 
 /**
- * Read the OMD configuration
+ * Read the Droid configuration
  */
-export function getOmdConfig(): OmdConfig {
+export function getDroidConfig(): DroidConfig {
   if (!existsSync(CONFIG_FILE)) {
     // No config file = disabled by default for security
     return { silentAutoUpdate: false };
@@ -50,7 +49,7 @@ export function getOmdConfig(): OmdConfig {
 
   try {
     const content = readFileSync(CONFIG_FILE, 'utf-8');
-    const config = JSON.parse(content) as OmdConfig;
+    const config = JSON.parse(content) as DroidConfig;
     return {
       silentAutoUpdate: config.silentAutoUpdate ?? false,
       configuredAt: config.configuredAt,
@@ -66,7 +65,7 @@ export function getOmdConfig(): OmdConfig {
  * Check if silent auto-updates are enabled
  */
 export function isSilentAutoUpdateEnabled(): boolean {
-  return getOmdConfig().silentAutoUpdate;
+  return getDroidConfig().silentAutoUpdate;
 }
 
 /**
@@ -394,15 +393,15 @@ export function formatUpdateNotification(checkResult: UpdateCheckResult): string
   }
 
   const lines = [
-    '+==========================================================+',
-    '|             oh-my-droid Update Available!                |',
-    '+==========================================================+',
+    '╔═══════════════════════════════════════════════════════════╗',
+    '║           oh-my-droid Update Available!              ║',
+    '╚═══════════════════════════════════════════════════════════╝',
     '',
     `  Current version: ${checkResult.currentVersion ?? 'unknown'}`,
     `  Latest version:  ${checkResult.latestVersion}`,
     '',
     '  To update, run: /update',
-    `  Or run: curl -fsSL https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/scripts/install.sh | bash`,
+    '  Or run: curl -fsSL https://raw.githubusercontent.com/Yeachan-Heo/oh-my-droid/main/scripts/install.sh | bash',
     ''
   ];
 
@@ -473,7 +472,7 @@ export async function interactiveUpdate(): Promise<void> {
     const checkResult = await checkForUpdates();
 
     if (!checkResult.updateAvailable) {
-      console.log(`[OK] You are running the latest version (${checkResult.currentVersion})`);
+      console.log(`✓ You are running the latest version (${checkResult.currentVersion})`);
       return;
     }
 
@@ -483,10 +482,10 @@ export async function interactiveUpdate(): Promise<void> {
     const result = await performUpdate({ verbose: true });
 
     if (result.success) {
-      console.log(`\n[OK] ${result.message}`);
-      console.log('\nPlease restart your session to use the new version.');
+      console.log(`\n✓ ${result.message}`);
+      console.log('\nPlease restart your Factory Droid session to use the new version.');
     } else {
-      console.error(`\n[ERROR] ${result.message}`);
+      console.error(`\n✗ ${result.message}`);
       if (result.errors) {
         result.errors.forEach(err => console.error(`  - ${err}`));
       }

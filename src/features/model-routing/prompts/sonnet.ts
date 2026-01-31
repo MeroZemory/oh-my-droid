@@ -6,8 +6,6 @@
  * - Focused task execution
  * - Clear deliverables with structured output
  * - Efficient multi-step workflows
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 /**

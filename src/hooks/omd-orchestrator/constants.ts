@@ -1,92 +1,187 @@
 /**
- * OMD Orchestrator Constants
+ * OMC Orchestrator Constants
  *
- * Configuration for the main orchestration layer.
- * Adapted from oh-my-claudecode.
+ * Message templates and configuration for orchestrator behavior enforcement.
+ *
+ * Adapted from oh-my-opencode's omd-orchestrator hook.
  */
 
-/**
- * Agent prefixes for delegation
- */
-export const AGENT_PREFIX = 'oh-my-droid:';
+export const HOOK_NAME = 'omd-orchestrator';
 
-/**
- * Model tiers
- */
-export const MODEL_TIERS = {
-  LOW: 'haiku',
-  MEDIUM: 'sonnet',
-  HIGH: 'opus'
-} as const;
+/** @deprecated Use ALLOWED_PATH_PATTERNS instead. Legacy single prefix. */
+export const ALLOWED_PATH_PREFIX = '.omd/';
 
-/**
- * Agent type to model mapping
- */
-export const AGENT_MODELS: Record<string, string> = {
-  // Low tier (Haiku)
-  'architect-low': MODEL_TIERS.LOW,
-  'executor-low': MODEL_TIERS.LOW,
-  'explore': MODEL_TIERS.LOW,
-  'researcher-low': MODEL_TIERS.LOW,
-  'designer-low': MODEL_TIERS.LOW,
-  'writer': MODEL_TIERS.LOW,
-  'security-reviewer-low': MODEL_TIERS.LOW,
-  'build-fixer-low': MODEL_TIERS.LOW,
-  'tdd-guide-low': MODEL_TIERS.LOW,
-  'code-reviewer-low': MODEL_TIERS.LOW,
-  'scientist-low': MODEL_TIERS.LOW,
-
-  // Medium tier (Sonnet)
-  'architect-medium': MODEL_TIERS.MEDIUM,
-  'executor': MODEL_TIERS.MEDIUM,
-  'explore-medium': MODEL_TIERS.MEDIUM,
-  'researcher': MODEL_TIERS.MEDIUM,
-  'designer': MODEL_TIERS.MEDIUM,
-  'vision': MODEL_TIERS.MEDIUM,
-  'qa-tester': MODEL_TIERS.MEDIUM,
-  'build-fixer': MODEL_TIERS.MEDIUM,
-  'tdd-guide': MODEL_TIERS.MEDIUM,
-  'scientist': MODEL_TIERS.MEDIUM,
-
-  // High tier (Opus)
-  'architect': MODEL_TIERS.HIGH,
-  'executor-high': MODEL_TIERS.HIGH,
-  'designer-high': MODEL_TIERS.HIGH,
-  'planner': MODEL_TIERS.HIGH,
-  'critic': MODEL_TIERS.HIGH,
-  'analyst': MODEL_TIERS.HIGH,
-  'qa-tester-high': MODEL_TIERS.HIGH,
-  'security-reviewer': MODEL_TIERS.HIGH,
-  'code-reviewer': MODEL_TIERS.HIGH,
-  'scientist-high': MODEL_TIERS.HIGH
-};
-
-/**
- * Allowed paths for direct writes (no delegation warning)
- */
-export const ALLOWED_WRITE_PATHS = [
-  '~/.factory/omd/**',
-  '.omd/**',
-  '.claude/**',
-  'CLAUDE.md',
-  'AGENTS.md'
+/** Path patterns that orchestrator IS allowed to modify directly */
+export const ALLOWED_PATH_PATTERNS = [
+  /^\.omc\//,                    // .omd/**
+  /^\.claude\//,                 // .claude/** (local)
+  /^~?\/\.claude\//,             // ~/.factory/** (global)
+  /\/\.claude\//,                // any /.factory/ path
+  /CLAUDE\.md$/,                 // **/FACTORY.md
+  /AGENTS\.md$/,                 // **/AGENTS.md
 ];
 
-/**
- * Source file extensions that should trigger delegation warning
- */
-export const SOURCE_EXTENSIONS = [
+/** Source file extensions that should trigger delegation warnings */
+export const WARNED_EXTENSIONS = [
+  // JavaScript/TypeScript
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  // Python
   '.py', '.pyw',
+  // Go
   '.go',
+  // Rust
   '.rs',
+  // Java/JVM
   '.java', '.kt', '.scala',
-  '.c', '.cpp', '.h', '.hpp',
+  // C/C++
+  '.c', '.cpp', '.cc', '.h', '.hpp',
+  // Ruby
+  '.rb',
+  // PHP
+  '.php',
+  // Frontend frameworks
   '.svelte', '.vue',
-  '.rb', '.php', '.swift', '.cs'
+  // GraphQL
+  '.graphql', '.gql',
+  // Shell
+  '.sh', '.bash', '.zsh',
 ];
 
-/**
- * Audit log path
- */
-export const AUDIT_LOG_PATH = '.omd/logs/delegation-audit.jsonl';
+/** Tools that perform file modifications */
+export const WRITE_EDIT_TOOLS = ['Write', 'Edit', 'write', 'edit'];
+
+/** Reminder when orchestrator performs direct file work */
+export const DIRECT_WORK_REMINDER = `
+
+---
+
+[SYSTEM REMINDER - DELEGATION REQUIRED]
+
+You just performed direct file modifications outside \`.omd/\`.
+
+**You are an ORCHESTRATOR, not an IMPLEMENTER.**
+
+As an orchestrator, you should:
+- **DELEGATE** implementation work to subagents via the Task tool
+- **VERIFY** the work done by subagents
+- **COORDINATE** multiple tasks and ensure completion
+
+You should NOT:
+- Write code directly (except for \`.omd/\` files like plans and notepads)
+- Make direct file edits outside \`.omd/\`
+- Implement features yourself
+
+**If you need to make changes:**
+1. Use the Task tool to delegate to an appropriate subagent
+2. Provide clear instructions in the prompt
+3. Verify the subagent's work after completion
+
+---
+`;
+
+/** Strong warning when orchestrator tries to modify source files */
+export const ORCHESTRATOR_DELEGATION_REQUIRED = `
+
+---
+
+[CRITICAL SYSTEM DIRECTIVE - DELEGATION REQUIRED]
+
+**STOP. YOU ARE VIOLATING ORCHESTRATOR PROTOCOL.**
+
+You (coordinator) are attempting to directly modify a file outside \`.omd/\`.
+
+**Path attempted:** $FILE_PATH
+
+---
+
+**THIS IS FORBIDDEN** (except for VERIFICATION purposes)
+
+As an ORCHESTRATOR, you MUST:
+1. **DELEGATE** all implementation work via the Task tool
+2. **VERIFY** the work done by subagents (reading files is OK)
+3. **COORDINATE** - you orchestrate, you don't implement
+
+**ALLOWED direct file operations:**
+- Files inside \`.omd/\` (plans, notepads, drafts)
+- Files inside \`~/.factory/\` (global config)
+- \`FACTORY.md\` and \`AGENTS.md\` files
+- Reading files for verification
+- Running diagnostics/tests
+
+**FORBIDDEN direct file operations:**
+- Writing/editing source code
+- Creating new files outside \`.omd/\`
+- Any implementation work
+
+---
+
+**IF THIS IS FOR VERIFICATION:**
+Proceed if you are verifying subagent work by making a small fix.
+But for any substantial changes, USE the Task tool.
+
+**CORRECT APPROACH:**
+\`\`\`
+Task tool with subagent_type="executor"
+prompt="[specific single task with clear acceptance criteria]"
+\`\`\`
+
+DELEGATE. DON'T IMPLEMENT.
+
+---
+`;
+
+/** Continuation prompt for boulder state */
+export const BOULDER_CONTINUATION_PROMPT = `[SYSTEM REMINDER - BOULDER CONTINUATION]
+
+You have an active work plan with incomplete tasks. Continue working.
+
+RULES:
+- Proceed without asking for permission
+- Mark each checkbox [x] in the plan file when done
+- Use the notepad at .omd/notepads/{PLAN_NAME}/ to record learnings
+- Do not stop until all tasks are complete
+- If blocked, document the blocker and move to the next task`;
+
+/** Verification reminder for subagent work */
+export const VERIFICATION_REMINDER = `**MANDATORY VERIFICATION - SUBAGENTS LIE**
+
+Subagents FREQUENTLY claim completion when:
+- Tests are actually FAILING
+- Code has type/lint ERRORS
+- Implementation is INCOMPLETE
+- Patterns were NOT followed
+
+**YOU MUST VERIFY EVERYTHING YOURSELF:**
+
+1. Run tests yourself - Must PASS (not "agent said it passed")
+2. Read the actual code - Must match requirements
+3. Check build/typecheck - Must succeed
+
+DO NOT TRUST THE AGENT'S SELF-REPORT.
+VERIFY EACH CLAIM WITH YOUR OWN TOOL CALLS.`;
+
+/** Directive for subagents to refuse multi-task requests */
+export const SINGLE_TASK_DIRECTIVE = `
+
+[SYSTEM DIRECTIVE - SINGLE TASK ONLY]
+
+**STOP. READ THIS BEFORE PROCEEDING.**
+
+If you were NOT given **exactly ONE atomic task**, you MUST:
+1. **IMMEDIATELY REFUSE** this request
+2. **DEMAND** the orchestrator provide a single, specific task
+
+**Your response if multiple tasks detected:**
+> "I refuse to proceed. You provided multiple tasks. An orchestrator's impatience destroys work quality.
+>
+> PROVIDE EXACTLY ONE TASK. One file. One change. One verification.
+>
+> Your rushing will cause: incomplete work, missed edge cases, broken tests, wasted context."
+
+**WARNING TO ORCHESTRATOR:**
+- Your hasty batching RUINS deliverables
+- Each task needs FULL attention and PROPER verification
+- Batch delegation = sloppy work = rework = wasted tokens
+
+**REFUSE multi-task requests. DEMAND single-task clarity.**
+`;

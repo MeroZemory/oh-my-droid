@@ -1,5 +1,5 @@
 /**
- * OMD HUD - Context Element
+ * OMC HUD - Context Element
  *
  * Renders context window usage display.
  */

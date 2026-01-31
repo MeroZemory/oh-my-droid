@@ -1,9 +1,8 @@
 /**
  * Session Recovery
  *
- * Helps recover session state when Android Factory restarts or crashes.
+ * Helps recover session state when Factory Droid restarts or crashes.
  * Detects and fixes various error conditions that can cause session failures.
- * Adapted from oh-my-claudecode.
  */
 
 import { appendFileSync } from 'node:fs';
@@ -181,6 +180,11 @@ async function recoverToolResultMissing(
   }
 
   debugLog('Found tool_use IDs to inject results for', toolUseIds);
+
+  // Note: In Factory Droid's simplified architecture, we would need to
+  // integrate with the actual session/tool system to inject tool results.
+  // This is a placeholder showing the recovery intent.
+  // A full implementation would require access to the SDK client.
 
   return true; // Indicate recovery was attempted
 }

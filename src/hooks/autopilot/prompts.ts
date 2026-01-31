@@ -1,168 +1,380 @@
 /**
- * Autopilot Prompts
+ * Autopilot Prompt Generation
  *
- * System prompts and messages for autopilot mode.
- * Adapted from oh-my-claudecode.
+ * Generates phase-specific prompts that include Task tool invocations
+ * for Claude to execute. This is the core of the agent invocation mechanism.
  */
-
-import type { AutopilotState } from './types.js';
 
 /**
- * Planning phase prompt
+ * Generate the expansion phase prompt (Phase 0)
+ * Analyst extracts requirements, Architect creates technical spec
  */
-export function getPlanningPrompt(goal: string): string {
-  return `<autopilot-planning>
+export function getExpansionPrompt(idea: string): string {
+  return `## AUTOPILOT PHASE 0: IDEA EXPANSION
 
-[AUTOPILOT: PLANNING PHASE]
+Your task: Expand this product idea into detailed requirements and technical spec.
 
-You are in autopilot mode. Your goal is:
+**Original Idea:** "${idea}"
 
-**${goal}**
+### Step 1: Spawn Analyst for Requirements
 
-## PLANNING INSTRUCTIONS
+\`\`\`
+Task(
+  subagent_type="oh-my-droid:analyst",
+  model="opus",
+  prompt="REQUIREMENTS ANALYSIS for: ${escapeForPrompt(idea)}
 
-1. **Analyze the Goal**
-   - Break down the task into discrete, actionable steps
-   - Identify dependencies between steps
-   - Estimate complexity of each step
+Extract and document:
+1. Functional requirements (what it must do)
+2. Non-functional requirements (performance, UX, etc.)
+3. Implicit requirements (things user didn't say but needs)
+4. Out of scope items
 
-2. **Create a Plan**
-   - Use TodoWrite to create a comprehensive task list
-   - Order tasks by dependency and priority
-   - Include verification steps
+Output as structured markdown with clear sections."
+)
+\`\`\`
 
-3. **Identify Resources**
-   - What files need to be read/modified?
-   - What tools are needed?
-   - What agents should be delegated to?
+WAIT for Analyst to complete before proceeding.
 
-4. **Risk Assessment**
-   - What could go wrong?
-   - What are the rollback options?
+### Step 2: Spawn Architect for Technical Spec
 
-After planning, move to EXECUTING phase.
+After Analyst completes, spawn Architect:
 
-</autopilot-planning>
+\`\`\`
+Task(
+  subagent_type="oh-my-droid:architect",
+  model="opus",
+  prompt="TECHNICAL SPECIFICATION for: ${escapeForPrompt(idea)}
 
----
+Based on the requirements analysis above, create:
+1. Tech stack decisions with rationale
+2. Architecture overview (patterns, layers)
+3. File structure (directory tree)
+4. Dependencies list (packages)
+5. API/interface definitions
 
+Output as structured markdown."
+)
+\`\`\`
+
+### Step 3: Save Combined Spec
+
+Combine Analyst requirements + Architect technical spec into a single document.
+Save to: \`.omd/autopilot/spec.md\`
+
+### Step 4: Signal Completion
+
+When the spec is saved, signal: EXPANSION_COMPLETE
 `;
 }
 
 /**
- * Execution phase prompt
+ * Generate the direct planning prompt (Phase 1)
+ * Uses Architect instead of Planner to create plan directly from spec
  */
-export function getExecutionPrompt(state: AutopilotState): string {
-  return `<autopilot-execution>
+export function getDirectPlanningPrompt(specPath: string): string {
+  return `## AUTOPILOT PHASE 1: DIRECT PLANNING
 
-[AUTOPILOT: EXECUTION PHASE - Iteration ${state.iteration}/${state.max_iterations}]
+The spec is complete from Phase 0. Create implementation plan directly (no interview needed).
 
-Goal: ${state.goal}
+### Step 1: Read Spec
 
-## EXECUTION INSTRUCTIONS
+Read the specification at: ${specPath}
 
-1. **Check Todo List**
-   - Review current progress
-   - Identify next pending task
-   - Mark tasks complete as you finish them
+### Step 2: Create Plan via Architect
 
-2. **Execute with Parallelism**
-   - Fire independent operations in parallel
-   - Use Task tool for complex subtasks
-   - Don't wait unnecessarily
+Spawn Architect to create the implementation plan:
 
-3. **Verify Each Step**
-   - Check that changes compile/work
-   - Run relevant tests
-   - Fix issues immediately
+\`\`\`
+Task(
+  subagent_type="oh-my-droid:architect",
+  model="opus",
+  prompt="CREATE IMPLEMENTATION PLAN
 
-4. **Progress Tracking**
-   - Update todos after each step
-   - Note any blockers or issues
-   - Record learnings
+Read the specification at: ${specPath}
 
-Continue until all todos are complete, then move to VERIFYING phase.
+Generate a comprehensive implementation plan with:
 
-</autopilot-execution>
+1. **Task Breakdown**
+   - Each task must be atomic (one clear deliverable)
+   - Include file paths for each task
+   - Estimate complexity (simple/medium/complex)
 
----
+2. **Dependency Graph**
+   - Which tasks depend on others
+   - Optimal execution order
+   - Tasks that can run in parallel
 
+3. **Acceptance Criteria**
+   - Testable criteria for each task
+   - Definition of done
+
+4. **Risk Register**
+   - Identified risks
+   - Mitigation strategies
+
+Save to: .omd/plans/autopilot-impl.md
+
+Signal completion with: PLAN_CREATED"
+)
+\`\`\`
+
+### Step 3: Validate Plan via Critic
+
+After Architect creates the plan:
+
+\`\`\`
+Task(
+  subagent_type="oh-my-droid:critic",
+  model="opus",
+  prompt="REVIEW IMPLEMENTATION PLAN
+
+Plan file: .omd/plans/autopilot-impl.md
+Original spec: ${specPath}
+
+Verify:
+1. All requirements from spec have corresponding tasks
+2. No ambiguous task descriptions
+3. Acceptance criteria are testable
+4. Dependencies are correctly identified
+5. Risks are addressed
+
+Verdict: OKAY or REJECT with specific issues"
+)
+\`\`\`
+
+### Iteration Loop
+
+If Critic rejects, feed feedback back to Architect and retry (max 5 iterations).
+
+When Critic approves: PLANNING_COMPLETE
 `;
 }
 
 /**
- * Verification phase prompt
+ * Generate the execution phase prompt (Phase 2)
  */
-export function getVerificationPrompt(state: AutopilotState): string {
-  return `<autopilot-verification>
+export function getExecutionPrompt(planPath: string): string {
+  return `## AUTOPILOT PHASE 2: EXECUTION
 
-[AUTOPILOT: VERIFICATION PHASE]
+Execute the plan at ${planPath} using Ralph+Ultrawork mode.
 
-Goal: ${state.goal}
+### Activation
 
-## VERIFICATION CHECKLIST
+Ralph and Ultrawork are now active. Execute tasks in parallel where possible.
 
-${state.require_verification ? `
-**ARCHITECT VERIFICATION REQUIRED**
+### Execution Rules
 
-Before claiming completion, you MUST invoke the architect agent to verify:
+- Read the plan from ${planPath}
+- Identify independent tasks that can run in parallel
+- Spawn multiple executor agents for parallel work
+- Track progress in the TODO list
+- Use appropriate agent tiers based on task complexity
+
+### Agent Spawning Pattern
 
 \`\`\`
-Task(subagent_type="oh-my-droid:architect", prompt="Verify this autopilot task completion...")
-\`\`\`
-` : ''}
+// For simple tasks (single file, straightforward logic)
+Task(subagent_type="oh-my-droid:executor-low", model="haiku", prompt="...")
 
-1. **Functionality Check**
-   - Does the implementation meet all requirements?
-   - Are all edge cases handled?
+// For standard implementation (feature, multiple methods)
+Task(subagent_type="oh-my-droid:executor", model="sonnet", prompt="...")
 
-2. **Quality Check**
-   - Code compiles without errors
-   - Tests pass
-   - No linting errors
-
-3. **Completeness Check**
-   - All todos marked complete
-   - No TODO/FIXME comments left behind
-   - Documentation updated if needed
-
-4. **Final Verification**
-   - Run the full test suite
-   - Verify the feature works end-to-end
-
-If verification passes, output:
-\`\`\`
-<autopilot-complete>GOAL_ACHIEVED</autopilot-complete>
+// For complex work (architecture, debugging, refactoring)
+Task(subagent_type="oh-my-droid:executor-high", model="opus", prompt="...")
 \`\`\`
 
-If issues found, return to EXECUTING phase.
+### Progress Tracking
 
-</autopilot-verification>
+Update TODO list as tasks complete:
+- Mark task in_progress when starting
+- Mark task completed when done
+- Add new tasks if discovered during implementation
 
----
+### Completion
 
+When all tasks from the plan are complete: EXECUTION_COMPLETE
 `;
 }
 
 /**
- * Continuation prompt for incomplete state
+ * Generate the QA phase prompt (Phase 3)
  */
-export function getContinuationPrompt(state: AutopilotState): string {
-  return `<autopilot-continuation>
+export function getQAPrompt(): string {
+  return `## AUTOPILOT PHASE 3: QUALITY ASSURANCE
 
-[AUTOPILOT RESTORED - Iteration ${state.iteration}/${state.max_iterations}]
+Run UltraQA cycles until build/lint/tests pass.
 
-Your autopilot session was interrupted. Resuming...
+### QA Sequence
 
-**Goal:** ${state.goal}
-**Phase:** ${state.phase}
-${state.last_verification ? `**Last Verification:** ${state.last_verification.approved ? 'Approved' : 'Rejected - ' + state.last_verification.feedback}` : ''}
+1. **Build**: Run the project's build command:
+   - JavaScript/TypeScript: \`npm run build\` (or yarn/pnpm equivalent)
+   - Python: \`python -m build\` (if applicable)
+   - Go: \`go build ./...\`
+   - Rust: \`cargo build\`
+   - Java: \`mvn compile\` or \`gradle build\`
+2. **Lint**: Run the project's linter:
+   - JavaScript/TypeScript: \`npm run lint\`
+   - Python: \`ruff check .\` or \`flake8\`
+   - Go: \`golangci-lint run\`
+   - Rust: \`cargo clippy\`
+3. **Test**: Run the project's tests:
+   - JavaScript/TypeScript: \`npm test\`
+   - Python: \`pytest\`
+   - Go: \`go test ./...\`
+   - Rust: \`cargo test\`
+   - Java: \`mvn test\` or \`gradle test\`
 
-Continue from where you left off. Check your todo list for pending tasks.
+### Fix Cycle
 
-</autopilot-continuation>
+For each failure:
 
----
+1. **Diagnose** - Understand the error
+\`\`\`
+Task(
+  subagent_type="oh-my-droid:architect-low",
+  model="haiku",
+  prompt="Diagnose this error and suggest fix: [ERROR]"
+)
+\`\`\`
 
+2. **Fix** - Apply the fix
+\`\`\`
+Task(
+  subagent_type="oh-my-droid:build-fixer",
+  model="sonnet",
+  prompt="Fix this error with minimal changes: [ERROR]"
+)
+\`\`\`
+
+3. **Re-run** - Verify the fix worked
+4. **Repeat** - Until pass or max cycles (5)
+
+### Exit Conditions
+
+- All checks pass → QA_COMPLETE
+- Max cycles reached → Report failures
+- Same error 3 times → Escalate to user
+
+When all checks pass: QA_COMPLETE
 `;
+}
+
+/**
+ * Generate the validation phase prompt (Phase 4)
+ */
+export function getValidationPrompt(specPath: string): string {
+  return `## AUTOPILOT PHASE 4: VALIDATION
+
+Spawn parallel validation architects for comprehensive review.
+
+### Parallel Validation Spawns
+
+Spawn all three architects in parallel:
+
+\`\`\`
+// Functional Completeness Review
+Task(
+  subagent_type="oh-my-droid:architect",
+  model="opus",
+  prompt="FUNCTIONAL COMPLETENESS REVIEW
+
+Read the original spec at: ${specPath}
+
+Verify:
+1. All functional requirements are implemented
+2. All non-functional requirements are addressed
+3. All acceptance criteria from the plan are met
+4. No missing features or incomplete implementations
+
+Verdict: APPROVED (all requirements met) or REJECTED (with specific gaps)"
+)
+
+// Security Review
+Task(
+  subagent_type="oh-my-droid:security-reviewer",
+  model="opus",
+  prompt="SECURITY REVIEW
+
+Check the implementation for:
+1. OWASP Top 10 vulnerabilities
+2. Input validation and sanitization
+3. Authentication/authorization issues
+4. Sensitive data exposure
+5. Injection vulnerabilities (SQL, command, XSS)
+6. Hardcoded secrets or credentials
+
+Verdict: APPROVED (no vulnerabilities) or REJECTED (with specific issues)"
+)
+
+// Code Quality Review
+Task(
+  subagent_type="oh-my-droid:code-reviewer",
+  model="opus",
+  prompt="CODE QUALITY REVIEW
+
+Review the implementation for:
+1. Code organization and structure
+2. Design patterns and best practices
+3. Error handling completeness
+4. Test coverage adequacy
+5. Documentation and comments
+6. Maintainability and readability
+
+Verdict: APPROVED (high quality) or REJECTED (with specific issues)"
+)
+\`\`\`
+
+### Verdict Aggregation
+
+- **All APPROVED** → AUTOPILOT_COMPLETE
+- **Any REJECTED** → Fix the issues and re-validate (max 3 rounds)
+
+### Fix and Retry
+
+If any reviewer rejects:
+1. Collect all rejection reasons
+2. Fix each issue identified
+3. Re-run validation
+
+When all approve: AUTOPILOT_COMPLETE
+`;
+}
+
+/**
+ * Escape special characters for embedding in prompts
+ */
+function escapeForPrompt(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$');
+}
+
+/**
+ * Get the prompt for the current phase
+ */
+export function getPhasePrompt(
+  phase: string,
+  context: {
+    idea?: string;
+    specPath?: string;
+    planPath?: string;
+  }
+): string {
+  switch (phase) {
+    case 'expansion':
+      return getExpansionPrompt(context.idea || '');
+    case 'planning':
+      return getDirectPlanningPrompt(context.specPath || '.omd/autopilot/spec.md');
+    case 'execution':
+      return getExecutionPrompt(context.planPath || '.omd/plans/autopilot-impl.md');
+    case 'qa':
+      return getQAPrompt();
+    case 'validation':
+      return getValidationPrompt(context.specPath || '.omd/autopilot/spec.md');
+    default:
+      return '';
+  }
 }

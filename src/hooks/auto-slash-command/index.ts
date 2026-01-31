@@ -1,80 +1,156 @@
 /**
  * Auto Slash Command Hook
  *
- * Automatically detects and executes slash commands from natural language.
- * Adapted from oh-my-claudecode.
+ * Detects and expands slash commands in user prompts.
+ * Complements Factory Droid's native slash command system by adding:
+ * - Skill-based commands from ~/.factory/skills/
+ * - Project-level commands from .factory/commands/
+ * - Template expansion with $ARGUMENTS placeholder
+ *
+ * Adapted from oh-my-opencode's auto-slash-command hook.
  */
 
-import { detectCommand, shouldAutoExecute } from './detector.js';
-import { executeCommand, formatAnnouncement } from './executor.js';
-import type { DetectorConfig, CommandDetection, ExecutorResult } from './types.js';
-
-// Export types
-export type { CommandDetection, DetectorConfig, ExecutorResult } from './types.js';
-
-// Export constants
-export {
-  TRIGGER_KEYWORDS,
-  COMMAND_MAPPINGS,
-  COMMAND_PRIORITY,
-  DEFAULT_CONFIDENCE_THRESHOLD,
-  AUTO_EXECUTE_COOLDOWN_MS
+import {
+  detectSlashCommand,
+  extractPromptText,
+} from './detector.js';
+import {
+  executeSlashCommand,
+  findCommand,
+  listAvailableCommands,
+} from './executor.js';
+import {
+  HOOK_NAME,
+  AUTO_SLASH_COMMAND_TAG_OPEN,
+  AUTO_SLASH_COMMAND_TAG_CLOSE,
 } from './constants.js';
+import type {
+  AutoSlashCommandHookInput,
+  AutoSlashCommandResult,
+} from './types.js';
 
-// Export functions
-export { detectCommand, shouldAutoExecute } from './detector.js';
-export { executeCommand, formatAnnouncement } from './executor.js';
+// Re-export all submodules
+export * from './types.js';
+export * from './constants.js';
+export {
+  detectSlashCommand,
+  extractPromptText,
+  parseSlashCommand,
+  removeCodeBlocks,
+  isExcludedCommand,
+} from './detector.js';
+export {
+  executeSlashCommand,
+  findCommand,
+  discoverAllCommands,
+  listAvailableCommands,
+} from './executor.js';
+
+/** Track processed commands to avoid duplicate expansion */
+const sessionProcessedCommands = new Set<string>();
 
 /**
- * State for cooldown tracking
+ * Create auto slash command hook handlers
  */
-const lastExecutionTime = new Map<string, number>();
-
-/**
- * Create the auto slash command hook
- */
-export function createAutoSlashCommandHook(config?: DetectorConfig) {
+export function createAutoSlashCommandHook() {
   return {
     /**
-     * PreToolUse - Detect and execute slash commands
+     * Hook name identifier
      */
-    preToolUse: (input: {
-      session_id: string;
-      tool_input: { prompt?: string };
-    }): string | null => {
-      const prompt = input.tool_input.prompt;
-      if (!prompt) return null;
+    name: HOOK_NAME,
 
-      // Check cooldown
-      const lastExec = lastExecutionTime.get(input.session_id) ?? 0;
-      const now = Date.now();
-      if (now - lastExec < 5000) {
-        return null;
+    /**
+     * Process a user message to detect and expand slash commands
+     */
+    processMessage: (
+      input: AutoSlashCommandHookInput,
+      parts: Array<{ type: string; text?: string }>
+    ): AutoSlashCommandResult => {
+      const promptText = extractPromptText(parts);
+
+      // Skip if already processed (contains our tags)
+      if (
+        promptText.includes(AUTO_SLASH_COMMAND_TAG_OPEN) ||
+        promptText.includes(AUTO_SLASH_COMMAND_TAG_CLOSE)
+      ) {
+        return { detected: false };
       }
 
-      // Detect command
-      const detection = detectCommand(prompt, config);
-      if (!detection || !shouldAutoExecute(detection, config)) {
-        return null;
+      const parsed = detectSlashCommand(promptText);
+
+      if (!parsed) {
+        return { detected: false };
       }
 
-      // Execute
-      const result = executeCommand(detection);
-      if (!result.executed || !result.message) {
-        return null;
+      // Deduplicate within session
+      const commandKey = `${input.sessionId}:${input.messageId}:${parsed.command}`;
+      if (sessionProcessedCommands.has(commandKey)) {
+        return { detected: false };
+      }
+      sessionProcessedCommands.add(commandKey);
+
+      // Execute the command
+      const result = executeSlashCommand(parsed);
+
+      if (result.success && result.replacementText) {
+        const taggedContent = `${AUTO_SLASH_COMMAND_TAG_OPEN}\n${result.replacementText}\n${AUTO_SLASH_COMMAND_TAG_CLOSE}`;
+
+        return {
+          detected: true,
+          parsedCommand: parsed,
+          injectedMessage: taggedContent,
+        };
       }
 
-      // Record execution time
-      lastExecutionTime.set(input.session_id, now);
+      // Command not found or error
+      const errorMessage = `${AUTO_SLASH_COMMAND_TAG_OPEN}\n[AUTO-SLASH-COMMAND ERROR]\n${result.error}\n\nOriginal input: ${parsed.raw}\n${AUTO_SLASH_COMMAND_TAG_CLOSE}`;
 
-      return result.message;
+      return {
+        detected: true,
+        parsedCommand: parsed,
+        injectedMessage: errorMessage,
+      };
     },
 
     /**
-     * Detect command without executing (for inspection)
+     * Get list of available commands
      */
-    detect: (prompt: string): CommandDetection | null => {
-      return detectCommand(prompt, config);
-    }
+    listCommands: () => {
+      return listAvailableCommands();
+    },
+
+    /**
+     * Find a specific command by name
+     */
+    findCommand: (name: string) => {
+      return findCommand(name);
+    },
+
+    /**
+     * Clear processed commands cache for a session
+     */
+    clearSession: (sessionId: string) => {
+      // Clear all commands for this session
+      const keysToDelete: string[] = [];
+      for (const key of sessionProcessedCommands) {
+        if (key.startsWith(`${sessionId}:`)) {
+          keysToDelete.push(key);
+        }
+      }
+      for (const key of keysToDelete) {
+        sessionProcessedCommands.delete(key);
+      }
+    },
   };
+}
+
+/**
+ * Process a prompt for slash command expansion (simple utility function)
+ */
+export function processSlashCommand(prompt: string): AutoSlashCommandResult {
+  const hook = createAutoSlashCommandHook();
+  return hook.processMessage(
+    {},
+    [{ type: 'text', text: prompt }]
+  );
 }

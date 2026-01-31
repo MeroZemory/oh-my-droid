@@ -6,8 +6,6 @@
  *
  * Ultrapilot decomposes tasks into parallelizable subtasks, spawns workers (max 5),
  * tracks progress, and integrates results while managing shared file access.
- *
- * Adapted from oh-my-claudecode.
  */
 
 /**

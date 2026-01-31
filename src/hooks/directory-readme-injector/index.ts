@@ -1,192 +1,209 @@
 /**
  * Directory README Injector Hook
  *
- * Injects directory-specific README/AGENTS.md content into context
- * when working with files in that directory.
- * Adapted from oh-my-claudecode.
+ * Automatically injects relevant README content from directories when files are accessed.
+ * Walks up the directory tree from accessed files to find and inject README.md files.
+ *
+ * Ported from oh-my-opencode's directory-readme-injector hook.
+ * Adapted for Factory Droid's shell hook system.
  */
 
-import { existsSync, readFileSync } from 'fs';
-import { join, dirname, basename } from 'path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import {
-  DEFAULT_README_NAMES,
-  DEFAULT_MAX_DEPTH,
-  DEFAULT_IGNORE_DIRS,
-  INJECTION_TEMPLATE
-} from './constants.js';
-import { wasInjected, recordInjection, cleanupStaleCaches } from './storage.js';
-import type { ReadmeInfo, InjectionResult, ReadmeInjectorConfig } from './types.js';
-
-// Export types
-export type { ReadmeInfo, InjectionResult, ReadmeInjectorConfig } from './types.js';
-
-// Export constants
-export {
-  DEFAULT_README_NAMES,
-  DEFAULT_MAX_DEPTH,
-  DEFAULT_IGNORE_DIRS,
-  INJECTION_TEMPLATE,
-  CACHE_TTL_MS
-} from './constants.js';
-
-// Export storage functions
-export {
-  wasInjected,
-  recordInjection,
-  getInjectedReadmes,
-  clearSessionCache,
-  cleanupStaleCaches
+  loadInjectedPaths,
+  saveInjectedPaths,
+  clearInjectedPaths,
 } from './storage.js';
+import { README_FILENAME, TRACKED_TOOLS } from './constants.js';
+
+// Re-export submodules
+export * from './types.js';
+export * from './constants.js';
+export * from './storage.js';
 
 /**
- * Find README file in a directory
+ * Simple token estimation (4 chars per token)
  */
-export function findReadme(
-  directory: string,
-  readmeNames?: string[]
-): ReadmeInfo | null {
-  const names = readmeNames ?? DEFAULT_README_NAMES;
+const CHARS_PER_TOKEN = 4;
+const DEFAULT_MAX_README_TOKENS = 5000;
 
-  for (const name of names) {
-    const path = join(directory, name);
-    if (existsSync(path)) {
-      try {
-        const content = readFileSync(path, 'utf-8');
-        return {
-          path,
-          directory,
-          content,
-          filename: name
-        };
-      } catch {
-        continue;
-      }
-    }
-  }
-
-  return null;
+/**
+ * Truncation result
+ */
+interface TruncationResult {
+  result: string;
+  truncated: boolean;
 }
 
 /**
- * Find READMEs in directory hierarchy
+ * Simple truncation for README content
  */
-export function findReadmesInHierarchy(
-  startDir: string,
-  config?: ReadmeInjectorConfig
-): ReadmeInfo[] {
-  const readmes: ReadmeInfo[] = [];
-  const maxDepth = config?.maxDepth ?? DEFAULT_MAX_DEPTH;
-  const ignoreDirs = new Set(config?.ignoreDirs ?? DEFAULT_IGNORE_DIRS);
+function truncateContent(
+  content: string,
+  maxTokens: number = DEFAULT_MAX_README_TOKENS
+): TruncationResult {
+  const estimatedTokens = Math.ceil(content.length / CHARS_PER_TOKEN);
 
-  let currentDir = startDir;
-  let depth = 0;
-
-  while (depth < maxDepth) {
-    // Skip ignored directories
-    const dirName = basename(currentDir);
-    if (!ignoreDirs.has(dirName)) {
-      const readme = findReadme(currentDir, config?.readmeNames);
-      if (readme) {
-        readmes.push(readme);
-      }
-    }
-
-    // Move up one level
-    const parentDir = dirname(currentDir);
-    if (parentDir === currentDir) {
-      break; // Reached root
-    }
-
-    currentDir = parentDir;
-    depth++;
+  if (estimatedTokens <= maxTokens) {
+    return { result: content, truncated: false };
   }
 
-  return readmes;
-}
-
-/**
- * Format injection message
- */
-export function formatInjection(readmes: ReadmeInfo[]): string {
-  if (readmes.length === 0) {
-    return '';
-  }
-
-  return readmes
-    .map(readme =>
-      INJECTION_TEMPLATE
-        .replace('{directory}', readme.directory)
-        .replace('{content}', readme.content)
-    )
-    .join('\n');
-}
-
-/**
- * Inject READMEs for a file operation
- */
-export function injectForFile(
-  sessionId: string,
-  filePath: string,
-  config?: ReadmeInjectorConfig
-): InjectionResult {
-  if (config?.enabled === false) {
-    return { injected: false, readmes: [] };
-  }
-
-  const directory = dirname(filePath);
-
-  // Check cache
-  if (config?.useCache !== false && wasInjected(sessionId, directory)) {
-    return { injected: false, readmes: [] };
-  }
-
-  // Find READMEs
-  const readmes = findReadmesInHierarchy(directory, config);
-
-  if (readmes.length === 0) {
-    return { injected: false, readmes: [] };
-  }
-
-  // Record injection
-  if (config?.useCache !== false) {
-    recordInjection(sessionId, directory, readmes);
-  }
+  const maxChars = maxTokens * CHARS_PER_TOKEN;
+  const truncated = content.slice(0, maxChars);
 
   return {
-    injected: true,
-    readmes,
-    message: formatInjection(readmes)
+    result: truncated,
+    truncated: true,
   };
 }
 
 /**
- * Create the README injector hook
+ * Create directory README injector hook for Factory Droid.
+ *
+ * @param workingDirectory - The working directory for resolving paths
+ * @returns Hook handlers for tool execution
  */
-export function createReadmeInjectorHook(config?: ReadmeInjectorConfig) {
-  // Start cleanup interval
-  setInterval(cleanupStaleCaches, 10 * 60 * 1000);
+export function createDirectoryReadmeInjectorHook(workingDirectory: string) {
+  const sessionCaches = new Map<string, Set<string>>();
+
+  function getSessionCache(sessionID: string): Set<string> {
+    if (!sessionCaches.has(sessionID)) {
+      sessionCaches.set(sessionID, loadInjectedPaths(sessionID));
+    }
+    return sessionCaches.get(sessionID)!;
+  }
+
+  function resolveFilePath(path: string): string | null {
+    if (!path) return null;
+    if (path.startsWith('/')) return path;
+    return resolve(workingDirectory, path);
+  }
+
+  /**
+   * Find README.md files by walking up the directory tree.
+   * Returns paths in order from root to leaf.
+   */
+  function findReadmeMdUp(startDir: string): string[] {
+    const found: string[] = [];
+    let current = startDir;
+
+    while (true) {
+      const readmePath = join(current, README_FILENAME);
+      if (existsSync(readmePath)) {
+        found.push(readmePath);
+      }
+
+      // Stop at working directory root
+      if (current === workingDirectory) break;
+
+      const parent = dirname(current);
+      // Stop at filesystem root
+      if (parent === current) break;
+      // Stop if we've gone outside the working directory
+      if (!parent.startsWith(workingDirectory)) break;
+
+      current = parent;
+    }
+
+    // Return in order from root to leaf (reverse the array)
+    return found.reverse();
+  }
+
+  /**
+   * Process a file path and return README content to inject.
+   */
+  function processFilePathForReadmes(
+    filePath: string,
+    sessionID: string
+  ): string {
+    const resolved = resolveFilePath(filePath);
+    if (!resolved) return '';
+
+    const dir = dirname(resolved);
+    const cache = getSessionCache(sessionID);
+    const readmePaths = findReadmeMdUp(dir);
+
+    let output = '';
+
+    for (const readmePath of readmePaths) {
+      const readmeDir = dirname(readmePath);
+      if (cache.has(readmeDir)) continue;
+
+      try {
+        const content = readFileSync(readmePath, 'utf-8');
+        const { result, truncated } = truncateContent(content);
+
+        const truncationNotice = truncated
+          ? `\n\n[Note: Content was truncated to save context window space. For full context, please read the file directly: ${readmePath}]`
+          : '';
+
+        output += `\n\n[Project README: ${readmePath}]\n${result}${truncationNotice}`;
+        cache.add(readmeDir);
+      } catch {
+        // Skip files that can't be read
+      }
+    }
+
+    if (output) {
+      saveInjectedPaths(sessionID, cache);
+    }
+
+    return output;
+  }
 
   return {
     /**
-     * PreToolUse - Inject READMEs before file operations
+     * Process a tool execution and inject READMEs if relevant.
      */
-    preToolUse: (input: {
-      session_id: string;
-      tool_name: string;
-      tool_input: Record<string, unknown>;
-    }): string | null => {
-      // Only inject for file operations
-      if (!['Read', 'Write', 'Edit'].includes(input.tool_name)) {
-        return null;
+    processToolExecution: (
+      toolName: string,
+      filePath: string,
+      sessionID: string
+    ): string => {
+      if (!TRACKED_TOOLS.includes(toolName.toLowerCase())) {
+        return '';
       }
 
-      const filePath = input.tool_input.file_path as string;
-      if (!filePath) {
-        return null;
-      }
+      return processFilePathForReadmes(filePath, sessionID);
+    },
 
-      const result = injectForFile(input.session_id, filePath, config);
-      return result.message || null;
-    }
+    /**
+     * Get READMEs for a specific file without marking as injected.
+     */
+    getReadmesForFile: (filePath: string): string[] => {
+      const resolved = resolveFilePath(filePath);
+      if (!resolved) return [];
+
+      const dir = dirname(resolved);
+      return findReadmeMdUp(dir);
+    },
+
+    /**
+     * Clear session cache when session ends.
+     */
+    clearSession: (sessionID: string): void => {
+      sessionCaches.delete(sessionID);
+      clearInjectedPaths(sessionID);
+    },
+
+    /**
+     * Check if a tool triggers README injection.
+     */
+    isTrackedTool: (toolName: string): boolean => {
+      return TRACKED_TOOLS.includes(toolName.toLowerCase());
+    },
   };
+}
+
+/**
+ * Get README paths for a file (simple utility function).
+ */
+export function getReadmesForPath(
+  filePath: string,
+  workingDirectory?: string
+): string[] {
+  const cwd = workingDirectory || process.cwd();
+  const hook = createDirectoryReadmeInjectorHook(cwd);
+  return hook.getReadmesForFile(filePath);
 }

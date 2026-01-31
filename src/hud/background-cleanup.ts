@@ -1,5 +1,5 @@
 /**
- * OMD HUD - Background Task Cleanup
+ * OMC HUD - Background Task Cleanup
  *
  * Handles cleanup of stale and orphaned background tasks on HUD startup.
  */

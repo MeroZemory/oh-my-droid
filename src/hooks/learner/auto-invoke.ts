@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 export interface InvocationConfig {
   enabled: boolean;
@@ -34,17 +34,17 @@ const DEFAULT_CONFIG: InvocationConfig = {
 };
 
 /**
- * Load auto-invocation config from ~/.factory/omd/.omd-config.json
+ * Load auto-invocation config from ~/.factory/.omd-config.json
  */
 export function loadInvocationConfig(): InvocationConfig {
-  const configPath = join(homedir(), '.factory', 'omd', '.omd-config.json');
+  const configPath = path.join(os.homedir(), '.claude', '.omd-config.json');
 
   try {
-    if (!existsSync(configPath)) {
+    if (!fs.existsSync(configPath)) {
       return { ...DEFAULT_CONFIG };
     }
 
-    const configFile = readFileSync(configPath, 'utf-8');
+    const configFile = fs.readFileSync(configPath, 'utf-8');
     const config = JSON.parse(configFile);
 
     // Merge with defaults
@@ -201,13 +201,13 @@ export function getInvocationStats(state: AutoInvokeState): {
  * Save invocation history to disk for analytics
  */
 export function saveInvocationHistory(state: AutoInvokeState): void {
-  const historyDir = join(homedir(), '.omd', 'analytics', 'invocations');
+  const historyDir = path.join(os.homedir(), '.omd', 'analytics', 'invocations');
 
   try {
-    mkdirSync(historyDir, { recursive: true });
+    fs.mkdirSync(historyDir, { recursive: true });
 
-    const historyFile = join(historyDir, `${state.sessionId}.json`);
-    writeFileSync(historyFile, JSON.stringify({
+    const historyFile = path.join(historyDir, `${state.sessionId}.json`);
+    fs.writeFileSync(historyFile, JSON.stringify({
       sessionId: state.sessionId,
       config: state.config,
       invocations: state.invocations,
@@ -222,8 +222,8 @@ export function saveInvocationHistory(state: AutoInvokeState): void {
  * Load invocation history from disk
  */
 export function loadInvocationHistory(sessionId: string): AutoInvokeState | null {
-  const historyFile = join(
-    homedir(),
+  const historyFile = path.join(
+    os.homedir(),
     '.omd',
     'analytics',
     'invocations',
@@ -231,11 +231,11 @@ export function loadInvocationHistory(sessionId: string): AutoInvokeState | null
   );
 
   try {
-    if (!existsSync(historyFile)) {
+    if (!fs.existsSync(historyFile)) {
       return null;
     }
 
-    const data = JSON.parse(readFileSync(historyFile, 'utf-8'));
+    const data = JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
     return {
       sessionId: data.sessionId,
       config: data.config,
@@ -259,10 +259,10 @@ export function getAggregatedStats(): {
   successRate: number;
   topSkills: Array<{ skillId: string; skillName: string; count: number; successRate: number }>;
 } {
-  const historyDir = join(homedir(), '.omd', 'analytics', 'invocations');
+  const historyDir = path.join(os.homedir(), '.omd', 'analytics', 'invocations');
 
   try {
-    if (!existsSync(historyDir)) {
+    if (!fs.existsSync(historyDir)) {
       return {
         totalSessions: 0,
         totalInvocations: 0,
@@ -271,12 +271,12 @@ export function getAggregatedStats(): {
       };
     }
 
-    const files = readdirSync(historyDir).filter(f => f.endsWith('.json'));
+    const files = fs.readdirSync(historyDir).filter(f => f.endsWith('.json'));
     const allInvocations: InvocationRecord[] = [];
     const skillStats = new Map<string, { name: string; total: number; successful: number }>();
 
     for (const file of files) {
-      const data = JSON.parse(readFileSync(join(historyDir, file), 'utf-8'));
+      const data = JSON.parse(fs.readFileSync(path.join(historyDir, file), 'utf-8'));
       allInvocations.push(...data.invocations);
 
       for (const inv of data.invocations as InvocationRecord[]) {

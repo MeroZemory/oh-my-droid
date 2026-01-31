@@ -1,108 +1,88 @@
 /**
- * OMD Orchestrator Audit
- *
- * Audit logging for delegation decisions.
- * Adapted from oh-my-claudecode.
+ * Audit logging for delegation enforcement
+ * Logs all Edit/Write operations for analysis
  */
 
-import { existsSync, mkdirSync, appendFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { AUDIT_LOG_PATH } from './constants.js';
+import * as fs from 'fs';
+import * as path from 'path';
 
-/**
- * Audit entry
- */
+const LOG_DIR = '.omd/logs';
+const LOG_FILE = 'delegation-audit.jsonl';
+
 export interface AuditEntry {
   timestamp: string;
-  sessionId: string;
-  action: 'write_warning' | 'delegation' | 'direct_action';
-  path?: string;
-  agent?: string;
-  model?: string;
-  reason?: string;
+  tool: string;
+  filePath: string;
+  decision: 'allowed' | 'warned' | 'blocked';
+  reason: 'allowed_path' | 'source_file' | 'other';
+  enforcementLevel?: 'off' | 'warn' | 'strict';
+  sessionId?: string;
 }
 
 /**
- * Get audit log path for a directory
+ * Log an audit entry for delegation enforcement
  */
-export function getAuditLogPath(directory: string): string {
-  return join(directory, AUDIT_LOG_PATH);
-}
-
-/**
- * Ensure audit log directory exists
- */
-function ensureAuditDir(logPath: string): void {
-  const dir = dirname(logPath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
-
-/**
- * Write an audit entry
- */
-export function writeAuditEntry(directory: string, entry: AuditEntry): boolean {
-  const logPath = getAuditLogPath(directory);
-
+export function logAuditEntry(entry: Omit<AuditEntry, 'timestamp'>): void {
   try {
-    ensureAuditDir(logPath);
-    const line = JSON.stringify({ ...entry, timestamp: new Date().toISOString() }) + '\n';
-    appendFileSync(logPath, line);
-    return true;
+    const fullEntry: AuditEntry = {
+      ...entry,
+      timestamp: new Date().toISOString(),
+    };
+
+    const logDir = path.join(process.cwd(), LOG_DIR);
+    const logPath = path.join(logDir, LOG_FILE);
+
+    // Create directory if it doesn't exist
+    fs.mkdirSync(logDir, { recursive: true });
+
+    // Append entry as JSONL
+    fs.appendFileSync(logPath, JSON.stringify(fullEntry) + '\n');
   } catch {
-    return false;
+    // Silently fail - audit logging should not break main functionality
   }
 }
 
 /**
- * Audit a write warning
+ * Read audit log entries (for analysis)
  */
-export function auditWriteWarning(
-  directory: string,
-  sessionId: string,
-  filePath: string
-): boolean {
-  return writeAuditEntry(directory, {
-    timestamp: new Date().toISOString(),
-    sessionId,
-    action: 'write_warning',
-    path: filePath,
-    reason: 'Source file write without delegation'
-  });
+export function readAuditLog(directory?: string): AuditEntry[] {
+  try {
+    const logPath = path.join(directory || process.cwd(), LOG_DIR, LOG_FILE);
+    if (!fs.existsSync(logPath)) return [];
+
+    const content = fs.readFileSync(logPath, 'utf-8');
+    return content
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => JSON.parse(line) as AuditEntry);
+  } catch {
+    return [];
+  }
 }
 
 /**
- * Audit a delegation
+ * Get audit summary statistics
  */
-export function auditDelegation(
-  directory: string,
-  sessionId: string,
-  agent: string,
-  model?: string
-): boolean {
-  return writeAuditEntry(directory, {
-    timestamp: new Date().toISOString(),
-    sessionId,
-    action: 'delegation',
-    agent,
-    model
-  });
-}
+export function getAuditSummary(directory?: string): {
+  total: number;
+  allowed: number;
+  warned: number;
+  byExtension: Record<string, number>;
+} {
+  const entries = readAuditLog(directory);
+  const byExtension: Record<string, number> = {};
 
-/**
- * Audit a direct action (allowed)
- */
-export function auditDirectAction(
-  directory: string,
-  sessionId: string,
-  path: string
-): boolean {
-  return writeAuditEntry(directory, {
-    timestamp: new Date().toISOString(),
-    sessionId,
-    action: 'direct_action',
-    path,
-    reason: 'Path in allowed list'
-  });
+  for (const entry of entries) {
+    if (entry.decision === 'warned') {
+      const ext = path.extname(entry.filePath) || 'unknown';
+      byExtension[ext] = (byExtension[ext] || 0) + 1;
+    }
+  }
+
+  return {
+    total: entries.length,
+    allowed: entries.filter(e => e.decision === 'allowed').length,
+    warned: entries.filter(e => e.decision === 'warned').length,
+    byExtension,
+  };
 }

@@ -3,7 +3,7 @@
  *
  * Finds rule files in project directories and user home.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's rules-injector hook.
  */
 
 import {
@@ -153,7 +153,7 @@ export function calculateDistance(
 /**
  * Find all rule files for a given context.
  * Searches from currentFile upward to projectRoot for rule directories,
- * then user-level directory (~/.factory/omd/rules).
+ * then user-level directory (~/.factory/rules).
  */
 export function findRuleFiles(
   projectRoot: string | null,
@@ -223,7 +223,7 @@ export function findRuleFiles(
     }
   }
 
-  // Search user-level rule directory (~/.factory/omd/rules)
+  // Search user-level rule directory (~/.factory/rules)
   const userRuleDir = join(homeDir, USER_RULE_DIR);
   const userFiles: string[] = [];
   findRuleFilesRecursive(userRuleDir, userFiles);

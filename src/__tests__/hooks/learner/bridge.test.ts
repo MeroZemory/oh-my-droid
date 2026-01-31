@@ -49,10 +49,12 @@ describe('Skill Bridge Module', () => {
       );
 
       const files = findSkillFiles(testProjectRoot);
+      // Filter to project scope to isolate from user's global skills
+      const projectFiles = files.filter((f) => f.scope === 'project');
 
-      expect(files).toHaveLength(1);
-      expect(files[0].scope).toBe('project');
-      expect(files[0].path).toContain('test-skill.md');
+      expect(projectFiles).toHaveLength(1);
+      expect(projectFiles[0].scope).toBe('project');
+      expect(projectFiles[0].path).toContain('test-skill.md');
     });
 
     it('should discover skills recursively in subdirectories', () => {
@@ -70,9 +72,11 @@ describe('Skill Bridge Module', () => {
       );
 
       const files = findSkillFiles(testProjectRoot);
+      // Filter to project scope to isolate from user's global skills
+      const projectFiles = files.filter((f) => f.scope === 'project');
 
-      expect(files).toHaveLength(2);
-      const names = files.map((f) => f.path);
+      expect(projectFiles).toHaveLength(2);
+      const names = projectFiles.map((f) => f.path);
       expect(names.some((n) => n.includes('root-skill.md'))).toBe(true);
       expect(names.some((n) => n.includes('nested-skill.md'))).toBe(true);
     });
@@ -86,9 +90,11 @@ describe('Skill Bridge Module', () => {
       writeFileSync(join(skillsDir, 'README'), 'Documentation');
 
       const files = findSkillFiles(testProjectRoot);
+      // Filter to project scope to isolate from user's global skills
+      const projectFiles = files.filter((f) => f.scope === 'project');
 
-      expect(files).toHaveLength(1);
-      expect(files[0].path).toContain('valid.md');
+      expect(projectFiles).toHaveLength(1);
+      expect(projectFiles[0].path).toContain('valid.md');
     });
   });
 

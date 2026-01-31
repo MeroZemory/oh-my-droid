@@ -3,7 +3,6 @@
  *
  * Detects Edit tool errors caused by AI mistakes and injects
  * a recovery reminder to guide corrective action.
- * Adapted from oh-my-claudecode.
  */
 
 import {

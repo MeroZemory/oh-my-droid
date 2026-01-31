@@ -1,7 +1,7 @@
 /**
- * OMD HUD - Transcript Parser
+ * OMC HUD - Transcript Parser
  *
- * Parse JSONL transcript from Factory to extract agents and todos.
+ * Parse JSONL transcript from Factory Droid to extract agents and todos.
  * Based on claude-hud reference implementation.
  *
  * Performance optimizations:
@@ -21,7 +21,7 @@ const MAX_AGENT_MAP_SIZE = 50; // Cap agent tracking
 const MIN_RUNNING_AGENTS_THRESHOLD = 10; // Early termination threshold
 
 /**
- * Tools known to require permission approval in Factory.
+ * Tools known to require permission approval in Factory Droid.
  * Only these tools will trigger the "APPROVE?" indicator.
  */
 const PERMISSION_TOOLS = [
@@ -53,7 +53,7 @@ const THINKING_PART_TYPES = ['thinking', 'reasoning'] as const;
 const THINKING_RECENCY_MS = 30_000; // 30 seconds
 
 /**
- * Parse a Factory transcript JSONL file.
+ * Parse a Factory Droid transcript JSONL file.
  * Extracts running agents and latest todo list.
  *
  * For large files (>500KB), only parses the tail portion for performance.

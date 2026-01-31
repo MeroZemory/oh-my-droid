@@ -2,10 +2,10 @@
  * Magic Keywords Feature
  *
  * Detects special keywords in prompts and activates enhanced behaviors.
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Patterns ported from oh-my-opencode.
  */
 
-import type { MagicKeyword, PluginConfig } from './types.js';
+import type { MagicKeyword, PluginConfig } from '../shared/types.js';
 
 /**
  * Code block pattern for stripping from detection
@@ -80,7 +80,7 @@ You ARE the planner. Your job: create bulletproof work plans.
 function isPlannerAgent(agentName?: string): boolean {
   if (!agentName) return false;
   const lowerName = agentName.toLowerCase();
-  return lowerName.includes('planner') || lowerName === 'plan';
+  return lowerName.includes('planner') || lowerName.includes('planner') || lowerName === 'plan';
 }
 
 /**
@@ -157,7 +157,7 @@ Write these criteria explicitly. Share with user if scope is non-trivial.
 ### Objective: [What we're verifying]
 ### Prerequisites: [Setup needed]
 ### Test Cases:
-1. [Test Name]: [Input] -> [Expected Output] -> [How to verify]
+1. [Test Name]: [Input] → [Expected Output] → [How to verify]
 2. ...
 ### Success Criteria: ALL test cases pass
 ### How to Execute: [Exact commands/steps]
@@ -177,9 +177,9 @@ Write these criteria explicitly. Share with user if scope is non-trivial.
 ### TDD Workflow (when test infrastructure exists)
 
 1. **SPEC**: Define what "working" means (success criteria above)
-2. **RED**: Write failing test -> Run it -> Confirm it FAILS
-3. **GREEN**: Write minimal code -> Run test -> Confirm it PASSES
-4. **REFACTOR**: Clean up -> Tests MUST stay green
+2. **RED**: Write failing test → Run it → Confirm it FAILS
+3. **GREEN**: Write minimal code → Run test → Confirm it PASSES
+4. **REFACTOR**: Clean up → Tests MUST stay green
 5. **VERIFY**: Run full test suite, confirm no regressions
 6. **EVIDENCE**: Report what you ran and what output you saw
 
@@ -235,7 +235,7 @@ const searchEnhancement: MagicKeyword = {
   description: 'Maximizes search effort and thoroughness',
   action: (prompt: string) => {
     // Multi-language search pattern
-    const searchPattern = /\b(search|find|locate|lookup|look\s*up|explore|discover|scan|grep|query|browse|detect|trace|seek|track|pinpoint|hunt)\b|where\s+is|show\s+me|list\s+all/i;
+    const searchPattern = /\b(search|find|locate|lookup|look\s*up|explore|discover|scan|grep|query|browse|detect|trace|seek|track|pinpoint|hunt)\b|where\s+is|show\s+me|list\s+all|검색|찾아|탐색|조회|스캔|서치|뒤져|찾기|어디|추적|탐지|찾아봐|찾아내|보여줘|목록|検索|探して|見つけて|サーチ|探索|スキャン|どこ|発見|捜索|見つけ出す|一覧|搜索|查找|寻找|查询|检索|定位|扫描|发现|在哪里|找出来|列出|tìm kiếm|tra cứu|định vị|quét|phát hiện|truy tìm|tìm ra|ở đâu|liệt kê/i;
 
     const hasSearchCommand = searchPattern.test(removeCodeBlocks(prompt));
 
@@ -263,7 +263,7 @@ const analyzeEnhancement: MagicKeyword = {
   description: 'Activates deep analysis and investigation mode',
   action: (prompt: string) => {
     // Multi-language analyze pattern
-    const analyzePattern = /\b(analyze|analyse|investigate|examine|research|study|deep[\s-]?dive|inspect|audit|evaluate|assess|review|diagnose|scrutinize|dissect|debug|comprehend|interpret|breakdown|understand)\b|why\s+is|how\s+does|how\s+to/i;
+    const analyzePattern = /\b(analyze|analyse|investigate|examine|research|study|deep[\s-]?dive|inspect|audit|evaluate|assess|review|diagnose|scrutinize|dissect|debug|comprehend|interpret|breakdown|understand)\b|why\s+is|how\s+does|how\s+to|분석|조사|파악|연구|검토|진단|이해|설명|원인|이유|뜯어봐|따져봐|평가|해석|디버깅|디버그|어떻게|왜|살펴|分析|調査|解析|検討|研究|診断|理解|説明|検証|精査|究明|デバッグ|なぜ|どう|仕組み|调查|检查|剖析|深入|诊断|解释|调试|为什么|原理|搞清楚|弄明白|phân tích|điều tra|nghiên cứu|kiểm tra|xem xét|chẩn đoán|giải thích|tìm hiểu|gỡ lỗi|tại sao/i;
 
     const hasAnalyzeCommand = analyzePattern.test(removeCodeBlocks(prompt));
 

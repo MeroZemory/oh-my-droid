@@ -4,15 +4,18 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import {
   cancelAutopilot,
-  getCancelMessage
+  clearAutopilot,
+  canResumeAutopilot,
+  resumeAutopilot,
+  formatCancelMessage,
+  type CancelResult
 } from '../cancel.js';
 import {
+  initAutopilot,
+  transitionPhase,
   readAutopilotState,
-  writeAutopilotState,
-  clearAutopilotState,
-  updatePhase
+  updateExecution
 } from '../state.js';
-import type { AutopilotState } from '../types.js';
 
 // Mock the ralph and ultraqa modules
 vi.mock('../../ralph/index.js', () => ({
@@ -30,11 +33,13 @@ vi.mock('../../ultraqa/index.js', () => ({
 import * as ralphLoop from '../../ralph/index.js';
 import * as ultraqaLoop from '../../ultraqa/index.js';
 
-describe.skip('AutopilotCancel', () => {
+describe('AutopilotCancel', () => {
   let testDir: string;
 
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), 'autopilot-cancel-test-'));
+    const fs = require('fs');
+    fs.mkdirSync(join(testDir, '.omd', 'state'), { recursive: true });
     vi.clearAllMocks();
   });
 
@@ -53,10 +58,12 @@ describe.skip('AutopilotCancel', () => {
 
     it('should return failure when state exists but is not active', () => {
       const state = initAutopilot(testDir, 'test idea');
-      state.active = false;
-      const stateFile = join(testDir, '.omd', 'autopilot-state.json');
-      const fs = require('fs');
-      fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+      if (state) {
+        state.active = false;
+        const stateFile = join(testDir, '.omd', 'state', 'autopilot-state.json');
+        const fs = require('fs');
+        fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+      }
 
       const result = cancelAutopilot(testDir);
 
@@ -497,6 +504,9 @@ describe.skip('AutopilotCancel', () => {
 
     it('should handle zero progress in summary', () => {
       const state = initAutopilot(testDir, 'test idea');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
 
       const result: CancelResult = {
         success: true,
@@ -513,6 +523,9 @@ describe.skip('AutopilotCancel', () => {
 
     it('should handle cleanup message in preserved state format', () => {
       const state = initAutopilot(testDir, 'test idea');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.active = false;
 
       const result: CancelResult = {

@@ -2,8 +2,6 @@
  * Wisdom Extractor
  *
  * Parses agent completion responses to extract wisdom entries.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import type { WisdomCategory } from './types.js';

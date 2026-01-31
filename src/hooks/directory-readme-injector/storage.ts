@@ -1,104 +1,68 @@
 /**
  * Directory README Injector Storage
  *
- * Caching for injected READMEs to avoid re-injection.
- * Adapted from oh-my-claudecode.
+ * Persistent storage for tracking which directory READMEs have been injected per session.
+ *
+ * Ported from oh-my-opencode's directory-readme-injector hook.
  */
 
-import { CACHE_TTL_MS } from './constants.js';
-import type { ReadmeInfo } from './types.js';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { README_INJECTOR_STORAGE } from './constants.js';
+import type { InjectedPathsData } from './types.js';
 
 /**
- * Cache entry
+ * Get storage file path for a session.
  */
-interface CacheEntry {
-  readmes: ReadmeInfo[];
-  injectedAt: number;
+function getStoragePath(sessionID: string): string {
+  return join(README_INJECTOR_STORAGE, `${sessionID}.json`);
 }
 
 /**
- * In-memory cache for injected READMEs by session
+ * Load set of injected directory paths for a session.
  */
-const sessionCache = new Map<string, Map<string, CacheEntry>>();
+export function loadInjectedPaths(sessionID: string): Set<string> {
+  const filePath = getStoragePath(sessionID);
+  if (!existsSync(filePath)) return new Set();
 
-/**
- * Get cache for a session
- */
-function getSessionCache(sessionId: string): Map<string, CacheEntry> {
-  if (!sessionCache.has(sessionId)) {
-    sessionCache.set(sessionId, new Map());
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const data: InjectedPathsData = JSON.parse(content);
+    return new Set(data.injectedPaths);
+  } catch {
+    return new Set();
   }
-  return sessionCache.get(sessionId)!;
 }
 
 /**
- * Check if README was already injected for this session/directory
+ * Save set of injected directory paths for a session.
  */
-export function wasInjected(sessionId: string, directory: string): boolean {
-  const cache = getSessionCache(sessionId);
-  const entry = cache.get(directory);
-
-  if (!entry) return false;
-
-  // Check TTL
-  if (Date.now() - entry.injectedAt > CACHE_TTL_MS) {
-    cache.delete(directory);
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Record that README was injected
- */
-export function recordInjection(
-  sessionId: string,
-  directory: string,
-  readmes: ReadmeInfo[]
-): void {
-  const cache = getSessionCache(sessionId);
-  cache.set(directory, {
-    readmes,
-    injectedAt: Date.now()
-  });
-}
-
-/**
- * Get previously injected READMEs
- */
-export function getInjectedReadmes(sessionId: string, directory: string): ReadmeInfo[] | null {
-  const cache = getSessionCache(sessionId);
-  const entry = cache.get(directory);
-
-  if (!entry || Date.now() - entry.injectedAt > CACHE_TTL_MS) {
-    return null;
+export function saveInjectedPaths(sessionID: string, paths: Set<string>): void {
+  if (!existsSync(README_INJECTOR_STORAGE)) {
+    mkdirSync(README_INJECTOR_STORAGE, { recursive: true });
   }
 
-  return entry.readmes;
+  const data: InjectedPathsData = {
+    sessionID,
+    injectedPaths: Array.from(paths),
+    updatedAt: Date.now(),
+  };
+
+  writeFileSync(getStoragePath(sessionID), JSON.stringify(data, null, 2));
 }
 
 /**
- * Clear session cache
+ * Clear injected paths for a session.
  */
-export function clearSessionCache(sessionId: string): void {
-  sessionCache.delete(sessionId);
-}
-
-/**
- * Clean up stale caches
- */
-export function cleanupStaleCaches(): void {
-  const now = Date.now();
-
-  for (const [sessionId, cache] of sessionCache) {
-    for (const [dir, entry] of cache) {
-      if (now - entry.injectedAt > CACHE_TTL_MS) {
-        cache.delete(dir);
-      }
-    }
-    if (cache.size === 0) {
-      sessionCache.delete(sessionId);
-    }
+export function clearInjectedPaths(sessionID: string): void {
+  const filePath = getStoragePath(sessionID);
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
   }
 }

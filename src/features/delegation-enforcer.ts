@@ -4,10 +4,8 @@
  * Middleware that ensures model parameter is always present in Task/Agent calls.
  * Automatically injects the default model from agent definitions when not specified.
  *
- * This solves the problem where Claude Code doesn't automatically apply models
+ * This solves the problem where Factory Droid doesn't automatically apply models
  * from agent definitions - every Task call must explicitly pass the model parameter.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import { getAgentDefinitions } from '../agents/definitions.js';

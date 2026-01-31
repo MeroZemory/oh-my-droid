@@ -16,7 +16,7 @@ import {
 
 program
   .name('omd-analytics')
-  .description('OMD Analytics CLI - Token tracking, cost reports, and session management')
+  .description('OMC Analytics CLI - Token tracking, cost reports, and session management')
   .version('1.0.0');
 
 // Stats command

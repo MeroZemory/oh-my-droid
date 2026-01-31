@@ -1,29 +1,41 @@
 /**
  * Empty Message Sanitizer Constants
  *
- * Configuration for empty message handling.
- * Adapted from oh-my-claudecode.
+ * Constants for the empty message sanitizer hook.
+ *
+ * Adapted from oh-my-opencode's empty-message-sanitizer hook.
  */
 
 /**
- * Default placeholder for empty content
+ * Placeholder text injected for empty messages
+ * This prevents API errors about empty content
  */
-export const DEFAULT_PLACEHOLDER = '[empty]';
+export const PLACEHOLDER_TEXT = '[user interrupted]';
 
 /**
- * Part types that require content
+ * Tool-related part types that count as valid content
  */
-export const CONTENT_REQUIRED_TYPES = new Set([
-  'text',
-  'tool_result'
+export const TOOL_PART_TYPES = new Set([
+  'tool',
+  'tool_use',
+  'tool_result',
 ]);
 
 /**
- * Part types that can be empty
+ * Hook name identifier
  */
-export const EMPTY_ALLOWED_TYPES = new Set([
-  'thinking',
-  'redacted_thinking',
-  'step-start',
-  'step-finish'
-]);
+export const HOOK_NAME = 'empty-message-sanitizer';
+
+/**
+ * Debug log prefix
+ */
+export const DEBUG_PREFIX = '[empty-message-sanitizer]';
+
+/**
+ * Error message patterns for debugging
+ */
+export const ERROR_PATTERNS = {
+  EMPTY_CONTENT: 'all messages must have non-empty content',
+  EMPTY_TEXT: 'message contains empty text part',
+  NO_VALID_PARTS: 'message has no valid content parts',
+};

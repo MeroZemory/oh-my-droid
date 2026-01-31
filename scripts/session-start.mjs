@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * oh-my-droid Session Start Hook (Node.js)
+ * Droid Session Start Hook (Node.js)
  * Restores persistent mode states when session starts
  * Cross-platform: Windows, macOS, Linux
  */
 
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
+import { existsSync, readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
 import { homedir } from 'os';
-import { fileURLToPath } from 'url';
 
 // Read all stdin
 async function readStdin() {
@@ -30,106 +29,9 @@ function readJsonFile(path) {
   }
 }
 
-function getPluginRoot() {
-  if (process.env.DROID_PLUGIN_ROOT) return process.env.DROID_PLUGIN_ROOT;
-  // Fallback: repo-relative when running scripts locally
-  return join(dirname(fileURLToPath(import.meta.url)), '..');
-}
-
-function convertSkillFrontmatterToCommand(content) {
-  // Remove `name:` from YAML frontmatter since Factory slash commands use filename as the command name.
-  const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
-  if (!match) return content;
-
-  const frontmatter = match[1];
-  const body = match[2];
-  const newLines = frontmatter
-    .split('\n')
-    .filter(line => !line.trimStart().startsWith('name:'));
-
-  return `---\n${newLines.join('\n')}\n---\n${body}`;
-}
-
-function ensureOmdSlashCommands() {
-  const pluginRoot = getPluginRoot();
-  const skillsDir = join(pluginRoot, 'skills');
-  const commandsDir = join(homedir(), '.factory', 'commands');
-  const markerDir = join(homedir(), '.factory', 'omd');
-  const markerPath = join(markerDir, 'commands-installed.json');
-
-  const result = { installed: [], skipped: [], errors: [] };
-
-  try {
-    if (!existsSync(skillsDir)) return result;
-
-    if (!existsSync(commandsDir)) {
-      try {
-        mkdirSync(commandsDir, { recursive: true });
-      } catch {
-        // If we can't create, just stop silently
-        return result;
-      }
-    }
-
-    const force = process.env.OMD_FORCE_COMMANDS === '1';
-    const skillDirs = readdirSync(skillsDir, { withFileTypes: true })
-      .filter(d => d.isDirectory())
-      .map(d => d.name);
-
-    for (const skillName of skillDirs) {
-      const skillPath = join(skillsDir, skillName, 'SKILL.md');
-      if (!existsSync(skillPath)) continue;
-
-      const targetPath = join(commandsDir, `omd-${skillName}.md`);
-      if (existsSync(targetPath) && !force) {
-        result.skipped.push(skillName);
-        continue;
-      }
-
-      try {
-        const content = readFileSync(skillPath, 'utf-8');
-        const commandContent = convertSkillFrontmatterToCommand(content);
-        writeFileSync(targetPath, commandContent);
-        result.installed.push(skillName);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        result.errors.push(`${skillName}: ${msg}`);
-      }
-    }
-
-    try {
-      if (!existsSync(markerDir)) {
-        mkdirSync(markerDir, { recursive: true });
-      }
-      writeFileSync(
-        markerPath,
-        JSON.stringify(
-          {
-            updatedAt: new Date().toISOString(),
-            installed: result.installed,
-            skipped: result.skipped,
-            errors: result.errors
-          },
-          null,
-          2
-        )
-      );
-    } catch {
-      // ignore marker failures
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    result.errors.push(msg);
-  }
-
-  return result;
-}
-
 // Count incomplete todos
-function countIncompleteTodos(todosDir, projectDir) {
+function countIncompleteTodos(todosDir) {
   let count = 0;
-
-  // Check global todos
   if (existsSync(todosDir)) {
     try {
       const files = readdirSync(todosDir).filter(f => f.endsWith('.json'));
@@ -141,20 +43,34 @@ function countIncompleteTodos(todosDir, projectDir) {
       }
     } catch {}
   }
+  return count;
+}
 
-  // Check project todos
-  for (const path of [
-    join(projectDir, '.omd', 'todos.json'),
-    join(projectDir, '.factory', 'todos.json')
-  ]) {
-    const data = readJsonFile(path);
-    const todos = data?.todos || data;
-    if (Array.isArray(todos)) {
-      count += todos.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length;
-    }
+// Check if HUD is properly installed
+function checkHudInstallation() {
+  const hudScript = join(homedir(), '.claude', 'hud', 'omd-hud.mjs');
+  const settingsFile = join(homedir(), '.claude', 'settings.json');
+
+  // Check if HUD script exists
+  if (!existsSync(hudScript)) {
+    return { installed: false, reason: 'HUD script missing' };
   }
 
-  return count;
+  // Check if statusLine is configured
+  try {
+    if (existsSync(settingsFile)) {
+      const settings = JSON.parse(readFileSync(settingsFile, 'utf-8'));
+      if (!settings.statusLine) {
+        return { installed: false, reason: 'statusLine not configured' };
+      }
+    } else {
+      return { installed: false, reason: 'settings.json missing' };
+    }
+  } catch {
+    return { installed: false, reason: 'Could not read settings' };
+  }
+
+  return { installed: true };
 }
 
 // Main
@@ -164,30 +80,20 @@ async function main() {
     let data = {};
     try { data = JSON.parse(input); } catch {}
 
-    const directory = data.cwd || process.cwd();
+    const directory = data.directory || process.cwd();
     const messages = [];
 
-    // Ensure /omd-* slash commands exist (Factory only scans ~/.factory/commands and <repo>/.factory/commands)
-    const cmdResult = ensureOmdSlashCommands();
-    if (cmdResult.installed.length > 0) {
-      messages.push(`<session-restore>
-
-[OMD SLASH COMMANDS INSTALLED]
-
-Installed/updated ${cmdResult.installed.length} commands in ~/.factory/commands.
-Examples: /omd-setup, /omd-help
-
-If commands don't appear yet, open /commands and press R to reload, or restart Droid.
-
-</session-restore>
-
----
-`);
+    // Check HUD installation (one-time setup guidance)
+    const hudCheck = checkHudInstallation();
+    if (!hudCheck.installed) {
+      messages.push(`<system-reminder>
+[Droid] HUD not configured (${hudCheck.reason}). Run /hud setup then restart Factory Droid.
+</system-reminder>`);
     }
 
     // Check for ultrawork state
-    const ultraworkState = readJsonFile(join(directory, '.omd', 'ultrawork-state.json'))
-      || readJsonFile(join(homedir(), '.factory', 'omd', 'ultrawork-state.json'));
+    const ultraworkState = readJsonFile(join(directory, '.omd', 'state', 'ultrawork-state.json'))
+      || readJsonFile(join(homedir(), '.omd', 'state', 'ultrawork-state.json'));
 
     if (ultraworkState?.active) {
       messages.push(`<session-restore>
@@ -205,26 +111,8 @@ Continue working in ultrawork mode until all tasks are complete.
 `);
     }
 
-    // Check for autopilot state
-    const autopilotState = readJsonFile(join(directory, '.omd', 'autopilot-state.json'));
-    if (autopilotState?.active) {
-      messages.push(`<session-restore>
-
-[AUTOPILOT MODE RESTORED]
-
-You have an active autopilot session from ${autopilotState.started_at}.
-Original task: ${autopilotState.original_prompt}
-
-Continue working autonomously until the task is complete.
-
-</session-restore>
-
----
-`);
-    }
-
     // Check for ralph loop state
-    const ralphState = readJsonFile(join(directory, '.omd', 'ralph-state.json'));
+    const ralphState = readJsonFile(join(directory, '.omd', 'state', 'ralph-state.json'));
     if (ralphState?.active) {
       messages.push(`<session-restore>
 
@@ -232,7 +120,7 @@ Continue working autonomously until the task is complete.
 
 You have an active ralph-loop session.
 Original task: ${ralphState.prompt || 'Task in progress'}
-Iteration: ${ralphState.iteration || 1}/${ralphState.max_iterations || 100}
+Iteration: ${ralphState.iteration || 1}/${ralphState.max_iterations || 10}
 
 Continue working until the task is verified complete.
 
@@ -242,27 +130,9 @@ Continue working until the task is verified complete.
 `);
     }
 
-    // Check for eco mode state
-    const ecoState = readJsonFile(join(directory, '.omd', 'eco-state.json'));
-    if (ecoState?.active) {
-      messages.push(`<session-restore>
-
-[ECO MODE RESTORED]
-
-You have an active eco mode session from ${ecoState.started_at}.
-Original task: ${ecoState.original_prompt}
-
-Continue operating in token-efficient mode.
-
-</session-restore>
-
----
-`);
-    }
-
     // Check for incomplete todos
-    const todosDir = join(homedir(), '.factory', 'todos');
-    const incompleteCount = countIncompleteTodos(todosDir, directory);
+    const todosDir = join(homedir(), '.claude', 'todos');
+    const incompleteCount = countIncompleteTodos(todosDir);
 
     if (incompleteCount > 0) {
       messages.push(`<session-restore>
@@ -302,6 +172,7 @@ ${cleanContent}
 
     if (messages.length > 0) {
       console.log(JSON.stringify({
+        continue: true,
         hookSpecificOutput: {
           hookEventName: 'SessionStart',
           additionalContext: messages.join('\n')

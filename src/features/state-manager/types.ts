@@ -2,10 +2,7 @@
  * State Manager Types
  *
  * Type definitions for unified state management across
- * local (.omd/state/) and global (~/.factory/omd/state/) locations.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
- * Uses .omd and ~/.factory/omd instead of .omc and ~/.omc.
+ * local (.omd/state/) and global (~/.omd/state/) locations.
  */
 
 /**
@@ -14,7 +11,7 @@
 export enum StateLocation {
   /** Local project state: .omd/state/{name}.json */
   LOCAL = 'local',
-  /** Global user state: ~/.factory/omd/state/{name}.json */
+  /** Global user state: ~/.omd/state/{name}.json */
   GLOBAL = 'global'
 }
 

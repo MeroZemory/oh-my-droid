@@ -2,9 +2,9 @@
  * Rules Injector Types
  *
  * Type definitions for rule file parsing and injection.
- * Supports Android Factory format (globs, paths) and GitHub Copilot format (applyTo).
+ * Supports Factory Droid format (globs, paths) and GitHub Copilot format (applyTo).
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's rules-injector hook.
  */
 
 /**

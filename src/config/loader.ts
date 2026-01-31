@@ -2,8 +2,8 @@
  * Configuration Loader
  *
  * Handles loading and merging configuration from multiple sources:
- * - User config: ~/.factory/omd/config.jsonc
- * - Project config: .factory/omd.jsonc
+ * - User config: ~/.config/claude-droid/config.jsonc
+ * - Project config: .claude/droid.jsonc
  * - Environment variables
  */
 
@@ -11,7 +11,7 @@ import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join, dirname } from 'path';
 import * as jsonc from 'jsonc-parser';
-import type { PluginConfig } from './types.js';
+import type { PluginConfig } from '../shared/types.js';
 
 /**
  * Default configuration
@@ -88,11 +88,11 @@ export const DEFAULT_CONFIG: PluginConfig = {
  * Configuration file locations
  */
 export function getConfigPaths(): { user: string; project: string } {
-  const userConfigDir = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.factory', 'omd');
+  const userConfigDir = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config');
 
   return {
-    user: join(userConfigDir, 'config.jsonc'),
-    project: join(process.env.FACTORY_PROJECT_DIR ?? process.cwd(), '.factory', 'omd.jsonc')
+    user: join(userConfigDir, 'claude-droid', 'config.jsonc'),
+    project: join(process.cwd(), '.claude', 'droid.jsonc')
   };
 }
 
@@ -169,22 +169,22 @@ export function loadEnvConfig(): Partial<PluginConfig> {
   }
 
   // Feature flags from environment
-  if (process.env.OMD_PARALLEL_EXECUTION !== undefined) {
+  if (process.env.OMC_PARALLEL_EXECUTION !== undefined) {
     config.features = {
       ...config.features,
-      parallelExecution: process.env.OMD_PARALLEL_EXECUTION === 'true'
+      parallelExecution: process.env.OMC_PARALLEL_EXECUTION === 'true'
     };
   }
 
-  if (process.env.OMD_LSP_TOOLS !== undefined) {
+  if (process.env.OMC_LSP_TOOLS !== undefined) {
     config.features = {
       ...config.features,
-      lspTools: process.env.OMD_LSP_TOOLS === 'true'
+      lspTools: process.env.OMC_LSP_TOOLS === 'true'
     };
   }
 
-  if (process.env.OMD_MAX_BACKGROUND_TASKS) {
-    const maxTasks = parseInt(process.env.OMD_MAX_BACKGROUND_TASKS, 10);
+  if (process.env.OMC_MAX_BACKGROUND_TASKS) {
+    const maxTasks = parseInt(process.env.OMC_MAX_BACKGROUND_TASKS, 10);
     if (!isNaN(maxTasks)) {
       config.permissions = {
         ...config.permissions,
@@ -194,15 +194,15 @@ export function loadEnvConfig(): Partial<PluginConfig> {
   }
 
   // Routing configuration from environment
-  if (process.env.OMD_ROUTING_ENABLED !== undefined) {
+  if (process.env.OMC_ROUTING_ENABLED !== undefined) {
     config.routing = {
       ...config.routing,
-      enabled: process.env.OMD_ROUTING_ENABLED === 'true'
+      enabled: process.env.OMC_ROUTING_ENABLED === 'true'
     };
   }
 
-  if (process.env.OMD_ROUTING_DEFAULT_TIER) {
-    const tier = process.env.OMD_ROUTING_DEFAULT_TIER.toUpperCase();
+  if (process.env.OMC_ROUTING_DEFAULT_TIER) {
+    const tier = process.env.OMC_ROUTING_DEFAULT_TIER.toUpperCase();
     if (tier === 'LOW' || tier === 'MEDIUM' || tier === 'HIGH') {
       config.routing = {
         ...config.routing,
@@ -211,10 +211,10 @@ export function loadEnvConfig(): Partial<PluginConfig> {
     }
   }
 
-  if (process.env.OMD_ESCALATION_ENABLED !== undefined) {
+  if (process.env.OMC_ESCALATION_ENABLED !== undefined) {
     config.routing = {
       ...config.routing,
-      escalationEnabled: process.env.OMD_ESCALATION_ENABLED === 'true'
+      escalationEnabled: process.env.OMC_ESCALATION_ENABLED === 'true'
     };
   }
 
@@ -250,7 +250,7 @@ export function loadConfig(): PluginConfig {
 }
 
 /**
- * Find and load AGENTS.md or DROID.md files for context injection
+ * Find and load AGENTS.md or FACTORY.md files for context injection
  */
 export function findContextFiles(startDir?: string): string[] {
   const files: string[] = [];
@@ -259,9 +259,9 @@ export function findContextFiles(startDir?: string): string[] {
   // Files to look for
   const contextFileNames = [
     'AGENTS.md',
-    'DROID.md',
-    '.factory/DROID.md',
-    '.factory/AGENTS.md'
+    'FACTORY.md',
+    '.claude/FACTORY.md',
+    '.claude/AGENTS.md'
   ];
 
   // Search in current directory and parent directories
@@ -287,7 +287,7 @@ export function findContextFiles(startDir?: string): string[] {
 }
 
 /**
- * Load context from AGENTS.md/DROID.md files
+ * Load context from AGENTS.md/FACTORY.md files
  */
 export function loadContextFromFiles(files: string[]): string {
   const contexts: string[] = [];
@@ -310,14 +310,14 @@ export function loadContextFromFiles(files: string[]): string {
 export function generateConfigSchema(): object {
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
-    title: 'Oh-My-Droid Configuration',
+    title: 'Oh-My-Claude-Droid Configuration',
     type: 'object',
     properties: {
       agents: {
         type: 'object',
         description: 'Agent model and feature configuration',
         properties: {
-          omd: {
+          droid: {
             type: 'object',
             properties: {
               model: { type: 'string', description: 'Model ID for the main orchestrator' }
@@ -411,68 +411,4 @@ export function generateConfigSchema(): object {
       }
     }
   };
-}
-
-/**
- * Get configuration value with fallback
- */
-export function getConfigValue<T>(
-  config: PluginConfig,
-  path: string,
-  defaultValue: T
-): T {
-  const keys = path.split('.');
-  let current: unknown = config;
-
-  for (const key of keys) {
-    if (current && typeof current === 'object' && key in current) {
-      current = (current as Record<string, unknown>)[key];
-    } else {
-      return defaultValue;
-    }
-  }
-
-  return (current as T) ?? defaultValue;
-}
-
-/**
- * Check if a feature is enabled
- */
-export function isFeatureEnabled(
-  config: PluginConfig,
-  featureName: string
-): boolean {
-  return getConfigValue(config, `features.${featureName}`, false);
-}
-
-/**
- * Get agent configuration
- */
-export function getAgentConfig(
-  config: PluginConfig,
-  agentName: string
-): Record<string, unknown> | undefined {
-  return config.agents?.[agentName as keyof typeof config.agents] as Record<string, unknown> | undefined;
-}
-
-/**
- * Get agent model
- */
-export function getAgentModel(
-  config: PluginConfig,
-  agentName: string
-): string {
-  const agentConfig = getAgentConfig(config, agentName);
-  return (agentConfig?.model as string) ?? DEFAULT_CONFIG.agents?.omd?.model ?? 'claude-sonnet-4-5-20250929';
-}
-
-/**
- * Check if agent is enabled
- */
-export function isAgentEnabled(
-  config: PluginConfig,
-  agentName: string
-): boolean {
-  const agentConfig = getAgentConfig(config, agentName);
-  return agentConfig?.enabled !== false; // Enabled by default
 }

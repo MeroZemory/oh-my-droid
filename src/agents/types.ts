@@ -1,8 +1,8 @@
 /**
- * Agent Types for Oh-My-Droid
+ * Agent Types for Oh-My-Claude-Droid
  *
  * Defines types for agent configuration and metadata used in dynamic prompt generation.
- * Ported from oh-my-claudecode's agent type system.
+ * Ported from oh-my-opencode's agent type system.
  */
 
 export type ModelType = 'sonnet' | 'opus' | 'haiku' | 'inherit';
@@ -37,7 +37,7 @@ export interface DelegationTrigger {
 
 /**
  * Metadata about an agent for dynamic prompt generation
- * This enables the orchestrator to build delegation tables automatically
+ * This enables Droid to build delegation tables automatically
  */
 export interface AgentPromptMetadata {
   /** Agent category */
@@ -120,7 +120,7 @@ export type AgentOverrides = Partial<Record<string, AgentOverrideConfig>>;
 export type AgentFactory = (model?: string) => AgentConfig;
 
 /**
- * Available agent descriptor for orchestrator prompt building
+ * Available agent descriptor for Droid prompt building
  */
 export interface AvailableAgent {
   name: string;

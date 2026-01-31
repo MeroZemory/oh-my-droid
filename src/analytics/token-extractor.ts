@@ -1,17 +1,5 @@
+import type { StatuslineStdin } from '../hud/types.js';
 import { estimateOutputTokens } from './output-estimator.js';
-
-/**
- * StatuslineStdin type - represents the input from Claude's statusline
- */
-export interface StatuslineStdin {
-  context_window: {
-    current_usage?: {
-      input_tokens: number;
-      cache_creation_input_tokens: number;
-      cache_read_input_tokens: number;
-    };
-  };
-}
 
 export interface ExtractedTokens {
   inputTokens: number;
@@ -46,7 +34,7 @@ export function extractTokens(
   modelName: string,
   agentName?: string
 ): ExtractedTokens {
-  const currentUsage = stdin.context_window.current_usage;
+  const currentUsage = stdin.context_window?.current_usage;
 
   if (!currentUsage) {
     return createEmptyExtraction(modelName, agentName);
@@ -84,7 +72,7 @@ export function extractTokens(
  * Create current snapshot for next delta calculation.
  */
 export function createSnapshot(stdin: StatuslineStdin): TokenSnapshot {
-  const usage = stdin.context_window.current_usage;
+  const usage = stdin.context_window?.current_usage;
 
   return {
     inputTokens: usage?.input_tokens ?? 0,

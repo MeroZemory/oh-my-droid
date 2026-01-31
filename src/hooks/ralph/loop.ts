@@ -7,7 +7,7 @@
  * Enhanced with PRD (Product Requirements Document) support for structured task tracking.
  * When a prd.json exists, completion is based on all stories having passes: true.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's ralph hook.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
@@ -36,7 +36,7 @@ import {
 // Forward declaration to avoid circular import - check ultraqa state file directly
 export function isUltraQAActive(directory: string): boolean {
   const omdDir = join(directory, '.omd');
-  const stateFile = join(omdDir, 'ultraqa-state.json');
+  const stateFile = join(omdDir, 'state', 'ultraqa-state.json');
   if (!existsSync(stateFile)) {
     return false;
   }
@@ -96,16 +96,16 @@ const DEFAULT_COMPLETION_PROMISE = 'TASK_COMPLETE';
  */
 function getStateFilePath(directory: string): string {
   const omdDir = join(directory, '.omd');
-  return join(omdDir, 'ralph-state.json');
+  return join(omdDir, 'state', 'ralph-state.json');
 }
 
 /**
  * Ensure the .omd directory exists
  */
 function ensureStateDir(directory: string): void {
-  const omdDir = join(directory, '.omd');
-  if (!existsSync(omdDir)) {
-    mkdirSync(omdDir, { recursive: true });
+  const stateDir = join(directory, '.omd', 'state');
+  if (!existsSync(stateDir)) {
+    mkdirSync(stateDir, { recursive: true });
   }
 }
 
@@ -172,7 +172,7 @@ export function clearLinkedUltraworkState(directory: string): boolean {
   }
 
   const omdDir = join(directory, '.omd');
-  const stateFile = join(omdDir, 'ultrawork-state.json');
+  const stateFile = join(omdDir, 'state', 'ultrawork-state.json');
   try {
     unlinkSync(stateFile);
     return true;
@@ -207,12 +207,12 @@ export function detectCompletionPromise(
   sessionId: string,
   promise: string
 ): boolean {
-  // Try to find transcript in Factory's session directory
-  const factoryDir = join(homedir(), '.factory', 'omd');
+  // Try to find transcript in Claude's session directory
+  const claudeDir = join(homedir(), '.claude');
   const possiblePaths = [
-    join(factoryDir, 'sessions', sessionId, 'transcript.md'),
-    join(factoryDir, 'sessions', sessionId, 'messages.json'),
-    join(factoryDir, 'transcripts', `${sessionId}.md`)
+    join(claudeDir, 'sessions', sessionId, 'transcript.md'),
+    join(claudeDir, 'sessions', sessionId, 'messages.json'),
+    join(claudeDir, 'transcripts', `${sessionId}.md`)
   ];
 
   for (const transcriptPath of possiblePaths) {

@@ -1,11 +1,10 @@
 /**
  * Boulder State Constants
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
- * Uses .omd instead of .omc for state directory.
+ * Ported from oh-my-opencode's boulder-state.
  */
 
-/** OMD state directory */
+/** Droid state directory */
 export const BOULDER_DIR = '.omd';
 
 /** Boulder state file name */

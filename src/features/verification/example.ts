@@ -2,9 +2,7 @@
  * Verification Module Usage Examples
  *
  * This file demonstrates how to use the verification module
- * in different OMD workflows.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * in different OMC workflows.
  */
 
 import {

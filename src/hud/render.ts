@@ -1,5 +1,5 @@
 /**
- * OMD HUD - Main Renderer
+ * OMC HUD - Main Renderer
  *
  * Composes statusline output from render context.
  */
@@ -20,12 +20,45 @@ import { renderSession } from './elements/session.js';
 import { renderAutopilot } from './elements/autopilot.js';
 import {
   getAnalyticsDisplay,
-  renderAnalyticsLine,
+  renderAnalyticsLineWithConfig,
   getSessionInfo,
-  renderSessionHealthAnalytics,
+  getSessionHealthAnalyticsData,
   renderBudgetWarning,
   renderCacheEfficiency
 } from './analytics-display.js';
+import type { SessionHealth, HudElementConfig } from './types.js';
+
+/**
+ * Render session health analytics respecting config toggles.
+ * Composes output from getSessionHealthAnalyticsData() based on showCache/showCost flags.
+ */
+function renderSessionHealthAnalyticsWithConfig(
+  sessionHealth: SessionHealth,
+  enabledElements: HudElementConfig
+): string {
+  const data = getSessionHealthAnalyticsData(sessionHealth);
+  const parts: string[] = [];
+
+  // Cost indicator and cost amount (respects showCost)
+  if (enabledElements.showCost) {
+    parts.push(data.costIndicator, data.cost);
+  }
+
+  // Tokens always shown (not a cost/cache thing)
+  parts.push(data.tokens);
+
+  // Cache (respects showCache)
+  if (enabledElements.showCache) {
+    parts.push(`Cache: ${data.cache}`);
+  }
+
+  // Cost per hour (respects showCost)
+  if (enabledElements.showCost && data.costHour) {
+    parts.push(data.costHour);
+  }
+
+  return parts.join(' | ');
+}
 
 /**
  * Render the complete statusline (single or multi-line)
@@ -41,18 +74,24 @@ export async function render(context: HudRenderContext, config: HudConfig): Prom
     const sessionInfo = await getSessionInfo();
 
     // Render analytics-focused layout
-    const lines = [sessionInfo, renderAnalyticsLine(analytics)];
+    const lines = [sessionInfo, renderAnalyticsLineWithConfig(analytics, enabledElements.showCost, enabledElements.showCache)];
 
     // Add SessionHealth analytics if available
     if (context.sessionHealth) {
-      const healthAnalytics = renderSessionHealthAnalytics(context.sessionHealth);
+      const healthAnalytics = renderSessionHealthAnalyticsWithConfig(context.sessionHealth, enabledElements);
       if (healthAnalytics) lines.push(healthAnalytics);
 
-      const cacheEfficiency = renderCacheEfficiency(context.sessionHealth);
-      if (cacheEfficiency) lines.push(cacheEfficiency);
+      // Cache efficiency (respects showCache)
+      if (enabledElements.showCache) {
+        const cacheEfficiency = renderCacheEfficiency(context.sessionHealth);
+        if (cacheEfficiency) lines.push(cacheEfficiency);
+      }
 
-      const budgetWarning = renderBudgetWarning(context.sessionHealth);
-      if (budgetWarning) lines.push(budgetWarning);
+      // Budget warning (respects showCost)
+      if (enabledElements.showCost) {
+        const budgetWarning = renderBudgetWarning(context.sessionHealth);
+        if (budgetWarning) lines.push(budgetWarning);
+      }
     }
 
     // Add agents if available
@@ -100,13 +139,15 @@ export async function render(context: HudRenderContext, config: HudConfig): Prom
     const session = renderSession(context.sessionHealth);
     if (session) elements.push(session);
 
-    // Add analytics inline if available
-    const analytics = renderSessionHealthAnalytics(context.sessionHealth);
+    // Add analytics inline if available (respects showCache/showCost)
+    const analytics = renderSessionHealthAnalyticsWithConfig(context.sessionHealth, enabledElements);
     if (analytics) elements.push(analytics);
 
-    // Add budget warning to detail lines if needed
-    const warning = renderBudgetWarning(context.sessionHealth);
-    if (warning) detailLines.push(warning);
+    // Add budget warning to detail lines if needed (respects showCost)
+    if (enabledElements.showCost) {
+      const warning = renderBudgetWarning(context.sessionHealth);
+      if (warning) detailLines.push(warning);
+    }
   }
 
   // Ralph loop state
@@ -187,10 +228,10 @@ export async function render(context: HudRenderContext, config: HudConfig): Prom
   if (config.preset === 'full' || config.preset === 'dense') {
     try {
       const analytics = await getAnalyticsDisplay();
-      detailLines.push(renderAnalyticsLine(analytics));
+      detailLines.push(renderAnalyticsLineWithConfig(analytics, enabledElements.showCost, enabledElements.showCache));
 
-      // Also add cache efficiency if SessionHealth available
-      if (context.sessionHealth?.cacheHitRate !== undefined) {
+      // Also add cache efficiency if SessionHealth available (respects showCache)
+      if (enabledElements.showCache && context.sessionHealth?.cacheHitRate !== undefined) {
         const cacheEfficiency = renderCacheEfficiency(context.sessionHealth);
         if (cacheEfficiency) detailLines.push(cacheEfficiency);
       }

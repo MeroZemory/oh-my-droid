@@ -1,5 +1,5 @@
 /**
- * Transcript entry from .factory session logs
+ * Transcript entry from .claude session logs
  */
 export interface TranscriptEntry {
   type: string;

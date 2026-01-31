@@ -4,8 +4,6 @@
  * Intelligent model routing system that routes sub-agent tasks to appropriate
  * models (Opus/Sonnet/Haiku) based on task complexity.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
- *
  * Usage:
  * ```typescript
  * import { routeTask, routeWithEscalation, adaptPromptForTier } from './model-routing';
@@ -76,7 +74,6 @@ export {
   getRoutingRecommendation,
   getModelForTask,
   analyzeTaskComplexity,
-  isFixedTierAgent,
   escalateModel,
   canEscalate,
   explainRouting,

@@ -1,5 +1,5 @@
 /**
- * OMD HUD - Agents Element
+ * OMC HUD - Agents Element
  *
  * Renders active agent count display with multiple format options:
  * - count: agents:2

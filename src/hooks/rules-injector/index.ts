@@ -1,11 +1,11 @@
 /**
  * Rules Injector Hook
  *
- * Automatically injects relevant rule files when Android Factory accesses files.
- * Supports project-level (.factory/rules, .github/instructions) and
- * user-level (~/.factory/omd/rules) rule files.
+ * Automatically injects relevant rule files when Claude accesses files.
+ * Supports project-level (.claude/rules, .github/instructions) and
+ * user-level (~/.factory/rules) rule files.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's rules-injector hook.
  */
 
 import { readFileSync } from 'fs';
@@ -44,7 +44,7 @@ interface SessionCache {
 }
 
 /**
- * Create a rules injector hook for Android Factory.
+ * Create a rules injector hook for Factory Droid.
  *
  * @param workingDirectory - The working directory for resolving paths
  * @returns Hook handlers for tool execution

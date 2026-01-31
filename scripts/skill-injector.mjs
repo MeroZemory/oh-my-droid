@@ -1,14 +1,186 @@
 #!/usr/bin/env node
 
 /**
- * oh-my-droid Skill Injector Hook (Node.js)
- * Injects learned skills from local skills directory
- * Cross-platform: Windows, macOS, Linux
+ * Skill Injector Hook (UserPromptSubmit)
+ * Injects relevant learned skills into context based on prompt triggers.
+ *
+ * STANDALONE SCRIPT - uses compiled bridge bundle from dist/hooks/skill-bridge.cjs
+ * Falls back to inline implementation if bundle not available (first run before build)
+ *
+ * Enhancement in v3.5: Now uses RECURSIVE discovery (skills in subdirectories included)
  */
 
-import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'fs';
+import { join, basename } from 'path';
 import { homedir } from 'os';
+import { createRequire } from 'module';
+
+// Try to load the compiled bridge bundle
+const require = createRequire(import.meta.url);
+let bridge = null;
+try {
+  bridge = require('../dist/hooks/skill-bridge.cjs');
+} catch {
+  // Bridge not available - use fallback (first run before build, or dist/ missing)
+}
+
+// Constants (used by fallback)
+const USER_SKILLS_DIR = join(homedir(), '.claude', 'skills', 'omd-learned');
+const GLOBAL_SKILLS_DIR = join(homedir(), '.omd', 'skills');
+const PROJECT_SKILLS_SUBDIR = join('.omd', 'skills');
+const SKILL_EXTENSION = '.md';
+const MAX_SKILLS_PER_SESSION = 5;
+
+// =============================================================================
+// Fallback Implementation (used when bridge bundle not available)
+// =============================================================================
+
+// In-memory cache (resets each process - known limitation, fixed by bridge)
+const injectedCacheFallback = new Map();
+
+// Parse YAML frontmatter from skill file (fallback)
+function parseSkillFrontmatterFallback(content) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) return null;
+
+  const yamlContent = match[1];
+  const body = match[2].trim();
+
+  // Simple YAML parsing for triggers
+  const triggers = [];
+  const triggerMatch = yamlContent.match(/triggers:\s*\n((?:\s+-\s*.+\n?)*)/);
+  if (triggerMatch) {
+    const lines = triggerMatch[1].split('\n');
+    for (const line of lines) {
+      const itemMatch = line.match(/^\s+-\s*["']?([^"'\n]+)["']?\s*$/);
+      if (itemMatch) triggers.push(itemMatch[1].trim().toLowerCase());
+    }
+  }
+
+  // Extract name
+  const nameMatch = yamlContent.match(/name:\s*["']?([^"'\n]+)["']?/);
+  const name = nameMatch ? nameMatch[1].trim() : 'Unnamed Skill';
+
+  return { name, triggers, content: body };
+}
+
+// Find all skill files (fallback - NON-RECURSIVE for backward compat)
+function findSkillFilesFallback(directory) {
+  const candidates = [];
+  const seenPaths = new Set();
+
+  // Project-level skills (higher priority)
+  const projectDir = join(directory, PROJECT_SKILLS_SUBDIR);
+  if (existsSync(projectDir)) {
+    try {
+      const files = readdirSync(projectDir, { withFileTypes: true });
+      for (const file of files) {
+        if (file.isFile() && file.name.endsWith(SKILL_EXTENSION)) {
+          const fullPath = join(projectDir, file.name);
+          try {
+            const realPath = realpathSync(fullPath);
+            if (!seenPaths.has(realPath)) {
+              seenPaths.add(realPath);
+              candidates.push({ path: fullPath, scope: 'project' });
+            }
+          } catch {
+            // Ignore symlink resolution errors
+          }
+        }
+      }
+    } catch {
+      // Ignore directory read errors
+    }
+  }
+
+  // User-level skills (search both global and legacy directories)
+  const userDirs = [GLOBAL_SKILLS_DIR, USER_SKILLS_DIR];
+  for (const userDir of userDirs) {
+    if (existsSync(userDir)) {
+      try {
+        const files = readdirSync(userDir, { withFileTypes: true });
+        for (const file of files) {
+          if (file.isFile() && file.name.endsWith(SKILL_EXTENSION)) {
+            const fullPath = join(userDir, file.name);
+            try {
+              const realPath = realpathSync(fullPath);
+              if (!seenPaths.has(realPath)) {
+                seenPaths.add(realPath);
+                candidates.push({ path: fullPath, scope: 'user' });
+              }
+            } catch {
+              // Ignore symlink resolution errors
+            }
+          }
+        }
+      } catch {
+        // Ignore directory read errors
+      }
+    }
+  }
+
+  return candidates;
+}
+
+// Find matching skills (fallback)
+function findMatchingSkillsFallback(prompt, directory, sessionId) {
+  const promptLower = prompt.toLowerCase();
+  const candidates = findSkillFilesFallback(directory);
+  const matches = [];
+
+  // Get or create session cache
+  if (!injectedCacheFallback.has(sessionId)) {
+    injectedCacheFallback.set(sessionId, new Set());
+  }
+  const alreadyInjected = injectedCacheFallback.get(sessionId);
+
+  for (const candidate of candidates) {
+    // Skip if already injected this session
+    if (alreadyInjected.has(candidate.path)) continue;
+
+    try {
+      const content = readFileSync(candidate.path, 'utf-8');
+      const skill = parseSkillFrontmatterFallback(content);
+      if (!skill) continue;
+
+      // Check if any trigger matches
+      let score = 0;
+      for (const trigger of skill.triggers) {
+        if (promptLower.includes(trigger)) {
+          score += 10;
+        }
+      }
+
+      if (score > 0) {
+        matches.push({
+          path: candidate.path,
+          name: skill.name,
+          content: skill.content,
+          score,
+          scope: candidate.scope,
+          triggers: skill.triggers
+        });
+      }
+    } catch {
+      // Ignore file read errors
+    }
+  }
+
+  // Sort by score (descending) and limit
+  matches.sort((a, b) => b.score - a.score);
+  const selected = matches.slice(0, MAX_SKILLS_PER_SESSION);
+
+  // Mark as injected
+  for (const skill of selected) {
+    alreadyInjected.add(skill.path);
+  }
+
+  return selected;
+}
+
+// =============================================================================
+// Main Logic (uses bridge if available, fallback otherwise)
+// =============================================================================
 
 // Read all stdin
 async function readStdin() {
@@ -19,127 +191,97 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
-// Read skill file safely
-function readSkillFile(path) {
-  try {
-    if (!existsSync(path)) return null;
-    return readFileSync(path, 'utf-8');
-  } catch {
-    return null;
-  }
-}
+// Find matching skills - delegates to bridge or fallback
+function findMatchingSkills(prompt, directory, sessionId) {
+  if (bridge) {
+    // Use bridge (RECURSIVE discovery, persistent session cache)
+    const matches = bridge.matchSkillsForInjection(prompt, directory, sessionId, {
+      maxResults: MAX_SKILLS_PER_SESSION
+    });
 
-// Parse skill frontmatter
-function parseSkillMeta(content) {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!match) return { triggers: [], body: content };
+    // Mark as injected via bridge
+    if (matches.length > 0) {
+      bridge.markSkillsInjected(sessionId, matches.map(s => s.path), directory);
+    }
 
-  const frontmatter = match[1];
-  const body = match[2];
-
-  const triggersMatch = frontmatter.match(/triggers:\s*\[(.*?)\]/);
-  const triggers = triggersMatch
-    ? triggersMatch[1].split(',').map(t => t.trim().replace(/['"]/g, '').toLowerCase())
-    : [];
-
-  return { triggers, body };
-}
-
-// Check if prompt matches skill triggers
-function matchesSkillTriggers(prompt, triggers) {
-  if (!prompt || triggers.length === 0) return false;
-  const promptLower = prompt.toLowerCase();
-  return triggers.some(trigger => promptLower.includes(trigger));
-}
-
-// Find and load skills
-function findMatchingSkills(prompt, directory) {
-  const skills = [];
-
-  // Check global skills directory
-  const globalSkillsDir = join(homedir(), '.factory', 'omd', 'skills');
-  if (existsSync(globalSkillsDir)) {
-    try {
-      const files = readdirSync(globalSkillsDir).filter(f => f.endsWith('.md'));
-      for (const file of files) {
-        const content = readSkillFile(join(globalSkillsDir, file));
-        if (content) {
-          const { triggers, body } = parseSkillMeta(content);
-          if (matchesSkillTriggers(prompt, triggers)) {
-            skills.push({
-              name: file.replace('.md', ''),
-              source: 'global',
-              content: body
-            });
-          }
-        }
-      }
-    } catch {}
+    return matches;
   }
 
-  // Check local project skills directory
-  const localSkillsDir = join(directory, '.omd', 'skills');
-  if (existsSync(localSkillsDir)) {
-    try {
-      const files = readdirSync(localSkillsDir).filter(f => f.endsWith('.md'));
-      for (const file of files) {
-        const content = readSkillFile(join(localSkillsDir, file));
-        if (content) {
-          const { triggers, body } = parseSkillMeta(content);
-          if (matchesSkillTriggers(prompt, triggers)) {
-            skills.push({
-              name: file.replace('.md', ''),
-              source: 'project',
-              content: body
-            });
-          }
-        }
-      }
-    } catch {}
+  // Fallback (NON-RECURSIVE, in-memory cache)
+  return findMatchingSkillsFallback(prompt, directory, sessionId);
+}
+
+// Format skills for injection
+function formatSkillsMessage(skills) {
+  const lines = [
+    '<mnemosyne>',
+    '',
+    '## Relevant Learned Skills',
+    '',
+    'The following skills from previous sessions may help:',
+    ''
+  ];
+
+  for (const skill of skills) {
+    lines.push(`### ${skill.name} (${skill.scope})`);
+
+    // Add metadata block for programmatic parsing
+    const metadata = {
+      path: skill.path,
+      triggers: skill.triggers,
+      score: skill.score,
+      scope: skill.scope
+    };
+    lines.push(`<skill-metadata>${JSON.stringify(metadata)}</skill-metadata>`);
+    lines.push('');
+
+    lines.push(skill.content);
+    lines.push('');
+    lines.push('---');
+    lines.push('');
   }
 
-  return skills;
+  lines.push('</mnemosyne>');
+  return lines.join('\n');
 }
 
 // Main
 async function main() {
   try {
     const input = await readStdin();
-    let data = {};
-    try { data = JSON.parse(input); } catch {}
-
-    const prompt = data.prompt || '';
-    const directory = data.cwd || process.cwd();
-
-    // Find matching skills
-    const skills = findMatchingSkills(prompt, directory);
-
-    if (skills.length === 0) {
+    if (!input.trim()) {
       console.log(JSON.stringify({ continue: true }));
       return;
     }
 
-    // Build skill injection message
-    let message = '<skill-injection>\n\n[LEARNED SKILLS DETECTED]\n\n';
-    message += 'The following learned skills apply to your request:\n\n';
+    let data = {};
+    try { data = JSON.parse(input); } catch { /* ignore parse errors */ }
 
-    for (const skill of skills) {
-      message += `### Skill: ${skill.name} (${skill.source})\n\n`;
-      message += skill.content;
-      message += '\n\n---\n\n';
+    const prompt = data.prompt || '';
+    const sessionId = data.sessionId || 'unknown';
+    const directory = data.cwd || process.cwd();
+
+    // Skip if no prompt
+    if (!prompt) {
+      console.log(JSON.stringify({ continue: true }));
+      return;
     }
 
-    message += '</skill-injection>\n\n';
+    const matchingSkills = findMatchingSkills(prompt, directory, sessionId);
 
-    // Return with additional context
-    console.log(JSON.stringify({
-      continue: true,
-      hookSpecificOutput: {
-        hookEventName: 'UserPromptSubmit',
-        additionalContext: message
-      }
-    }));
+    if (matchingSkills.length > 0) {
+      console.log(JSON.stringify({
+        continue: true,
+        hookSpecificOutput: {
+          hookEventName: 'UserPromptSubmit',
+          additionalContext: formatSkillsMessage(matchingSkills)
+        }
+      }));
+    } else {
+      console.log(JSON.stringify({ continue: true }));
+    }
   } catch (error) {
+    // On any error, allow continuation
     console.log(JSON.stringify({ continue: true }));
   }
 }

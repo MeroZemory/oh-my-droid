@@ -4,7 +4,7 @@
  * Manages registration and retrieval of context entries
  * from multiple sources for a session.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Ported from oh-my-opencode's context-injector.
  */
 
 import type {

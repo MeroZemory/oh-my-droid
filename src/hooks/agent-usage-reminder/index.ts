@@ -1,142 +1,132 @@
 /**
  * Agent Usage Reminder Hook
  *
- * Reminds users about agent orchestration capabilities for complex tasks.
- * Adapted from oh-my-claudecode.
+ * Reminds users to use specialized agents when they make direct tool calls
+ * for searching or fetching content instead of delegating to agents.
+ *
+ * This hook tracks tool usage and appends reminder messages to tool outputs
+ * when users haven't been using agents effectively.
+ *
+ * Ported from oh-my-opencode's agent-usage-reminder hook.
+ * Adapted for Factory Droid's shell-based hook system.
  */
 
 import {
-  DELEGATION_KEYWORDS,
-  MIN_PROMPT_LENGTH,
-  REMINDER_COOLDOWN_MS,
-  MAX_REMINDERS_PER_SESSION,
-  REMINDER_MESSAGE
-} from './constants.js';
-import { getSessionState, recordReminder, cleanupStaleSessions } from './storage.js';
-import type { ReminderConfig, ReminderAnalysis } from './types.js';
-
-// Export types
-export type { ReminderSessionState, ReminderConfig, ReminderAnalysis } from './types.js';
-
-// Export constants
-export {
-  DELEGATION_KEYWORDS,
-  MIN_PROMPT_LENGTH,
-  REMINDER_COOLDOWN_MS,
-  MAX_REMINDERS_PER_SESSION,
-  REMINDER_MESSAGE
-} from './constants.js';
-
-// Export storage functions
-export {
-  getSessionState,
-  recordReminder,
-  cleanupStaleSessions,
-  clearSessionState
+  loadAgentUsageState,
+  saveAgentUsageState,
+  clearAgentUsageState,
 } from './storage.js';
+import { TARGET_TOOLS, AGENT_TOOLS, REMINDER_MESSAGE } from './constants.js';
+import type { AgentUsageState } from './types.js';
 
-/**
- * Analyze if reminder should be shown
- */
-export function analyzePrompt(
-  prompt: string,
-  config?: ReminderConfig
-): ReminderAnalysis {
-  const minLength = config?.minPromptLength ?? MIN_PROMPT_LENGTH;
-  const keywords = config?.customKeywords ?? DELEGATION_KEYWORDS;
+// Re-export types and utilities
+export { loadAgentUsageState, saveAgentUsageState, clearAgentUsageState } from './storage.js';
+export { TARGET_TOOLS, AGENT_TOOLS, REMINDER_MESSAGE } from './constants.js';
+export type { AgentUsageState } from './types.js';
 
-  // Check minimum length
-  if (prompt.length < minLength) {
-    return {
-      shouldShow: false,
-      reason: 'Prompt too short'
-    };
-  }
+interface ToolExecuteInput {
+  tool: string;
+  sessionID: string;
+  callID: string;
+}
 
-  // Detect keywords
-  const promptLower = prompt.toLowerCase();
-  const detectedKeywords = keywords.filter(kw =>
-    promptLower.includes(kw.toLowerCase())
-  );
+interface ToolExecuteOutput {
+  title: string;
+  output: string;
+  metadata: unknown;
+}
 
-  if (detectedKeywords.length === 0) {
-    return {
-      shouldShow: false,
-      reason: 'No delegation keywords detected'
-    };
-  }
-
-  return {
-    shouldShow: true,
-    reason: 'Complex task detected',
-    detectedKeywords: detectedKeywords as string[]
+interface EventInput {
+  event: {
+    type: string;
+    properties?: unknown;
   };
 }
 
-/**
- * Check if reminder should be shown for a session
- */
-export function shouldShowReminder(
-  sessionId: string,
-  prompt: string,
-  config?: ReminderConfig
-): { show: boolean; message?: string } {
-  if (config?.enabled === false) {
-    return { show: false };
-  }
+export function createAgentUsageReminderHook() {
+  const sessionStates = new Map<string, AgentUsageState>();
 
-  const state = getSessionState(sessionId);
-  const now = Date.now();
-
-  // Check cooldown
-  const cooldownMs = config?.cooldownMs ?? REMINDER_COOLDOWN_MS;
-  if (now - state.lastReminderAt < cooldownMs) {
-    return { show: false };
-  }
-
-  // Check max reminders
-  const maxReminders = config?.maxRemindersPerSession ?? MAX_REMINDERS_PER_SESSION;
-  if (state.reminderCount >= maxReminders) {
-    return { show: false };
-  }
-
-  // Analyze prompt
-  const analysis = analyzePrompt(prompt, config);
-  if (!analysis.shouldShow) {
-    return { show: false };
-  }
-
-  // Record and return
-  recordReminder(sessionId);
-
-  return {
-    show: true,
-    message: REMINDER_MESSAGE
-  };
-}
-
-/**
- * Create the hook
- */
-export function createAgentUsageReminderHook(config?: ReminderConfig) {
-  // Start cleanup interval
-  setInterval(cleanupStaleSessions, 10 * 60 * 1000); // Every 10 minutes
-
-  return {
-    /**
-     * PreToolUse - Check before prompts
-     */
-    preToolUse: (input: {
-      session_id: string;
-      tool_input: { prompt?: string };
-    }): string | null => {
-      const prompt = input.tool_input.prompt;
-      if (!prompt) {
-        return null;
-      }
-
-      const result = shouldShowReminder(input.session_id, prompt, config);
-      return result.show ? (result.message ?? null) : null;
+  function getOrCreateState(sessionID: string): AgentUsageState {
+    if (!sessionStates.has(sessionID)) {
+      const persisted = loadAgentUsageState(sessionID);
+      const state: AgentUsageState = persisted ?? {
+        sessionID,
+        agentUsed: false,
+        reminderCount: 0,
+        updatedAt: Date.now(),
+      };
+      sessionStates.set(sessionID, state);
     }
+    return sessionStates.get(sessionID)!;
+  }
+
+  function markAgentUsed(sessionID: string): void {
+    const state = getOrCreateState(sessionID);
+    state.agentUsed = true;
+    state.updatedAt = Date.now();
+    saveAgentUsageState(state);
+  }
+
+  function resetState(sessionID: string): void {
+    sessionStates.delete(sessionID);
+    clearAgentUsageState(sessionID);
+  }
+
+  const toolExecuteAfter = async (
+    input: ToolExecuteInput,
+    output: ToolExecuteOutput,
+  ) => {
+    const { tool, sessionID } = input;
+    const toolLower = tool.toLowerCase();
+
+    // Mark agent as used if agent tool was called
+    if (AGENT_TOOLS.has(toolLower)) {
+      markAgentUsed(sessionID);
+      return;
+    }
+
+    // Only track target tools (search/fetch tools)
+    if (!TARGET_TOOLS.has(toolLower)) {
+      return;
+    }
+
+    const state = getOrCreateState(sessionID);
+
+    // Don't remind if agent has been used
+    if (state.agentUsed) {
+      return;
+    }
+
+    // Append reminder message to output
+    output.output += REMINDER_MESSAGE;
+    state.reminderCount++;
+    state.updatedAt = Date.now();
+    saveAgentUsageState(state);
+  };
+
+  const eventHandler = async ({ event }: EventInput) => {
+    const props = event.properties as Record<string, unknown> | undefined;
+
+    // Clean up state when session is deleted
+    if (event.type === 'session.deleted') {
+      const sessionInfo = props?.info as { id?: string } | undefined;
+      if (sessionInfo?.id) {
+        resetState(sessionInfo.id);
+      }
+    }
+
+    // Clean up state when session is compacted
+    if (event.type === 'session.compacted') {
+      const sessionID = (props?.sessionID ??
+        (props?.info as { id?: string } | undefined)?.id) as string | undefined;
+      if (sessionID) {
+        resetState(sessionID);
+      }
+    }
+  };
+
+  return {
+    'tool.execute.after': toolExecuteAfter,
+    event: eventHandler,
   };
 }

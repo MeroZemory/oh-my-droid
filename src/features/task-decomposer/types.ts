@@ -3,8 +3,6 @@
  *
  * Types for analyzing tasks and decomposing them into parallelizable
  * components with file ownership management.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 export type TaskType =
@@ -26,7 +24,6 @@ export type ComponentRole =
   | 'api'
   | 'ui'
   | 'shared'
-  | 'coordinator'
   | 'testing'
   | 'docs'
   | 'config'
@@ -143,8 +140,8 @@ export interface SharedFile {
   /** Components that need access to this file */
   sharedBy: string[];
 
-  /** Whether coordinator should manage this */
-  requiresCoordinator: boolean;
+  /** Whether orchestration is required for this file */
+  requiresOrchestration: boolean;
 }
 
 export interface DecompositionResult {
@@ -157,7 +154,7 @@ export interface DecompositionResult {
   /** Generated subtasks with ownership */
   subtasks: Subtask[];
 
-  /** Shared files that need coordinator */
+  /** Shared files requiring orchestration */
   sharedFiles: SharedFile[];
 
   /** Recommended execution order (by subtask ID) */

@@ -3,7 +3,7 @@
  *
  * Type definitions for think mode state and configuration.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's think-mode hook.
  */
 
 /**

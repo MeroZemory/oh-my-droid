@@ -2,8 +2,6 @@
  * Verification Types
  *
  * Common types for verification protocol used across ralph, ultrawork, and autopilot
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 /**

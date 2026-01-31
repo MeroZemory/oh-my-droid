@@ -10,8 +10,6 @@
  * - priority: Execution order (1 = highest)
  * - passes: Boolean indicating completion
  * - notes: Optional notes from implementation
- *
- * Adapted from oh-my-claudecode.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';

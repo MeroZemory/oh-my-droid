@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
-  getPlanningPrompt,
+  getExpansionPrompt,
+  getDirectPlanningPrompt,
   getExecutionPrompt,
-  getVerificationPrompt,
-  getContinuationPrompt
+  getQAPrompt,
+  getValidationPrompt,
+  getPhasePrompt
 } from '../prompts.js';
-import type { AutopilotState } from '../types.js';
 
-describe.skip('Prompt Generation', () => {
+describe('Prompt Generation', () => {
   describe('getExpansionPrompt', () => {
     it('should include user idea', () => {
       const prompt = getExpansionPrompt('build a CLI tool');

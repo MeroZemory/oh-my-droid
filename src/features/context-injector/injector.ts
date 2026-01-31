@@ -3,7 +3,7 @@
  *
  * Handles injection of collected context into prompts/messages.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Ported from oh-my-opencode's context-injector.
  */
 
 import type { ContextCollector } from './collector.js';
@@ -99,7 +99,7 @@ export function injectContextIntoText(
 
 /**
  * Create a hook handler for context injection.
- * This is a factory function for creating compatible hooks.
+ * This is a factory function for creating Factory Droid compatible hooks.
  */
 export function createContextInjectorHook(collector: ContextCollector) {
   return {

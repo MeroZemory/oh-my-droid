@@ -1,5 +1,5 @@
 /**
- * OMD HUD - Todos Element
+ * OMC HUD - Todos Element
  *
  * Renders todo progress display.
  */

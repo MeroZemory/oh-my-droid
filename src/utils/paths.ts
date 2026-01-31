@@ -1,114 +1,60 @@
 /**
- * Path Utilities
+ * Cross-Platform Path Utilities
  *
- * Centralized path management for oh-my-droid state and config files.
+ * Provides utility functions for handling paths across Windows, macOS, and Linux.
+ * These utilities ensure paths in configuration files use forward slashes
+ * (which work universally) and handle platform-specific directory conventions.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-
-// State directories
-export const LOCAL_STATE_DIR = '.omd/state';
-export const GLOBAL_STATE_DIR = path.join(os.homedir(), '.factory', 'omd', 'state');
-
-// Config directories
-export const LOCAL_CONFIG_DIR = '.factory';
-export const GLOBAL_CONFIG_DIR = path.join(os.homedir(), '.factory', 'omd');
+import { join } from 'path';
+import { homedir } from 'os';
 
 /**
- * Get local state directory path (.omd/state)
+ * Convert a path to use forward slashes (for JSON/config files)
+ * This is necessary because settings.json commands are executed
+ * by shells that expect forward slashes even on Windows
  */
-export function getLocalStatePath(): string {
-  return path.join(process.cwd(), LOCAL_STATE_DIR);
+export function toForwardSlash(path: string): string {
+  return path.replace(/\\/g, '/');
 }
 
 /**
- * Get global state directory path (~/.factory/omd/state)
+ * Get Claude config directory path
  */
-export function getGlobalStatePath(): string {
-  return GLOBAL_STATE_DIR;
+export function getClaudeConfigDir(): string {
+  return join(homedir(), '.claude');
 }
 
 /**
- * Get local config directory path (.factory)
+ * Get a path suitable for use in shell commands
+ * Converts backslashes to forward slashes for cross-platform compatibility
  */
-export function getLocalConfigPath(): string {
-  return path.join(process.cwd(), LOCAL_CONFIG_DIR);
-}
-
-/**
- * Get global config directory path (~/.factory/omd)
- */
-export function getGlobalConfigPath(): string {
-  return GLOBAL_CONFIG_DIR;
-}
-
-/**
- * Ensure directory exists, creating it if necessary
- */
-export function ensureDir(dirPath: string): void {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+export function toShellPath(path: string): string {
+  const normalized = toForwardSlash(path);
+  // Windows paths with spaces need quoting
+  if (normalized.includes(' ')) {
+    return `"${normalized}"`;
   }
+  return normalized;
 }
 
 /**
- * Ensure local state directory exists
+ * Get Windows-appropriate data directory
+ * Falls back to sensible locations instead of XDG paths
  */
-export function ensureLocalStateDir(): void {
-  ensureDir(getLocalStatePath());
-}
-
-/**
- * Ensure global state directory exists
- */
-export function ensureGlobalStateDir(): void {
-  ensureDir(getGlobalStatePath());
-}
-
-/**
- * Ensure local config directory exists
- */
-export function ensureLocalConfigDir(): void {
-  ensureDir(getLocalConfigPath());
-}
-
-/**
- * Ensure global config directory exists
- */
-export function ensureGlobalConfigDir(): void {
-  ensureDir(getGlobalConfigPath());
-}
-
-/**
- * Resolve path relative to project root
- */
-export function resolveProjectPath(...segments: string[]): string {
-  return path.join(process.cwd(), ...segments);
-}
-
-/**
- * Resolve path relative to home directory
- */
-export function resolveHomePath(...segments: string[]): string {
-  return path.join(os.homedir(), ...segments);
-}
-
-/**
- * Check if path exists
- */
-export function pathExists(filePath: string): boolean {
-  return fs.existsSync(filePath);
-}
-
-/**
- * Get file stats
- */
-export function getFileStats(filePath: string): fs.Stats | null {
-  try {
-    return fs.statSync(filePath);
-  } catch {
-    return null;
+export function getDataDir(): string {
+  if (process.platform === 'win32') {
+    return process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
   }
+  return process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
+}
+
+/**
+ * Get Windows-appropriate config directory
+ */
+export function getConfigDir(): string {
+  if (process.platform === 'win32') {
+    return process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');
+  }
+  return process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
 }

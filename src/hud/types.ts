@@ -1,5 +1,5 @@
 /**
- * OMD HUD Type Definitions
+ * OMC HUD Type Definitions
  *
  * Type definitions for the HUD state, configuration, and rendering.
  */
@@ -30,7 +30,7 @@ export interface OmdHudState {
 }
 
 // ============================================================================
-// Stdin from Factory
+// Stdin from Factory Droid
 // ============================================================================
 
 export interface StatuslineStdin {
@@ -121,7 +121,7 @@ export interface TranscriptData {
 }
 
 // ============================================================================
-// OMD State Types (read from existing files)
+// OMC State Types (read from existing files)
 // ============================================================================
 
 export interface RalphStateForHud {
@@ -247,6 +247,8 @@ export interface HudElementConfig {
   thinking: boolean;          // Show extended thinking indicator
   sessionHealth: boolean;     // Show session health/duration
   useBars: boolean;           // Show visual progress bars instead of/alongside percentages
+  showCache: boolean;         // Show cache hit rate in analytics displays
+  showCost: boolean;          // Show cost/dollar amounts in analytics displays
 }
 
 export interface HudThresholds {
@@ -287,6 +289,8 @@ export const DEFAULT_HUD_CONFIG: HudConfig = {
     thinking: true,
     sessionHealth: true,
     useBars: false,  // Disabled by default for backwards compatibility
+    showCache: true,
+    showCost: true,
   },
   thresholds: {
     contextWarning: 70,
@@ -315,6 +319,8 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: false,
     sessionHealth: false,
     useBars: false,
+    showCache: false,
+    showCost: false,
   },
   analytics: {
     omdLabel: false,
@@ -334,6 +340,8 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: false,
     sessionHealth: false,
     useBars: false,
+    showCache: true,
+    showCost: true,
   },
   focused: {
     omdLabel: true,
@@ -353,6 +361,8 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     sessionHealth: true,
     useBars: true,
+    showCache: true,
+    showCost: true,
   },
   full: {
     omdLabel: true,
@@ -372,6 +382,8 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     sessionHealth: true,
     useBars: true,
+    showCache: true,
+    showCost: true,
   },
   opencode: {
     omdLabel: true,
@@ -391,6 +403,8 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     sessionHealth: true,
     useBars: false,
+    showCache: true,
+    showCost: true,
   },
   dense: {
     omdLabel: true,
@@ -410,5 +424,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     thinking: true,
     sessionHealth: true,
     useBars: true,
+    showCache: true,
+    showCost: true,
   },
 };

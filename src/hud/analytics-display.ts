@@ -1,5 +1,5 @@
 /**
- * OMD HUD - Analytics Display
+ * OMC HUD - Analytics Display
  *
  * Display components for token tracking and cost analytics in the HUD.
  * Now uses SessionHealth as the source of truth instead of TokenTracker.
@@ -13,6 +13,14 @@ export interface AnalyticsDisplay {
   topAgents: string;
   cacheEfficiency: string;
   costColor: 'green' | 'yellow' | 'red';
+}
+
+export interface SessionHealthAnalyticsData {
+  costIndicator: string;
+  cost: string;
+  tokens: string;
+  cache: string;
+  costHour: string;
 }
 
 /**
@@ -93,14 +101,59 @@ function formatTokenCount(tokens: number): string {
 }
 
 /**
+ * Get color indicator emoji for cost color.
+ */
+function getCostColorIndicator(color: 'green' | 'yellow' | 'red'): string {
+  switch (color) {
+    case 'green': return '🟢';
+    case 'yellow': return '🟡';
+    case 'red': return '🔴';
+  }
+}
+
+/**
+ * Get indicator emoji for health status.
+ */
+function getHealthIndicator(health: 'healthy' | 'warning' | 'critical'): string {
+  switch (health) {
+    case 'healthy': return '🟢';
+    case 'warning': return '🟡';
+    case 'critical': return '🔴';
+  }
+}
+
+/**
  * Render analytics as a single-line string for HUD display.
- * @deprecated Use renderSessionHealthAnalytics instead
+ * @deprecated Use renderAnalyticsLineWithConfig() for config-aware rendering
  */
 export function renderAnalyticsLine(analytics: AnalyticsDisplay): string {
-  const costIndicator = analytics.costColor === 'green' ? '●' :
-                        analytics.costColor === 'yellow' ? '●' : '●';
+  const costIndicator = getCostColorIndicator(analytics.costColor);
 
   return `${costIndicator} Cost: ${analytics.sessionCost} | Tokens: ${analytics.sessionTokens} | Cache: ${analytics.cacheEfficiency} | Top: ${analytics.topAgents}`;
+}
+
+/**
+ * Render analytics respecting showCost/showCache config flags.
+ */
+export function renderAnalyticsLineWithConfig(
+  analytics: AnalyticsDisplay,
+  showCost: boolean,
+  showCache: boolean
+): string {
+  const parts: string[] = [];
+
+  if (showCost) {
+    const costIndicator = getCostColorIndicator(analytics.costColor);
+    parts.push(`${costIndicator} Cost: ${analytics.sessionCost}`);
+  }
+
+  if (showCache) {
+    parts.push(`Cache: ${analytics.cacheEfficiency}`);
+  }
+
+  parts.push(`Top: ${analytics.topAgents}`);
+
+  return parts.join(' | ');
 }
 
 /**
@@ -127,23 +180,29 @@ export async function getSessionInfo(): Promise<string> {
 }
 
 /**
- * Render analytics from SessionHealth (no longer calls TokenTracker directly)
+ * Extract structured analytics data from SessionHealth
  */
-export function renderSessionHealthAnalytics(sessionHealth: SessionHealth): string {
-  // No guard needed - sessionCost is always numeric (initialized to 0)
-  // Display will show $0.0000 for new sessions, which is correct behavior
-
-  const costIndicator = sessionHealth.health === 'critical' ? '🔴' :
-                        sessionHealth.health === 'warning' ? '🟡' : '🟢';
+export function getSessionHealthAnalyticsData(sessionHealth: SessionHealth): SessionHealthAnalyticsData {
+  const costIndicator = getHealthIndicator(sessionHealth.health);
 
   const costPrefix = sessionHealth.isEstimated ? '~' : '';
   const cost = `${costPrefix}$${(sessionHealth.sessionCost ?? 0).toFixed(4)}`;
-
   const tokens = formatTokenCount(sessionHealth.totalTokens ?? 0);
-  const cacheRate = sessionHealth.cacheHitRate?.toFixed(1) ?? '0.0';
-  const costHour = sessionHealth.costPerHour ? ` | $${sessionHealth.costPerHour.toFixed(2)}/h` : '';
+  const cache = `${(sessionHealth.cacheHitRate ?? 0).toFixed(1)}%`;
+  const costHour = sessionHealth.costPerHour ? `$${sessionHealth.costPerHour.toFixed(2)}/h` : '';
 
-  return `${costIndicator} ${cost} | ${tokens} | Cache: ${cacheRate}%${costHour}`;
+  return { costIndicator, cost, tokens, cache, costHour };
+}
+
+/**
+ * Render analytics from SessionHealth (no longer calls TokenTracker directly)
+ * @deprecated Use getSessionHealthAnalyticsData() and compose in render.ts for config-aware rendering
+ */
+export function renderSessionHealthAnalytics(sessionHealth: SessionHealth): string {
+  const data = getSessionHealthAnalyticsData(sessionHealth);
+  const parts = [data.costIndicator, data.cost, data.tokens, `Cache: ${data.cache}`];
+  if (data.costHour) parts.push(data.costHour);
+  return parts.join(' | ');
 }
 
 /**

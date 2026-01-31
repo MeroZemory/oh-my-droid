@@ -1,5 +1,5 @@
 /**
- * Sisyphus HUD - Agents Element Tests
+ * Droid HUD - Agents Element Tests
  *
  * Tests for agent visualization with different formats.
  */
@@ -355,7 +355,8 @@ describe('Agents Element', () => {
       expect(result.headerPart).toContain('agents:');
       expect(result.headerPart).toContain('1');
       expect(result.detailLines).toHaveLength(1);
-      // Single agent should use a tree indicator
+      // Single agent should use └─ (last indicator)
+      expect(result.detailLines[0]).toContain('└─');
       expect(result.detailLines[0]).toContain('A');
       expect(result.detailLines[0]).toContain('analyzing code');
     });
@@ -374,9 +375,11 @@ describe('Agents Element', () => {
       const result = renderAgentsMultiLine(agents);
       expect(result.headerPart).toContain('2');
       expect(result.detailLines).toHaveLength(2);
-      // First agent uses tree indicator
+      // First agent uses ├─
+      expect(result.detailLines[0]).toContain('├─');
       expect(result.detailLines[0]).toContain('A');
-      // Last agent uses tree indicator
+      // Last agent uses └─
+      expect(result.detailLines[1]).toContain('└─');
       expect(result.detailLines[1]).toContain('e');
     });
 

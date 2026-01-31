@@ -4,7 +4,7 @@
  * Handles model switching to high-reasoning variants when think mode is activated.
  * Supports Claude, GPT, and Gemini model families.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's think-mode hook.
  */
 
 import type { ThinkingConfig } from './types.js';
@@ -26,7 +26,7 @@ function extractModelPrefix(modelId: string): { prefix: string; base: string } {
 
 /**
  * Normalize model ID to use consistent hyphen formatting.
- * Handles version numbers like 4.5 -> 4-5.
+ * Handles version numbers like 4.5 → 4-5.
  */
 function normalizeModelId(modelId: string): string {
   return modelId.replace(/\.(\d+)/g, '-$1');
@@ -193,7 +193,7 @@ export function getThinkingConfig(
 
 /**
  * Get Claude-specific thinking configuration.
- * This is used by Android Factory for extended thinking.
+ * This is used by Factory Droid for extended thinking.
  */
 export function getClaudeThinkingConfig(budgetTokens: number = 64000) {
   return {

@@ -306,7 +306,7 @@ describe('Smart Skill Matcher', () => {
     });
 
     it('should handle unicode in prompt', () => {
-      const ctx = extractContext('fix the bug in function with emoji');
+      const ctx = extractContext('fix the bug in function 函数名 with emoji 🚀');
       expect(ctx).toBeDefined();
     });
 

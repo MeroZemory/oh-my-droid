@@ -1,27 +1,24 @@
-/**
- * Hooks Test Suite
- *
- * NOTE: Some tests are skipped because oh-my-droid has different module
- * implementations than oh-my-claudecode. The keyword-detector module in
- * oh-my-droid has a simpler API without extractPromptText, removeCodeBlocks,
- * detectKeywordsWithType, hasKeyword, getPrimaryKeyword exports.
- *
- * Tests for Todo Continuation, Hook Output Structure, UltraQA Loop,
- * and Mutual Exclusion are active and working.
- */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-// NOTE: oh-my-droid keyword-detector has different API - these exports don't exist:
-// extractPromptText, removeCodeBlocks, detectKeywordsWithType, hasKeyword, getPrimaryKeyword, DetectedKeyword
+import {
+  extractPromptText,
+  removeCodeBlocks,
+  detectKeywordsWithType,
+  hasKeyword,
+  getPrimaryKeyword,
+  type DetectedKeyword
+} from '../hooks/keyword-detector/index.js';
 import {
   formatTodoStatus,
   getNextPendingTodo,
   type Todo,
   type IncompleteTodosResult
 } from '../hooks/todo-continuation/index.js';
-// NOTE: resetTodoContinuationAttempts doesn't exist in oh-my-droid persistent-mode
+import {
+  resetTodoContinuationAttempts
+} from '../hooks/persistent-mode/index.js';
 import {
   startUltraQA,
   clearUltraQAState,
@@ -33,15 +30,7 @@ import {
   isUltraQAActive
 } from '../hooks/ralph/index.js';
 
-// Mock DetectedKeyword type for type-only usage in tests that still compile
-type DetectedKeyword = {
-  type: string;
-  keyword: string;
-  position: number;
-};
-
-// SKIPPED: oh-my-droid keyword-detector has different API
-describe.skip('Keyword Detector', () => {
+describe('Keyword Detector', () => {
   describe('extractPromptText', () => {
     it('should extract text from text parts', () => {
       const parts = [
@@ -157,57 +146,35 @@ describe.skip('Keyword Detector', () => {
     });
 
     it('should detect think keyword', () => {
-      const detected = detectKeywordsWithType('Let me think about it');
+      const detected = detectKeywordsWithType('Let me think hard about it');
       expect(detected).toHaveLength(1);
       expect(detected[0].type).toBe('ultrathink');
-      expect(detected[0].keyword).toBe('think');
+      expect(detected[0].keyword).toBe('think hard');
     });
 
-    it('should detect search keywords', () => {
-      const searchTerms = ['search', 'find', 'locate', 'lookup', 'explore'];
-      for (const term of searchTerms) {
-        const detected = detectKeywordsWithType(`Please ${term} this file`);
-        expect(detected).toHaveLength(1);
-        expect(detected[0].type).toBe('search');
-        expect(detected[0].keyword).toBe(term);
-      }
-    });
-
-    it('should detect search patterns', () => {
+    it('should detect deepsearch keywords for codebase search', () => {
       const patterns = [
-        'where is the config',
-        'show me all files',
-        'list all functions'
+        'search the codebase',
+        'find in codebase',
+        'search code for pattern'
       ];
       for (const pattern of patterns) {
         const detected = detectKeywordsWithType(pattern);
         expect(detected.length).toBeGreaterThan(0);
-        const hasSearchType = detected.some(d => d.type === 'search');
-        expect(hasSearchType).toBe(true);
+        expect(detected[0].type).toBe('deepsearch');
       }
     });
 
-    it('should detect analyze keywords', () => {
-      const analyzeTerms = ['analyze', 'investigate', 'examine', 'debug'];
-      for (const term of analyzeTerms) {
-        const detected = detectKeywordsWithType(`Please ${term} this code`);
-        expect(detected).toHaveLength(1);
+    it('should detect analyze keywords with restricted patterns', () => {
+      const patterns = [
+        'deep analyze this code',
+        'investigate the bug',
+        'debug the issue'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        expect(detected.length).toBeGreaterThan(0);
         expect(detected[0].type).toBe('analyze');
-        expect(detected[0].keyword).toBe(term);
-      }
-    });
-
-    it('should detect analyze patterns', () => {
-      const patterns = [
-        'why is this failing',
-        'how does this work',
-        'how to implement this'
-      ];
-      for (const pattern of patterns) {
-        const detected = detectKeywordsWithType(pattern);
-        expect(detected.length).toBeGreaterThan(0);
-        const hasAnalyzeType = detected.some(d => d.type === 'analyze');
-        expect(hasAnalyzeType).toBe(true);
       }
     });
 
@@ -229,8 +196,8 @@ describe.skip('Keyword Detector', () => {
     });
 
     it('should include position information', () => {
-      const detected = detectKeywordsWithType('Start search here');
-      expect(detected[0].position).toBe(6); // Position of 'search'
+      const detected = detectKeywordsWithType('Start search the codebase here');
+      expect(detected[0].position).toBeGreaterThanOrEqual(0);
     });
 
     it('should return empty array for no matches', () => {
@@ -239,20 +206,229 @@ describe.skip('Keyword Detector', () => {
     });
 
     it('should detect multiple different keyword types', () => {
-      const text = 'search and analyze this code';
+      const text = 'search the codebase and investigate the bug';
       const detected = detectKeywordsWithType(text);
       expect(detected.length).toBeGreaterThanOrEqual(2);
       const types = detected.map(d => d.type);
-      expect(types).toContain('search');
+      expect(types).toContain('deepsearch');
       expect(types).toContain('analyze');
+    });
+
+    // New keyword types tests
+    it('should detect cancel keyword', () => {
+      const detected = detectKeywordsWithType('cancelomc this task');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('cancel');
+      expect(detected[0].keyword).toBe('cancelomc');
+    });
+
+    it('should detect cancel keyword variations', () => {
+      const cancelTerms = ['cancelomc', 'stopomc'];
+      for (const term of cancelTerms) {
+        const detected = detectKeywordsWithType(`Please ${term} the process`);
+        expect(detected).toHaveLength(1);
+        expect(detected[0].type).toBe('cancel');
+        expect(detected[0].keyword).toBe(term);
+      }
+    });
+
+    it('should detect ultrapilot keyword', () => {
+      const detected = detectKeywordsWithType('use ultrapilot for this');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('ultrapilot');
+      expect(detected[0].keyword).toBe('ultrapilot');
+    });
+
+    it('should detect ultrapilot patterns', () => {
+      const patterns = [
+        'ultrapilot this project',
+        'parallel build the app',
+        'swarm build the system'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        expect(detected.length).toBeGreaterThan(0);
+        const hasUltrapilot = detected.some(d => d.type === 'ultrapilot');
+        expect(hasUltrapilot).toBe(true);
+      }
+    });
+
+    it('should detect ecomode keyword', () => {
+      const detected = detectKeywordsWithType('use ecomode for this');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('ecomode');
+      expect(detected[0].keyword).toBe('ecomode');
+    });
+
+    it('should detect ecomode variations', () => {
+      const ecoTerms = ['eco', 'ecomode', 'efficient', 'save-tokens', 'budget'];
+      for (const term of ecoTerms) {
+        const detected = detectKeywordsWithType(`Use ${term} mode`);
+        expect(detected).toHaveLength(1);
+        expect(detected[0].type).toBe('ecomode');
+        expect(detected[0].keyword).toBe(term);
+      }
+    });
+
+    it('should detect swarm keyword', () => {
+      const detected = detectKeywordsWithType('swarm 5 agents to fix this');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('swarm');
+      expect(detected[0].keyword).toBe('swarm 5 agents');
+    });
+
+    it('should detect coordinated agents pattern', () => {
+      const detected = detectKeywordsWithType('use coordinated agents');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('swarm');
+      expect(detected[0].keyword).toBe('coordinated agents');
+    });
+
+    it('should detect pipeline keyword', () => {
+      const detected = detectKeywordsWithType('pipeline this task');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('pipeline');
+      expect(detected[0].keyword).toBe('pipeline');
+    });
+
+    it('should detect chain agents pattern', () => {
+      const detected = detectKeywordsWithType('chain agents together');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('pipeline');
+      expect(detected[0].keyword).toBe('chain agents');
+    });
+
+    it('should detect ralplan keyword', () => {
+      const detected = detectKeywordsWithType('ralplan this feature');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('ralplan');
+      expect(detected[0].keyword).toBe('ralplan');
+    });
+
+    it('should detect plan patterns', () => {
+      const patterns = [
+        'plan this feature',
+        'plan the refactoring'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        expect(detected.length).toBeGreaterThan(0);
+        const hasPlan = detected.some(d => d.type === 'plan');
+        expect(hasPlan).toBe(true);
+      }
+    });
+
+    it('should detect tdd keyword', () => {
+      const detected = detectKeywordsWithType('use tdd for this');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('tdd');
+      expect(detected[0].keyword).toBe('tdd');
+    });
+
+    it('should detect tdd patterns', () => {
+      const patterns = [
+        'test first development',
+        'red green refactor'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        expect(detected.length).toBeGreaterThan(0);
+        const hasTDD = detected.some(d => d.type === 'tdd');
+        expect(hasTDD).toBe(true);
+      }
+    });
+
+    it('should detect research keyword', () => {
+      const detected = detectKeywordsWithType('research this topic');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('research');
+      expect(detected[0].keyword).toBe('research');
+    });
+
+    it('should detect research patterns', () => {
+      const patterns = [
+        'analyze data from the file',
+        'run statistics on this'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        expect(detected.length).toBeGreaterThan(0);
+        const hasResearch = detected.some(d => d.type === 'research');
+        expect(hasResearch).toBe(true);
+      }
+    });
+
+    it('should detect deepsearch keyword', () => {
+      const detected = detectKeywordsWithType('deepsearch for the pattern');
+      expect(detected).toHaveLength(1);
+      expect(detected[0].type).toBe('deepsearch');
+      expect(detected[0].keyword).toBe('deepsearch');
+    });
+
+    it('should detect deepsearch patterns', () => {
+      const patterns = [
+        'search the codebase for errors',
+        'search codebase for pattern',
+        'find in codebase',
+        'find in all files'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        expect(detected.length).toBeGreaterThan(0);
+        const hasDeepsearch = detected.some(d => d.type === 'deepsearch');
+        expect(hasDeepsearch).toBe(true);
+      }
+    });
+
+    it('should NOT detect deepsearch for generic find', () => {
+      const patterns = [
+        'find the file',
+        'find this function',
+        'search for help'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        const hasDeepsearch = detected.some(d => d.type === 'deepsearch');
+        expect(hasDeepsearch).toBe(false);
+      }
+    });
+
+    it('should detect analyze patterns with restrictions', () => {
+      const patterns = [
+        'deep analyze this code',
+        'investigate the bug',
+        'investigate this issue',
+        'debug the problem',
+        'debug this error'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        expect(detected.length).toBeGreaterThan(0);
+        const hasAnalyze = detected.some(d => d.type === 'analyze');
+        expect(hasAnalyze).toBe(true);
+      }
+    });
+
+    it('should NOT detect analyze for generic patterns', () => {
+      const patterns = [
+        'how to do this',
+        'understand this code',
+        'review this code',
+        'analyze without context'
+      ];
+      for (const pattern of patterns) {
+        const detected = detectKeywordsWithType(pattern);
+        const hasAnalyze = detected.some(d => d.type === 'analyze');
+        expect(hasAnalyze).toBe(false);
+      }
     });
   });
 
   describe('hasKeyword', () => {
     it('should return true when keyword exists', () => {
       expect(hasKeyword('use ultrawork mode')).toBe(true);
-      expect(hasKeyword('search for files')).toBe(true);
-      expect(hasKeyword('analyze this')).toBe(true);
+      expect(hasKeyword('search the codebase')).toBe(true);
+      expect(hasKeyword('investigate the bug')).toBe(true);
     });
 
     it('should return false when no keyword exists', () => {
@@ -266,7 +442,7 @@ describe.skip('Keyword Detector', () => {
     });
 
     it('should detect keywords outside code blocks', () => {
-      const text = 'Please search\n```\nsome code\n```\nfor this';
+      const text = 'Please search the codebase\n```\nsome code\n```\nfor this';
       expect(hasKeyword(text)).toBe(true);
     });
 
@@ -284,22 +460,22 @@ describe.skip('Keyword Detector', () => {
       expect(primary!.type).toBe('ultrawork');
     });
 
-    it('should return ultrathink when no ultrawork', () => {
-      const text = 'search and think about this';
+    it('should return ultrathink when present', () => {
+      const text = 'think hard about this problem';
       const primary = getPrimaryKeyword(text);
       expect(primary).not.toBeNull();
       expect(primary!.type).toBe('ultrathink');
     });
 
-    it('should return search when only search keyword', () => {
-      const text = 'find all files';
+    it('should return deepsearch for codebase search', () => {
+      const text = 'find in codebase';
       const primary = getPrimaryKeyword(text);
       expect(primary).not.toBeNull();
-      expect(primary!.type).toBe('search');
+      expect(primary!.type).toBe('deepsearch');
     });
 
     it('should return analyze when only analyze keyword', () => {
-      const text = 'investigate this issue';
+      const text = 'investigate the issue';
       const primary = getPrimaryKeyword(text);
       expect(primary).not.toBeNull();
       expect(primary!.type).toBe('analyze');
@@ -311,19 +487,104 @@ describe.skip('Keyword Detector', () => {
     });
 
     it('should ignore code blocks', () => {
-      const text = '```\nultrawork code\n```\nsearch this';
+      const text = '```\nultrawork code\n```\nsearch the codebase';
       const primary = getPrimaryKeyword(text);
       expect(primary).not.toBeNull();
-      expect(primary!.type).toBe('search');
+      expect(primary!.type).toBe('deepsearch');
     });
 
     it('should return first detected when same priority', () => {
-      // Both search and analyze have same priority
-      const text = 'search and analyze';
+      // deepsearch has higher priority than analyze in the priority list
+      const text = 'search the codebase and investigate the bug';
       const primary = getPrimaryKeyword(text);
       expect(primary).not.toBeNull();
-      // Should return search as it comes first in priority list
-      expect(primary!.type).toBe('search');
+      // Should return deepsearch as it comes first in priority list
+      expect(primary!.type).toBe('deepsearch');
+    });
+
+    // New priority tests for new keywords
+    it('should give cancel highest priority', () => {
+      const primary = getPrimaryKeyword('stopomc searching for files');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('cancel');
+    });
+
+    it('should give cancel priority over analyze', () => {
+      const primary = getPrimaryKeyword('cancelomc this investigation');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('cancel');
+    });
+
+    it('should prioritize cancel over all other keywords', () => {
+      const primary = getPrimaryKeyword('stopomc ultrawork and search');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('cancel');
+    });
+
+    it('should prioritize ralph after cancel', () => {
+      const primary = getPrimaryKeyword('ralph mode for the task');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('ralph');
+    });
+
+    it('should prioritize ultrapilot correctly', () => {
+      const primary = getPrimaryKeyword('ultrapilot this task');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('ultrapilot');
+    });
+
+    it('should prioritize ecomode correctly', () => {
+      const primary = getPrimaryKeyword('use efficient mode for this');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('ecomode');
+    });
+
+    it('should prioritize swarm correctly', () => {
+      const primary = getPrimaryKeyword('swarm 5 agents for this');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('swarm');
+    });
+
+    it('should prioritize pipeline correctly', () => {
+      const primary = getPrimaryKeyword('pipeline the task');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('pipeline');
+    });
+
+    it('should prioritize ralplan over plan', () => {
+      const primary = getPrimaryKeyword('ralplan this project');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('ralplan');
+    });
+
+    it('should detect plan correctly', () => {
+      const primary = getPrimaryKeyword('plan this feature');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('plan');
+    });
+
+    it('should prioritize tdd correctly', () => {
+      const primary = getPrimaryKeyword('tdd for this feature');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('tdd');
+    });
+
+    it('should prioritize research correctly', () => {
+      const primary = getPrimaryKeyword('research this topic');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('research');
+    });
+
+    it('should prioritize deepsearch over generic search', () => {
+      const primary = getPrimaryKeyword('search the codebase');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('deepsearch');
+    });
+
+    it('should prioritize analyze with restricted pattern', () => {
+      const primary = getPrimaryKeyword('investigate the bug');
+      expect(primary).not.toBeNull();
+      expect(primary!.type).toBe('analyze');
     });
   });
 });
@@ -334,7 +595,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 0,
         todos: [],
-        total: 5
+        total: 5,
+        source: 'todo'
       };
       expect(formatTodoStatus(result)).toBe('All tasks complete (5 total)');
     });
@@ -343,7 +605,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 3,
         todos: [],
-        total: 10
+        total: 10,
+        source: 'todo'
       };
       expect(formatTodoStatus(result)).toBe('7/10 completed, 3 remaining');
     });
@@ -352,7 +615,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 0,
         todos: [],
-        total: 0
+        total: 0,
+        source: 'none'
       };
       expect(formatTodoStatus(result)).toBe('All tasks complete (0 total)');
     });
@@ -361,7 +625,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 5,
         todos: [],
-        total: 5
+        total: 5,
+        source: 'todo'
       };
       expect(formatTodoStatus(result)).toBe('0/5 completed, 5 remaining');
     });
@@ -370,7 +635,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 1,
         todos: [],
-        total: 10
+        total: 10,
+        source: 'todo'
       };
       expect(formatTodoStatus(result)).toBe('9/10 completed, 1 remaining');
     });
@@ -386,7 +652,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 3,
         todos,
-        total: 3
+        total: 3,
+        source: 'todo'
       };
       const next = getNextPendingTodo(result);
       expect(next).not.toBeNull();
@@ -403,7 +670,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 2,
         todos: todos.filter(t => t.status !== 'completed'),
-        total: 3
+        total: 3,
+        source: 'todo'
       };
       const next = getNextPendingTodo(result);
       expect(next).not.toBeNull();
@@ -415,7 +683,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 0,
         todos: [],
-        total: 0
+        total: 0,
+        source: 'none'
       };
       const next = getNextPendingTodo(result);
       expect(next).toBeNull();
@@ -425,7 +694,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 0,
         todos: [],
-        total: 3
+        total: 3,
+        source: 'todo'
       };
       const next = getNextPendingTodo(result);
       expect(next).toBeNull();
@@ -439,7 +709,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 2,
         todos,
-        total: 2
+        total: 2,
+        source: 'todo'
       };
       const next = getNextPendingTodo(result);
       expect(next).not.toBeNull();
@@ -454,7 +725,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 2,
         todos,
-        total: 2
+        total: 2,
+        source: 'todo'
       };
       const next = getNextPendingTodo(result);
       expect(next).not.toBeNull();
@@ -469,7 +741,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 1,
         todos: [todos[1]],
-        total: 2
+        total: 2,
+        source: 'todo'
       };
       const next = getNextPendingTodo(result);
       expect(next).not.toBeNull();
@@ -486,7 +759,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 4,
         todos,
-        total: 4
+        total: 4,
+        source: 'todo'
       };
       const next = getNextPendingTodo(result);
       expect(next).not.toBeNull();
@@ -546,7 +820,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: todos.length,
         todos,
-        total: 5
+        total: 5,
+        source: 'todo'
       };
 
       expect(result.count).toBe(result.todos.length);
@@ -558,7 +833,8 @@ describe('Todo Continuation', () => {
       const result: IncompleteTodosResult = {
         count: 0,
         todos: [],
-        total: 3
+        total: 3,
+        source: 'todo'
       };
 
       expect(result.count).toBeLessThanOrEqual(result.total);
@@ -660,7 +936,8 @@ describe('Hook Output Structure', () => {
       const result: IncompleteTodosResult = {
         count: 2,
         todos: [],
-        total: 5
+        total: 5,
+        source: 'todo'
       };
       const status = formatTodoStatus(result);
       const message = `Todo Status: ${status}`;
@@ -670,11 +947,10 @@ describe('Hook Output Structure', () => {
   });
 });
 
-// SKIPPED: oh-my-droid keyword-detector has different API
-describe.skip('Integration: Keyword Detection with Code Blocks', () => {
+describe('Integration: Keyword Detection with Code Blocks', () => {
   it('should detect keywords outside code and ignore inside', () => {
     const text = `
-Please search for files
+Please search the codebase
 
 \`\`\`javascript
 // This search should be ignored
@@ -683,30 +959,30 @@ function search() {
 }
 \`\`\`
 
-Now analyze the results
+Now investigate the bug
     `;
 
     const detected = detectKeywordsWithType(removeCodeBlocks(text));
     const types = detected.map(d => d.type);
 
-    expect(types).toContain('search');
+    expect(types).toContain('deepsearch');
     expect(types).toContain('analyze');
     // Should only detect the ones outside code blocks
-    expect(detected.filter(d => d.type === 'search')).toHaveLength(1);
+    expect(detected.filter(d => d.type === 'deepsearch')).toHaveLength(1);
     expect(detected.filter(d => d.type === 'analyze')).toHaveLength(1);
   });
 
   it('should handle inline code with keywords', () => {
-    const text = 'Use the `search` command to find files';
+    const text = 'Use the `deepsearch` command to find in codebase';
     const cleanText = removeCodeBlocks(text);
     const detected = detectKeywordsWithType(cleanText);
 
-    // The word 'find' should still be detected
-    expect(detected.some(d => d.type === 'search')).toBe(true);
+    // The phrase 'find in codebase' should still be detected
+    expect(detected.some(d => d.type === 'deepsearch')).toBe(true);
   });
 
   it('should prioritize ultrawork even with other keywords', () => {
-    const text = 'search, analyze, and use ultrawork mode';
+    const text = 'search the codebase, investigate the bug, and use ultrawork mode';
     const primary = getPrimaryKeyword(text);
 
     expect(primary).not.toBeNull();
@@ -715,8 +991,7 @@ Now analyze the results
   });
 });
 
-// SKIPPED: oh-my-droid keyword-detector has different API
-describe.skip('Edge Cases', () => {
+describe('Edge Cases', () => {
   describe('Empty and null inputs', () => {
     it('should handle empty prompt parts', () => {
       expect(extractPromptText([])).toBe('');
@@ -741,38 +1016,38 @@ describe.skip('Edge Cases', () => {
 
   describe('Whitespace handling', () => {
     it('should detect keywords with extra whitespace', () => {
-      const text = '   search    for   files   ';
+      const text = '   search    the   codebase   ';
       expect(hasKeyword(text)).toBe(true);
     });
 
     it('should handle newlines and tabs', () => {
-      const text = 'search\n\tfor\r\nfiles';
+      const text = 'search\n\tthe\r\ncodebase';
       const detected = detectKeywordsWithType(text);
-      expect(detected.some(d => d.type === 'search')).toBe(true);
+      expect(detected.some(d => d.type === 'deepsearch')).toBe(true);
     });
   });
 
   describe('Unicode and special characters', () => {
     it('should handle unicode characters', () => {
-      const text = 'search for files with emojis';
+      const text = 'search the codebase with émojis 🔍';
       expect(hasKeyword(text)).toBe(true);
     });
 
     it('should handle mixed scripts', () => {
-      const text = 'Please search';
+      const text = 'Please search the codebase 搜索 искать';
       const detected = detectKeywordsWithType(text);
-      expect(detected.some(d => d.keyword === 'search')).toBe(true);
+      expect(detected.some(d => d.type === 'deepsearch')).toBe(true);
     });
   });
 
   describe('Very long inputs', () => {
     it('should handle long text efficiently', () => {
-      const longText = 'plain text '.repeat(1000) + ' search here';
+      const longText = 'plain text '.repeat(1000) + ' search the codebase';
       expect(hasKeyword(longText)).toBe(true);
     });
 
     it('should handle many code blocks', () => {
-      const manyBlocks = '```code```\n'.repeat(100) + 'search here';
+      const manyBlocks = '```code```\n'.repeat(100) + 'search the codebase';
       const cleaned = removeCodeBlocks(manyBlocks);
       expect(hasKeyword(cleaned)).toBe(true);
     });
@@ -894,22 +1169,32 @@ describe('UltraQA Loop', () => {
   });
 });
 
-// SKIPPED: oh-my-droid persistent-mode doesn't export resetTodoContinuationAttempts
-describe.skip('Persistent Mode - Max Attempts Counter', () => {
+describe('Persistent Mode - Max Attempts Counter', () => {
   const testSessionId = 'test-session-123';
 
+  beforeEach(() => {
+    // Reset the counter before each test
+    resetTodoContinuationAttempts(testSessionId);
+  });
+
+  afterEach(() => {
+    // Clean up after each test
+    resetTodoContinuationAttempts(testSessionId);
+  });
+
   it('should export resetTodoContinuationAttempts function', () => {
-    // Skipped - function doesn't exist in oh-my-droid
-    expect(true).toBe(true);
+    expect(typeof resetTodoContinuationAttempts).toBe('function');
   });
 
   it('should not throw when resetting non-existent session', () => {
-    // Skipped - function doesn't exist in oh-my-droid
-    expect(true).toBe(true);
+    expect(() => resetTodoContinuationAttempts('non-existent')).not.toThrow();
   });
 
   it('should allow resetting attempts multiple times', () => {
-    // Skipped - function doesn't exist in oh-my-droid
+    resetTodoContinuationAttempts(testSessionId);
+    resetTodoContinuationAttempts(testSessionId);
+    resetTodoContinuationAttempts(testSessionId);
+    // Should not throw
     expect(true).toBe(true);
   });
 });
@@ -922,6 +1207,7 @@ describe('Mutual Exclusion - UltraQA and Ralph', () => {
     testDir = join(tmpdir(), `omd-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(testDir, { recursive: true });
     mkdirSync(join(testDir, '.omd'), { recursive: true });
+    mkdirSync(join(testDir, '.omd', 'state'), { recursive: true });
   });
 
   afterEach(() => {
@@ -939,19 +1225,19 @@ describe('Mutual Exclusion - UltraQA and Ralph', () => {
     });
 
     it('should return true when ultraqa is active', () => {
-      const stateFile = join(testDir, '.omd', 'ultraqa-state.json');
+      const stateFile = join(testDir, '.omd', 'state', 'ultraqa-state.json');
       writeFileSync(stateFile, JSON.stringify({ active: true }));
       expect(isUltraQAActive(testDir)).toBe(true);
     });
 
     it('should return false when ultraqa is not active', () => {
-      const stateFile = join(testDir, '.omd', 'ultraqa-state.json');
+      const stateFile = join(testDir, '.omd', 'state', 'ultraqa-state.json');
       writeFileSync(stateFile, JSON.stringify({ active: false }));
       expect(isUltraQAActive(testDir)).toBe(false);
     });
 
     it('should return false for invalid JSON', () => {
-      const stateFile = join(testDir, '.omd', 'ultraqa-state.json');
+      const stateFile = join(testDir, '.omd', 'state', 'ultraqa-state.json');
       writeFileSync(stateFile, 'invalid json');
       expect(isUltraQAActive(testDir)).toBe(false);
     });
@@ -963,13 +1249,13 @@ describe('Mutual Exclusion - UltraQA and Ralph', () => {
     });
 
     it('should return true when ralph is active', () => {
-      const stateFile = join(testDir, '.omd', 'ralph-state.json');
+      const stateFile = join(testDir, '.omd', 'state', 'ralph-state.json');
       writeFileSync(stateFile, JSON.stringify({ active: true }));
       expect(isRalphLoopActive(testDir)).toBe(true);
     });
 
     it('should return false when ralph is not active', () => {
-      const stateFile = join(testDir, '.omd', 'ralph-state.json');
+      const stateFile = join(testDir, '.omd', 'state', 'ralph-state.json');
       writeFileSync(stateFile, JSON.stringify({ active: false }));
       expect(isRalphLoopActive(testDir)).toBe(false);
     });
@@ -978,7 +1264,7 @@ describe('Mutual Exclusion - UltraQA and Ralph', () => {
   describe('UltraQA mutual exclusion', () => {
     it('should fail to start UltraQA when Ralph is active', () => {
       // Activate Ralph first
-      const ralphStateFile = join(testDir, '.omd', 'ralph-state.json');
+      const ralphStateFile = join(testDir, '.omd', 'state', 'ralph-state.json');
       writeFileSync(ralphStateFile, JSON.stringify({ active: true }));
 
       // Try to start UltraQA
@@ -999,7 +1285,7 @@ describe('Mutual Exclusion - UltraQA and Ralph', () => {
     });
 
     it('should succeed starting UltraQA when ralph state exists but inactive', () => {
-      const ralphStateFile = join(testDir, '.omd', 'ralph-state.json');
+      const ralphStateFile = join(testDir, '.omd', 'state', 'ralph-state.json');
       writeFileSync(ralphStateFile, JSON.stringify({ active: false }));
 
       const result = startUltraQA(testDir, 'tests', 'test-session');
@@ -1014,7 +1300,7 @@ describe('Mutual Exclusion - UltraQA and Ralph', () => {
   describe('Ralph mutual exclusion', () => {
     it('should fail to start Ralph when UltraQA is active', () => {
       // Activate UltraQA first
-      const ultraqaStateFile = join(testDir, '.omd', 'ultraqa-state.json');
+      const ultraqaStateFile = join(testDir, '.omd', 'state', 'ultraqa-state.json');
       writeFileSync(ultraqaStateFile, JSON.stringify({ active: true }));
 
       // Try to start Ralph
@@ -1035,7 +1321,7 @@ describe('Mutual Exclusion - UltraQA and Ralph', () => {
     });
 
     it('should succeed starting Ralph when ultraqa state exists but inactive', () => {
-      const ultraqaStateFile = join(testDir, '.omd', 'ultraqa-state.json');
+      const ultraqaStateFile = join(testDir, '.omd', 'state', 'ultraqa-state.json');
       writeFileSync(ultraqaStateFile, JSON.stringify({ active: false }));
 
       const hook = createRalphLoopHook(testDir);

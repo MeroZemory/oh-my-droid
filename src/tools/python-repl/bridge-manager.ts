@@ -48,15 +48,47 @@ export interface EscalationResult {
 /**
  * Resolve the path to gyoshu_bridge.py relative to this module.
  * The bridge script is at: <package-root>/bridge/gyoshu_bridge.py
+ *
+ * Handles both ESM and CJS contexts (for bundled MCP server).
  */
 function getBridgeScriptPath(): string {
-  // In ESM, __dirname equivalent is:
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
+  // Check for OMC_BRIDGE_SCRIPT environment variable first (set by MCP server context)
+  if (process.env.OMC_BRIDGE_SCRIPT) {
+    return process.env.OMC_BRIDGE_SCRIPT;
+  }
+
+  let moduleDir: string;
+
+  // Try ESM import.meta.url first
+  try {
+    if (import.meta.url) {
+      const __filename = fileURLToPath(import.meta.url);
+      moduleDir = path.dirname(__filename);
+    } else {
+      throw new Error('import.meta.url is empty');
+    }
+  } catch {
+    // Fallback for CJS context (bundled MCP server)
+    // In CJS bundle, __dirname points to the bundle's directory
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    moduleDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+  }
 
   // From src/tools/python-repl/ -> ../../.. -> package root -> bridge/
-  const packageRoot = path.resolve(__dirname, '..', '..', '..');
-  return path.join(packageRoot, 'bridge', 'gyoshu_bridge.py');
+  // Or from bridge/ (CJS bundle) -> bridge/
+  const packageRoot = path.resolve(moduleDir, '..', '..', '..');
+  const bridgePath = path.join(packageRoot, 'bridge', 'gyoshu_bridge.py');
+
+  // If that doesn't exist, try relative to moduleDir (for bundled CJS)
+  if (!fs.existsSync(bridgePath)) {
+    // In bundled CJS, moduleDir is the bridge/ directory itself
+    const bundledBridgePath = path.join(moduleDir, 'gyoshu_bridge.py');
+    if (fs.existsSync(bundledBridgePath)) {
+      return bundledBridgePath;
+    }
+  }
+
+  return bridgePath;
 }
 
 // =============================================================================

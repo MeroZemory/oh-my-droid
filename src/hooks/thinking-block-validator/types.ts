@@ -3,7 +3,7 @@
  *
  * Type definitions for validating and fixing thinking blocks in assistant messages.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's thinking-block-validator hook.
  */
 
 /**

@@ -1,10 +1,10 @@
 /**
  * Boulder State Types
  *
- * Manages the active work plan state for the orchestrator.
- * Named after the eternal task metaphor - the work that must be completed.
+ * Manages the active work plan state for Droid orchestrator.
+ * Named after Droid's boulder - the eternal task that must be rolled.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Ported from oh-my-opencode's boulder-state.
  */
 
 /**

@@ -3,9 +3,6 @@
  *
  * Plan-scoped notepad system for capturing learnings, decisions, issues, and problems.
  * Creates wisdom files at: .omd/notepads/{plan-name}/
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
- * Uses .omd instead of .omc for state directory.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'fs';

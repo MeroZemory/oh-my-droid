@@ -1,5 +1,5 @@
 /**
- * OMD HUD - State Management
+ * OMC HUD - State Management
  *
  * Manages HUD state file for background task tracking.
  * Follows patterns from ultrawork-state.
@@ -17,56 +17,56 @@ import { cleanupStaleBackgroundTasks, markOrphanedTasksAsStale } from './backgro
 // ============================================================================
 
 /**
- * Get the HUD state file path in the project's .omd directory
+ * Get the HUD state file path in the project's .omd/state directory
  */
 function getLocalStateFilePath(directory?: string): string {
   const baseDir = directory || process.cwd();
-  const omdDir = join(baseDir, '.omd');
-  return join(omdDir, 'hud-state.json');
+  const omdStateDir = join(baseDir, '.omd', 'state');
+  return join(omdStateDir, 'hud-state.json');
 }
 
 /**
  * Get global HUD state file path (for cross-session persistence)
  */
 function getGlobalStateFilePath(): string {
-  return join(homedir(), '.factory', 'omd', 'hud-state.json');
+  return join(homedir(), '.claude', 'hud-state.json');
 }
 
 /**
  * Get the HUD config file path
  */
 function getConfigFilePath(): string {
-  return join(homedir(), '.factory', 'omd', 'hud-config.json');
+  return join(homedir(), '.claude', '.omd', 'hud-config.json');
 }
 
 /**
- * Ensure the .omd directory exists
+ * Ensure the .omd/state directory exists
  */
 function ensureStateDir(directory?: string): void {
   const baseDir = directory || process.cwd();
-  const omdDir = join(baseDir, '.omd');
-  if (!existsSync(omdDir)) {
-    mkdirSync(omdDir, { recursive: true });
+  const omdStateDir = join(baseDir, '.omd', 'state');
+  if (!existsSync(omdStateDir)) {
+    mkdirSync(omdStateDir, { recursive: true });
   }
 }
 
 /**
- * Ensure the ~/.factory/omd directory exists
+ * Ensure the ~/.factory/.omd directory exists
  */
 function ensureGlobalConfigDir(): void {
-  const configDir = join(homedir(), '.factory', 'omd');
+  const configDir = join(homedir(), '.claude', '.omd');
   if (!existsSync(configDir)) {
     mkdirSync(configDir, { recursive: true });
   }
 }
 
 /**
- * Ensure the ~/.factory/omd directory exists
+ * Ensure the ~/.factory directory exists
  */
 function ensureGlobalStateDir(): void {
-  const factoryDir = join(homedir(), '.factory', 'omd');
-  if (!existsSync(factoryDir)) {
-    mkdirSync(factoryDir, { recursive: true });
+  const claudeDir = join(homedir(), '.claude');
+  if (!existsSync(claudeDir)) {
+    mkdirSync(claudeDir, { recursive: true });
   }
 }
 
@@ -75,14 +75,26 @@ function ensureGlobalStateDir(): void {
 // ============================================================================
 
 /**
- * Read HUD state from disk (checks both local and global)
+ * Read HUD state from disk (checks new local, legacy local, then global)
  */
 export function readHudState(directory?: string): OmdHudState | null {
-  // Check local state first
+  // Check new local state first (.omd/state/hud-state.json)
   const localStateFile = getLocalStateFilePath(directory);
   if (existsSync(localStateFile)) {
     try {
       const content = readFileSync(localStateFile, 'utf-8');
+      return JSON.parse(content);
+    } catch {
+      // Fall through to legacy check
+    }
+  }
+
+  // Check legacy local state (.omd/hud-state.json)
+  const baseDir = directory || process.cwd();
+  const legacyStateFile = join(baseDir, '.omd', 'hud-state.json');
+  if (existsSync(legacyStateFile)) {
+    try {
+      const content = readFileSync(legacyStateFile, 'utf-8');
       return JSON.parse(content);
     } catch {
       // Fall through to global check
@@ -116,7 +128,7 @@ export function writeHudState(
     const localStateFile = getLocalStateFilePath(directory);
     writeFileSync(localStateFile, JSON.stringify(state, null, 2));
 
-    // Write to global ~/.factory/omd for cross-session persistence
+    // Write to global ~/.factory for cross-session persistence
     ensureGlobalStateDir();
     const globalStateFile = getGlobalStateFilePath();
     writeFileSync(globalStateFile, JSON.stringify(state, null, 2));

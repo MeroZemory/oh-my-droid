@@ -10,13 +10,39 @@
 import { z } from "zod";
 import { readFileSync, readdirSync, statSync, writeFileSync } from "fs";
 import { join, extname, resolve } from "path";
+import { createRequire } from "module";
 
-// Dynamic import for @ast-grep/napi (ESM module)
+// Dynamic import for @ast-grep/napi
+// Graceful degradation: if the module is not available (e.g., in bundled/plugin context),
+// tools will return a helpful error message instead of crashing
+//
+// IMPORTANT: Uses createRequire() (CJS resolution) instead of dynamic import() (ESM resolution)
+// because ESM resolution does NOT respect NODE_PATH or Module._initPaths().
+// In the MCP server plugin context, @ast-grep/napi is installed globally and resolved
+// via NODE_PATH set in the bundle's startup banner.
 let sgModule: typeof import("@ast-grep/napi") | null = null;
+let sgLoadFailed = false;
+let sgLoadError = '';
 
-async function getSgModule() {
+async function getSgModule(): Promise<typeof import("@ast-grep/napi") | null> {
+  if (sgLoadFailed) {
+    return null;
+  }
   if (!sgModule) {
-    sgModule = await import("@ast-grep/napi");
+    try {
+      // Use createRequire for CJS-style resolution (respects NODE_PATH)
+      const require = createRequire(import.meta.url || __filename || process.cwd() + '/');
+      sgModule = require("@ast-grep/napi") as typeof import("@ast-grep/napi");
+    } catch {
+      // Fallback to dynamic import for pure ESM environments
+      try {
+        sgModule = await import("@ast-grep/napi");
+      } catch (error) {
+        sgLoadFailed = true;
+        sgLoadError = error instanceof Error ? error.message : String(error);
+        return null;
+      }
+    }
   }
   return sgModule;
 }
@@ -273,6 +299,16 @@ Note: Patterns must be valid AST nodes for the language.`,
 
     try {
       const sg = await getSgModule();
+      if (!sg) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `@ast-grep/napi is not available. Install it with: npm install -g @ast-grep/napi\nError: ${sgLoadError}`,
+            },
+          ],
+        };
+      }
       const files = getFilesForLanguage(path, language);
 
       if (files.length === 0) {
@@ -372,9 +408,9 @@ Use meta-variables in both pattern and replacement:
 - $$$ARGS captures multiple nodes
 
 Examples:
-- Pattern: "console.log($MSG)" -> Replacement: "logger.info($MSG)"
-- Pattern: "var $NAME = $VALUE" -> Replacement: "const $NAME = $VALUE"
-- Pattern: "$OBJ.forEach(($ITEM) => { $$$BODY })" -> Replacement: "for (const $ITEM of $OBJ) { $$$BODY }"
+- Pattern: "console.log($MSG)" → Replacement: "logger.info($MSG)"
+- Pattern: "var $NAME = $VALUE" → Replacement: "const $NAME = $VALUE"
+- Pattern: "$OBJ.forEach(($ITEM) => { $$$BODY })" → Replacement: "for (const $ITEM of $OBJ) { $$$BODY }"
 
 IMPORTANT: dryRun=true (default) only previews changes. Set dryRun=false to apply.`,
   schema: {
@@ -397,6 +433,16 @@ IMPORTANT: dryRun=true (default) only previews changes. Set dryRun=false to appl
 
     try {
       const sg = await getSgModule();
+      if (!sg) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `@ast-grep/napi is not available. Install it with: npm install -g @ast-grep/napi\nError: ${sgLoadError}`,
+            },
+          ],
+        };
+      }
       const files = getFilesForLanguage(path, language);
 
       if (files.length === 0) {

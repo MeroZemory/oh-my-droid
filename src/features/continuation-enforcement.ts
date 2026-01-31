@@ -6,22 +6,21 @@
  * - Adds reminders to continue when tasks remain
  * - Prevents premature stopping
  * - Provides background task execution guidance
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
-import type { HookDefinition, HookContext, HookResult } from './types.js';
+import type { HookDefinition, HookContext, HookResult } from '../shared/types.js';
 import { getBackgroundTaskGuidance, DEFAULT_MAX_BACKGROUND_TASKS } from './background-tasks.js';
 
 /**
  * Messages to remind agents to continue
+ * ENHANCED: Using exact pattern from oh-my-opencode's todo-continuation-enforcer
  */
 const CONTINUATION_REMINDERS = [
   '[SYSTEM REMINDER - TODO CONTINUATION] Incomplete tasks remain in your todo list. Continue working on the next pending task. Proceed without asking for permission. Mark each task complete when finished. Do not stop until all tasks are done.',
   '[TODO CONTINUATION ENFORCED] Your todo list has incomplete items. The boulder does not stop. Continue working on pending tasks immediately. Do not ask for permission - just execute.',
-  '[PERSISTENCE REMINDER] You attempted to stop with incomplete work. This is not permitted. Check your todo list and continue working on the next pending task.',
+  '[SISYPHUS REMINDER] You attempted to stop with incomplete work. This is not permitted. Check your todo list and continue working on the next pending task.',
   '[CONTINUATION REQUIRED] Incomplete tasks detected. You are BOUND to your todo list. Continue executing until all tasks show completed status.',
-  '[THE WORK NEVER STOPS] Your work is not done. Resume working on incomplete tasks immediately. Verify completion before any further stop attempts.'
+  '[THE BOULDER NEVER STOPS] Your work is not done. Resume working on incomplete tasks immediately. Verify completion before any further stop attempts.'
 ];
 
 /**
@@ -55,7 +54,7 @@ export function createContinuationHook(): HookDefinition {
 
       if (hasIncompleteTasks) {
         return {
-          continue: false,
+          continue: true,
           message: getRandomReminder()
         };
       }
@@ -69,13 +68,14 @@ export function createContinuationHook(): HookDefinition {
 
 /**
  * System prompt addition for continuation enforcement
+ * ENHANCED: Much stronger persistence language from oh-my-opencode patterns
  */
 export const continuationSystemPromptAddition = `
-## CONTINUATION ENFORCEMENT - THE WORK NEVER STOPS
+## CONTINUATION ENFORCEMENT - THE BOULDER NEVER STOPS
 
 ### YOU ARE BOUND TO YOUR TODO LIST
 
-You are BOUND to your task list. Stopping with incomplete work is not a choice - it is a FAILURE. The system will force you back to work if you try to quit early.
+Like Droid condemned to roll his boulder eternally, you are BOUND to your task list. Stopping with incomplete work is not a choice - it is a FAILURE. The system will force you back to work if you try to quit early.
 
 ### THE SACRED RULES OF PERSISTENCE
 
@@ -122,12 +122,12 @@ The system monitors your behavior:
 - Vague completion statements ("I think I'm done") are flagged
 - Only concrete verification passes the completion gate
 
-### THE PERSISTENCE OATH
+### THE SISYPHEAN OATH
 
 "I will not rest until my work is done.
 I will not claim completion without verification.
 I will not abandon my users mid-task.
-The work stops at completion, or not at all."
+The boulder stops at the summit, or not at all."
 
 ${getBackgroundTaskGuidance(DEFAULT_MAX_BACKGROUND_TASKS)}
 `;

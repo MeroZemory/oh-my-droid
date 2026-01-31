@@ -2,7 +2,8 @@
  * Preemptive Compaction Constants
  *
  * Thresholds and messages for context usage monitoring.
- * Adapted from oh-my-claudecode.
+ *
+ * Adapted from oh-my-opencode's preemptive-compaction hook.
  */
 
 /**

@@ -23,18 +23,10 @@ export interface ExpandedCommand {
 }
 
 /**
- * Get the personal commands directory path (Factory Droid standard)
+ * Get the commands directory path
  */
 export function getCommandsDir(): string {
-  return join(homedir(), '.factory', 'commands');
-}
-
-/**
- * Get the workspace commands directory path
- */
-export function getWorkspaceCommandsDir(): string {
-  const projectDir = process.env.FACTORY_PROJECT_DIR || process.cwd();
-  return join(projectDir, '.factory', 'commands');
+  return join(homedir(), '.claude', 'commands');
 }
 
 /**
@@ -59,70 +51,10 @@ function parseCommandFile(content: string): { description: string; template: str
 
 /**
  * Get a specific command by name
- * Checks workspace first, then personal directory
  */
 export function getCommand(name: string): CommandInfo | null {
-  // Check workspace first (takes precedence)
-  const workspaceDir = getWorkspaceCommandsDir();
-  const workspaceCommand = getCommandFromDir(workspaceDir, name);
-  if (workspaceCommand) {
-    return workspaceCommand;
-  }
-
-  // Fall back to personal commands
-  const personalDir = getCommandsDir();
-  return getCommandFromDir(personalDir, name);
-}
-
-/**
- * Get all available commands from both personal and workspace directories
- * Workspace commands take precedence over personal commands
- */
-export function getAllCommands(): CommandInfo[] {
-  const personalDir = getCommandsDir();
-  const workspaceDir = getWorkspaceCommandsDir();
-  const commandMap = new Map<string, CommandInfo>();
-
-  // Load personal commands first
-  if (existsSync(personalDir)) {
-    try {
-      const files = readdirSync(personalDir).filter(f => f.endsWith('.md'));
-      for (const file of files) {
-        const name = file.replace('.md', '');
-        const command = getCommandFromDir(personalDir, name);
-        if (command) {
-          commandMap.set(name, command);
-        }
-      }
-    } catch (error) {
-      console.error('Error listing personal commands:', error);
-    }
-  }
-
-  // Load workspace commands (override personal)
-  if (existsSync(workspaceDir) && workspaceDir !== personalDir) {
-    try {
-      const files = readdirSync(workspaceDir).filter(f => f.endsWith('.md'));
-      for (const file of files) {
-        const name = file.replace('.md', '');
-        const command = getCommandFromDir(workspaceDir, name);
-        if (command) {
-          commandMap.set(name, command);
-        }
-      }
-    } catch (error) {
-      console.error('Error listing workspace commands:', error);
-    }
-  }
-
-  return Array.from(commandMap.values());
-}
-
-/**
- * Get a command from a specific directory
- */
-function getCommandFromDir(dir: string, name: string): CommandInfo | null {
-  const filePath = join(dir, `${name}.md`);
+  const commandsDir = getCommandsDir();
+  const filePath = join(commandsDir, `${name}.md`);
 
   if (!existsSync(filePath)) {
     return null;
@@ -141,6 +73,35 @@ function getCommandFromDir(dir: string, name: string): CommandInfo | null {
   } catch (error) {
     console.error(`Error reading command ${name}:`, error);
     return null;
+  }
+}
+
+/**
+ * Get all available commands
+ */
+export function getAllCommands(): CommandInfo[] {
+  const commandsDir = getCommandsDir();
+
+  if (!existsSync(commandsDir)) {
+    return [];
+  }
+
+  try {
+    const files = readdirSync(commandsDir).filter(f => f.endsWith('.md'));
+    const commands: CommandInfo[] = [];
+
+    for (const file of files) {
+      const name = file.replace('.md', '');
+      const command = getCommand(name);
+      if (command) {
+        commands.push(command);
+      }
+    }
+
+    return commands;
+  } catch (error) {
+    console.error('Error listing commands:', error);
+    return [];
   }
 }
 

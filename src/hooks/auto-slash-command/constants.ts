@@ -1,52 +1,35 @@
 /**
  * Auto Slash Command Constants
  *
- * Patterns and configuration for automatic slash command detection.
- * Adapted from oh-my-claudecode.
+ * Configuration values for slash command detection.
+ *
+ * Adapted from oh-my-opencode's auto-slash-command hook.
  */
 
-/**
- * Keywords that trigger slash command execution
- */
-export const TRIGGER_KEYWORDS = {
-  autopilot: ['autopilot', 'build me', 'i want a', 'create me'],
-  ralph: ['ralph', "don't stop", 'must complete', 'keep going until'],
-  ultrawork: ['ultrawork', 'ulw', 'parallel', 'fast mode'],
-  planner: ['plan this', 'plan the', 'planning mode'],
-  analyze: ['analyze', 'debug', 'investigate', 'deep dive'],
-  deepsearch: ['search for', 'find in codebase', 'look for']
-} as const;
+export const HOOK_NAME = 'auto-slash-command' as const;
+
+/** XML tags to mark auto-expanded slash commands */
+export const AUTO_SLASH_COMMAND_TAG_OPEN = '<auto-slash-command>';
+export const AUTO_SLASH_COMMAND_TAG_CLOSE = '</auto-slash-command>';
+
+/** Pattern to detect slash commands at start of message */
+export const SLASH_COMMAND_PATTERN = /^\/([a-zA-Z][\w-]*)\s*(.*)/;
 
 /**
- * Command to skill mappings
+ * Commands that should NOT be auto-expanded
+ * (they have special handling elsewhere or are now skills with oh-my-droid: prefix)
  */
-export const COMMAND_MAPPINGS: Record<string, string> = {
-  autopilot: 'oh-my-droid:autopilot',
-  ralph: 'oh-my-droid:ralph',
-  ultrawork: 'oh-my-droid:ultrawork',
-  planner: 'oh-my-droid:planner',
-  analyze: 'oh-my-droid:analyze',
-  deepsearch: 'oh-my-droid:deepsearch'
-};
-
-/**
- * Priority order for command detection (higher = checked first)
- */
-export const COMMAND_PRIORITY: Record<string, number> = {
-  autopilot: 100,
-  ralph: 90,
-  ultrawork: 80,
-  planner: 70,
-  analyze: 60,
-  deepsearch: 50
-};
-
-/**
- * Default confidence threshold for auto-execution
- */
-export const DEFAULT_CONFIDENCE_THRESHOLD = 0.8;
-
-/**
- * Cooldown between auto-executions (ms)
- */
-export const AUTO_EXECUTE_COOLDOWN_MS = 5000;
+export const EXCLUDED_COMMANDS = new Set([
+  'ralph',
+  'oh-my-droid:ralplan',
+  'oh-my-droid:ultraqa',
+  'oh-my-droid:learner',
+  'oh-my-droid:plan',
+  'oh-my-droid:cancel',
+  // Factory Droid built-in commands that shouldn't be expanded
+  'help',
+  'clear',
+  'history',
+  'exit',
+  'quit',
+]);

@@ -1,11 +1,11 @@
 /**
  * Background Agent Manager
  *
- * Manages background tasks for the Sisyphus system.
- * This is a simplified version that tracks tasks launched via Claude Code's
+ * Manages background tasks for the Droid system.
+ * This is a simplified version that tracks tasks launched via Factory Droid's
  * native Task tool with run_in_background: true.
  *
- * Adapted from oh-my-claudecode for oh-my-droid.
+ * Adapted from oh-my-opencode's background-agent feature.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
@@ -26,10 +26,10 @@ import type {
 const DEFAULT_TASK_TTL_MS = 30 * 60 * 1000;
 
 /** Storage directory for task state */
-const BACKGROUND_TASKS_DIR = join(homedir(), '.factory', 'omd', 'background-tasks');
+const BACKGROUND_TASKS_DIR = join(homedir(), '.claude', '.omd', 'background-tasks');
 
 /**
- * Manages background tasks for the Sisyphus system.
+ * Manages background tasks for the Droid system.
  */
 export class BackgroundManager {
   private tasks: Map<string, BackgroundTask> = new Map();

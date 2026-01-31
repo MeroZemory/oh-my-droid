@@ -1,33 +1,27 @@
-/**
- * Notepad Module Tests
- *
- * SKIPPED: oh-my-droid notepad module has a different API than oh-my-claudecode.
- *
- * oh-my-claudecode uses a project-based notepad with sections:
- * - Priority Context
- * - Working Memory
- * - MANUAL
- *
- * oh-my-droid uses a plan-based notepad with categories:
- * - learnings
- * - decisions
- * - issues
- * - problems
- *
- * These tests were ported from oh-my-claudecode but are not compatible
- * with the oh-my-droid implementation.
- */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-// NOTE: oh-my-droid notepad has different API - these exports don't exist:
-// initNotepad (signature differs), getPriorityContext, getWorkingMemory, addWorkingMemoryEntry,
-// setPriorityContext, addManualEntry, pruneOldEntries, getNotepadStats, formatNotepadContext,
-// DEFAULT_CONFIG, PRIORITY_HEADER, WORKING_MEMORY_HEADER, MANUAL_HEADER, getManualSection
+import {
+  initNotepad,
+  readNotepad,
+  getPriorityContext,
+  getWorkingMemory,
+  addWorkingMemoryEntry,
+  setPriorityContext,
+  addManualEntry,
+  pruneOldEntries,
+  getNotepadStats,
+  formatNotepadContext,
+  DEFAULT_CONFIG,
+  PRIORITY_HEADER,
+  WORKING_MEMORY_HEADER,
+  MANUAL_HEADER,
+  getManualSection,
+  getNotepadPath
+} from '../hooks/notepad/index.js';
 
-// SKIPPED: All tests in this file are incompatible with oh-my-droid notepad API
-describe.skip('Notepad Module', () => {
+describe('Notepad Module', () => {
   let testDir: string;
 
   beforeEach(() => {
@@ -56,7 +50,7 @@ describe.skip('Notepad Module', () => {
       expect(content).toContain(PRIORITY_HEADER);
       expect(content).toContain(WORKING_MEMORY_HEADER);
       expect(content).toContain(MANUAL_HEADER);
-      expect(content).toContain('Auto-managed by OMD');
+      expect(content).toContain('Auto-managed by OMC');
     });
 
     it('should create .omd directory if not exists', () => {

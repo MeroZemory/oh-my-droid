@@ -147,7 +147,7 @@ function normalizeModelName(modelName: string): string {
 
 export function formatCost(cost: number): string {
   if (cost < 0.01) {
-    return `$${(cost * 100).toFixed(4)}c`;
+    return `$${(cost * 100).toFixed(4)}¢`;
   }
   return `$${cost.toFixed(4)}`;
 }

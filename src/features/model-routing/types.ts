@@ -4,8 +4,6 @@
  * Type definitions for the intelligent model routing system that routes
  * sub-agent tasks to appropriate models (Opus/Sonnet/Haiku) based on
  * task complexity.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import type { ModelType } from '../../shared/types.js';
@@ -193,8 +191,7 @@ export interface RoutingConfig {
 /**
  * Default routing configuration
  *
- * ALL agents are adaptive except orchestrators.
- * Agent overrides are only for coordinator (fixed to Opus).
+ * ALL agents are adaptive based on task complexity.
  */
 export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   enabled: true,
@@ -202,10 +199,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   escalationEnabled: false,  // Deprecated: orchestrator routes proactively
   maxEscalations: 0,
   tierModels: TIER_MODELS,
-  agentOverrides: {
-    // Only orchestrators are fixed - they need Opus to analyze and delegate
-    'coordinator': { tier: 'HIGH', reason: 'Orchestrator requires Opus to analyze and delegate' },
-  },
+  agentOverrides: {},
   escalationKeywords: [
     'critical', 'production', 'urgent', 'security', 'breaking',
     'architecture', 'refactor', 'redesign', 'root cause',

@@ -1,12 +1,12 @@
-import { readState, writeState, StateLocation } from '../state-manager.js';
+import { readState, writeState, StateLocation } from '../features/state-manager/index.js';
 import { TokenUsage, SessionTokenStats, AggregateTokenStats } from './types.js';
 import { getTokscaleAdapter, TokscaleAdapter, TokscaleReport } from './tokscale-adapter.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 
-const TOKEN_LOG_FILE = path.join(homedir(), '.factory', 'omd', 'state', 'token-tracking.jsonl');
-const SESSION_STATS_FILE = path.join(homedir(), '.factory', 'omd', 'state', 'session-token-stats.json');
+const TOKEN_LOG_FILE = path.join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
+const SESSION_STATS_FILE = path.join(homedir(), '.omd', 'state', 'session-token-stats.json');
 
 export class TokenTracker {
   private currentSessionId: string;

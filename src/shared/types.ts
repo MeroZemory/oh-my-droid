@@ -1,5 +1,5 @@
 /**
- * Shared types for Oh-My-Droid
+ * Shared types for Oh-My-Claude-Droid
  */
 
 export type ModelType = 'sonnet' | 'opus' | 'haiku' | 'inherit';
@@ -23,11 +23,11 @@ export interface PluginConfig {
     frontendEngineer?: { model?: string; enabled?: boolean };
     documentWriter?: { model?: string; enabled?: boolean };
     multimodalLooker?: { model?: string; enabled?: boolean };
-    // New agents from oh-my-droid
+    // New agents from oh-my-opencode
     critic?: { model?: string; enabled?: boolean };
     analyst?: { model?: string; enabled?: boolean };
-    orchestratorSisyphus?: { model?: string; enabled?: boolean };
-    sisyphusJunior?: { model?: string; enabled?: boolean };
+    orchestratorDroid?: { model?: string; enabled?: boolean };
+    droidJunior?: { model?: string; enabled?: boolean };
     planner?: { model?: string; enabled?: boolean };
   };
 

@@ -1,55 +1,23 @@
 /**
  * Directory README Injector Constants
  *
- * Configuration for README file detection and injection.
- * Adapted from oh-my-claudecode.
+ * Constants for finding and injecting README files from directories.
+ *
+ * Ported from oh-my-opencode's directory-readme-injector hook.
  */
 
-/**
- * README file names to look for (in priority order)
- */
-export const DEFAULT_README_NAMES = [
-  'AGENTS.md',
-  'README.md',
-  'readme.md',
-  'README.txt',
-  'readme.txt'
-];
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 
-/**
- * Maximum depth to traverse up for READMEs
- */
-export const DEFAULT_MAX_DEPTH = 3;
+/** Storage directory for directory-readme-injector state */
+export const OMC_STORAGE_DIR = join(homedir(), '.omd');
+export const README_INJECTOR_STORAGE = join(
+  OMC_STORAGE_DIR,
+  'directory-readme',
+);
 
-/**
- * Directories to ignore
- */
-export const DEFAULT_IGNORE_DIRS = [
-  'node_modules',
-  '.git',
-  'dist',
-  'build',
-  '.omd',
-  '__pycache__',
-  'vendor'
-];
+/** README filename to search for */
+export const README_FILENAME = 'README.md';
 
-/**
- * Injection message template
- */
-export const INJECTION_TEMPLATE = `<directory-context>
-
-[Directory Context: {directory}]
-
-{content}
-
-</directory-context>
-
----
-
-`;
-
-/**
- * Cache TTL in milliseconds (5 minutes)
- */
-export const CACHE_TTL_MS = 5 * 60 * 1000;
+/** Tools that trigger README injection */
+export const TRACKED_TOOLS = ['read', 'write', 'edit', 'multiedit'];

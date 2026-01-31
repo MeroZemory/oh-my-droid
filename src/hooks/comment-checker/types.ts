@@ -1,63 +1,91 @@
 /**
  * Comment Checker Types
  *
- * Type definitions for the comment checker hook.
- * Adapted from oh-my-claudecode.
+ * Type definitions for comment detection in code changes.
+ *
+ * Adapted from oh-my-opencode's comment-checker hook.
  */
 
 /**
- * Comment type categories
+ * Type of comment detected
  */
-export type CommentType =
-  | 'todo'
-  | 'fixme'
-  | 'hack'
-  | 'note'
-  | 'xxx'
-  | 'bug'
-  | 'optimize'
-  | 'review';
+export type CommentType = 'line' | 'block' | 'docstring';
 
 /**
- * Detected comment
+ * Information about a detected comment
  */
-export interface DetectedComment {
-  /** Comment type */
-  type: CommentType;
-  /** The full comment text */
+export interface CommentInfo {
+  /** The comment text content */
   text: string;
-  /** File path where comment was found */
-  file: string;
-  /** Line number */
-  line: number;
-  /** Priority (1-3, 1 is highest) */
-  priority: number;
+  /** Line number where comment appears */
+  lineNumber: number;
+  /** File path containing the comment */
+  filePath: string;
+  /** Type of comment */
+  commentType: CommentType;
+  /** Whether this is a docstring */
+  isDocstring: boolean;
+  /** Additional metadata */
+  metadata?: Record<string, string>;
 }
 
 /**
- * Comment check result
+ * Pending tool call for comment checking
+ */
+export interface PendingCall {
+  /** File path being modified */
+  filePath: string;
+  /** New file content (for Write tool) */
+  content?: string;
+  /** Old string being replaced (for Edit tool) */
+  oldString?: string;
+  /** New string replacement (for Edit tool) */
+  newString?: string;
+  /** Multiple edits (for MultiEdit tool) */
+  edits?: Array<{ old_string: string; new_string: string }>;
+  /** Tool that triggered this check */
+  tool: 'write' | 'edit' | 'multiedit';
+  /** Session ID */
+  sessionId: string;
+  /** Timestamp of the call */
+  timestamp: number;
+}
+
+/**
+ * Comments found in a file
+ */
+export interface FileComments {
+  /** File path */
+  filePath: string;
+  /** List of comments found */
+  comments: CommentInfo[];
+}
+
+/**
+ * Result of a comment filter
+ */
+export interface FilterResult {
+  /** Whether to skip this comment */
+  shouldSkip: boolean;
+  /** Reason for skipping */
+  reason?: string;
+}
+
+/**
+ * Function type for comment filters
+ */
+export type CommentFilter = (comment: CommentInfo) => FilterResult;
+
+/**
+ * Result of comment checking
  */
 export interface CommentCheckResult {
-  /** Whether there are unresolved comments */
-  hasUnresolved: boolean;
-  /** List of detected comments */
-  comments: DetectedComment[];
-  /** Summary message */
-  summary: string;
-}
-
-/**
- * Comment checker configuration
- */
-export interface CommentCheckerConfig {
-  /** Whether to enable the checker */
-  enabled?: boolean;
-  /** Comment types to check */
-  types?: CommentType[];
-  /** File patterns to include */
-  includePatterns?: string[];
-  /** File patterns to exclude */
-  excludePatterns?: string[];
-  /** Whether to block on comments */
-  blocking?: boolean;
+  /** Whether comments were detected */
+  hasComments: boolean;
+  /** Number of comments found */
+  count: number;
+  /** Message to inject if comments found */
+  message?: string;
+  /** Detailed comment information */
+  comments: CommentInfo[];
 }

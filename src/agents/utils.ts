@@ -4,8 +4,12 @@
  * Shared utilities for agent creation and management.
  * Includes prompt builders and configuration helpers.
  *
- * Ported from oh-my-claudecode's agent utils.
+ * Ported from oh-my-opencode's agent utils.
  */
+
+import { readFileSync } from 'fs';
+import { join, dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
 import type {
   AgentConfig,
@@ -14,6 +18,58 @@ import type {
   AgentOverrideConfig,
   ModelType
 } from './types.js';
+
+// ============================================================
+// DYNAMIC PROMPT LOADING
+// ============================================================
+
+/**
+ * Get the package root directory (where agents/ folder lives)
+ */
+function getPackageDir(): string {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  // From src/agents/ go up to package root
+  return join(__dirname, '..', '..');
+}
+
+/**
+ * Load an agent prompt from /agents/{agentName}.md
+ * Strips YAML frontmatter and returns the content
+ *
+ * Security: Validates agent name to prevent path traversal attacks
+ */
+export function loadAgentPrompt(agentName: string): string {
+  // Security: Validate agent name contains only safe characters (alphanumeric and hyphens)
+  // This prevents path traversal attacks like "../../etc/passwd"
+  if (!/^[a-z0-9-]+$/i.test(agentName)) {
+    throw new Error(`Invalid agent name: contains disallowed characters`);
+  }
+
+  try {
+    const agentsDir = join(getPackageDir(), 'agents');
+    const agentPath = join(agentsDir, `${agentName}.md`);
+
+    // Security: Verify resolved path is within the agents directory
+    const resolvedPath = resolve(agentPath);
+    const resolvedAgentsDir = resolve(agentsDir);
+    if (!resolvedPath.startsWith(resolvedAgentsDir + '/') && resolvedPath !== resolvedAgentsDir) {
+      throw new Error(`Invalid agent name: path traversal detected`);
+    }
+
+    const content = readFileSync(agentPath, 'utf-8');
+    // Extract content after YAML frontmatter (---\n...\n---\n)
+    const match = content.match(/^---[\s\S]*?---\s*([\s\S]*)$/);
+    return match ? match[1].trim() : content.trim();
+  } catch (error) {
+    // Don't leak internal paths in error messages
+    const message = error instanceof Error && error.message.includes('Invalid agent name')
+      ? error.message
+      : 'Agent prompt file not found';
+    console.warn(`[loadAgentPrompt] ${message}`);
+    return `Agent: ${agentName}\n\nPrompt unavailable.`;
+  }
+}
 
 /**
  * Create tool restrictions configuration
@@ -52,7 +108,7 @@ export function mergeAgentConfig(
 }
 
 /**
- * Build delegation table section for orchestrator prompt
+ * Build delegation table section for Droid prompt
  */
 export function buildDelegationTable(availableAgents: AvailableAgent[]): string {
   if (availableAgents.length === 0) {
@@ -137,7 +193,7 @@ export function getAvailableAgents(
 }
 
 /**
- * Build key triggers section for orchestrator prompt
+ * Build key triggers section for Droid prompt
  */
 export function buildKeyTriggersSection(
   availableAgents: AvailableAgent[]
@@ -146,7 +202,7 @@ export function buildKeyTriggersSection(
 
   for (const agent of availableAgents) {
     for (const trigger of agent.metadata.triggers) {
-      triggers.push(`- **${trigger.domain}** -> ${agent.metadata.promptAlias || agent.name}: ${trigger.trigger}`);
+      triggers.push(`- **${trigger.domain}** → ${agent.metadata.promptAlias || agent.name}: ${trigger.trigger}`);
     }
   }
 

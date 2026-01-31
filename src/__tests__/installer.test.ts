@@ -1,33 +1,17 @@
-/**
- * Installer Tests
- *
- * SKIPPED: oh-my-droid has different directory structure than oh-my-claudecode.
- * - FACTORY.md doesn't exist (uses different docs structure)
- * - Hook templates directory doesn't exist (templates/hooks is missing)
- * - VERSION doesn't match (different package)
- *
- * The installer module cannot even be imported because it calls loadTemplate()
- * at module initialization which calls process.exit(1) when templates are missing.
- *
- * These tests were ported from oh-my-claudecode but require significant
- * adaptation for oh-my-droid's different structure.
- */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-// NOTE: Cannot import installer/index.js - it calls process.exit(1) on missing templates
-// import { VERSION, FACTORY_CONFIG_DIR, AGENTS_DIR, COMMANDS_DIR, SKILLS_DIR, HOOKS_DIR, isRunningAsPlugin } from '../installer/index.js';
+import {
+  VERSION,
+  FACTORY_CONFIG_DIR,
+  DROIDS_DIR,
+  COMMANDS_DIR,
+  SKILLS_DIR,
+  HOOKS_DIR,
+  isRunningAsPlugin,
+} from '../installer/index.js';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { readdirSync, readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-
-// Stub constants for skipped tests
-const VERSION = '1.0.0';
-const FACTORY_CONFIG_DIR = join(homedir(), '.factory', 'omd');
-const AGENTS_DIR = join(FACTORY_CONFIG_DIR, 'agents');
-const COMMANDS_DIR = join(FACTORY_CONFIG_DIR, 'commands');
-const SKILLS_DIR = join(FACTORY_CONFIG_DIR, 'skills');
-const HOOKS_DIR = join(FACTORY_CONFIG_DIR, 'hooks');
-const isRunningAsPlugin = () => !!process.env.FACTORY_PLUGIN_ROOT;
 
 /**
  * Get the package root directory for testing
@@ -43,14 +27,11 @@ function getPackageDir(): string {
  * Load agent definitions for testing
  */
 function loadAgentDefinitions(): Record<string, string> {
-  // Use 'droids' directory instead of 'agents' for oh-my-droid
-  const agentsDir = join(getPackageDir(), 'templates', 'droids');
+  const agentsDir = join(getPackageDir(), 'agents');
   const definitions: Record<string, string> = {};
 
   if (!existsSync(agentsDir)) {
-    // Gracefully return empty if dir doesn't exist
-    console.error(`FATAL: agents directory not found: ${agentsDir}`);
-    return definitions;
+    throw new Error(`agents directory not found: ${agentsDir}`);
   }
 
   for (const file of readdirSync(agentsDir)) {
@@ -66,12 +47,11 @@ function loadAgentDefinitions(): Record<string, string> {
  * Load command definitions for testing
  */
 function loadCommandDefinitions(): Record<string, string> {
-  const commandsDir = join(getPackageDir(), 'templates', 'commands');
+  const commandsDir = join(getPackageDir(), 'commands');
   const definitions: Record<string, string> = {};
 
   if (!existsSync(commandsDir)) {
-    // Gracefully return empty if dir doesn't exist
-    return definitions;
+    throw new Error(`commands directory not found: ${commandsDir}`);
   }
 
   for (const file of readdirSync(commandsDir)) {
@@ -84,27 +64,23 @@ function loadCommandDefinitions(): Record<string, string> {
 }
 
 /**
- * Load FACTORY.md content for testing - NOT AVAILABLE in oh-my-droid
+ * Load FACTORY.md content for testing
  */
-function loadFactoryMdContent(): string {
-  // oh-my-droid doesn't have FACTORY.md - use README or return stub
-  const readmePath = join(getPackageDir(), 'README.md');
+function loadClaudeMdContent(): string {
+  const claudeMdPath = join(getPackageDir(), 'docs', 'FACTORY.md');
 
-  if (existsSync(readmePath)) {
-    return readFileSync(readmePath, 'utf-8');
+  if (!existsSync(claudeMdPath)) {
+    throw new Error(`FACTORY.md not found: ${claudeMdPath}`);
   }
 
-  // Return stub content to allow tests to at least parse
-  console.error('FATAL: Hook template not found: ' + join(getPackageDir(), 'templates', 'hooks', 'keyword-detector.sh'));
-  return '# Stub - FACTORY.md not available in oh-my-droid';
+  return readFileSync(claudeMdPath, 'utf-8');
 }
 
-// SKIPPED: Tests require oh-my-claudecode directory structure
-describe.skip('Installer Constants', () => {
+describe('Installer Constants', () => {
   // Load definitions once for all tests
   const AGENT_DEFINITIONS = loadAgentDefinitions();
   const COMMAND_DEFINITIONS = loadCommandDefinitions();
-  const FACTORY_MD_CONTENT = loadFactoryMdContent();
+  const CLAUDE_MD_CONTENT = loadClaudeMdContent();
 
   describe('AGENT_DEFINITIONS', () => {
     it('should contain expected core agents', () => {
@@ -148,7 +124,10 @@ describe.skip('Installer Constants', () => {
     });
 
     it('should have valid frontmatter for each agent', () => {
-      for (const [_filename, content] of Object.entries(AGENT_DEFINITIONS)) {
+      for (const [filename, content] of Object.entries(AGENT_DEFINITIONS)) {
+        // Skip non-agent files (AGENTS.md is documentation, not an agent)
+        if (filename === 'AGENTS.md') continue;
+
         // Check for frontmatter delimiters
         expect(content).toMatch(/^---\n/);
         expect(content).toMatch(/\n---\n/);
@@ -159,10 +138,10 @@ describe.skip('Installer Constants', () => {
 
         const frontmatter = frontmatterMatch![1];
 
-        // Check required fields
+        // Check required fields (name, description, model are required; tools is optional)
         expect(frontmatter).toMatch(/^name:\s+\S+/m);
         expect(frontmatter).toMatch(/^description:\s+.+/m);
-        expect(frontmatter).toMatch(/^tools:\s+.+/m);
+        // Note: tools field removed - agents use disallowedTools or have all tools by default
         expect(frontmatter).toMatch(/^model:\s+(haiku|sonnet|opus)/m);
       }
     });
@@ -261,11 +240,11 @@ describe.skip('Installer Constants', () => {
     });
   });
 
-  describe('FACTORY_MD_CONTENT', () => {
+  describe('CLAUDE_MD_CONTENT', () => {
     it('should be valid markdown', () => {
-      expect(typeof FACTORY_MD_CONTENT).toBe('string');
-      expect(FACTORY_MD_CONTENT.length).toBeGreaterThan(100);
-      expect(FACTORY_MD_CONTENT).toMatch(/^#\s+/m); // Has headers
+      expect(typeof CLAUDE_MD_CONTENT).toBe('string');
+      expect(CLAUDE_MD_CONTENT.length).toBeGreaterThan(100);
+      expect(CLAUDE_MD_CONTENT).toMatch(/^#\s+/m); // Has headers
     });
 
     it('should contain essential sections', () => {
@@ -278,7 +257,7 @@ describe.skip('Installer Constants', () => {
       ];
 
       for (const section of essentialSections) {
-        expect(FACTORY_MD_CONTENT).toContain(section);
+        expect(CLAUDE_MD_CONTENT).toContain(section);
       }
     });
 
@@ -296,24 +275,24 @@ describe.skip('Installer Constants', () => {
 
       for (const agent of keyAgents) {
         // Agents appear in tables and delegation examples
-        expect(FACTORY_MD_CONTENT).toContain(agent);
+        expect(CLAUDE_MD_CONTENT).toContain(agent);
       }
     });
 
     it('should include tiered agent routing table', () => {
       // Verify the Smart Model Routing section and agent tiers exist
-      expect(FACTORY_MD_CONTENT).toContain('Smart Model Routing');
-      expect(FACTORY_MD_CONTENT).toContain('LOW (Haiku)');
-      expect(FACTORY_MD_CONTENT).toContain('MEDIUM (Sonnet)');
-      expect(FACTORY_MD_CONTENT).toContain('HIGH (Opus)');
+      expect(CLAUDE_MD_CONTENT).toContain('Smart Model Routing');
+      expect(CLAUDE_MD_CONTENT).toContain('LOW (Haiku)');
+      expect(CLAUDE_MD_CONTENT).toContain('MEDIUM (Sonnet)');
+      expect(CLAUDE_MD_CONTENT).toContain('HIGH (Opus)');
       // Agent names appear in tier tables
-      expect(FACTORY_MD_CONTENT).toContain('explore');
-      expect(FACTORY_MD_CONTENT).toContain('executor-low');
+      expect(CLAUDE_MD_CONTENT).toContain('explore');
+      expect(CLAUDE_MD_CONTENT).toContain('executor-low');
     });
 
     it('should document magic keywords and compatibility commands', () => {
       // New FACTORY.md has "Magic Keywords" instead of slash commands
-      expect(FACTORY_MD_CONTENT).toContain('Magic Keywords');
+      expect(CLAUDE_MD_CONTENT).toContain('Magic Keywords');
 
       // Check for key keywords in the table
       const keywords = [
@@ -324,18 +303,18 @@ describe.skip('Installer Constants', () => {
       ];
 
       for (const keyword of keywords) {
-        expect(FACTORY_MD_CONTENT).toContain(keyword);
+        expect(CLAUDE_MD_CONTENT).toContain(keyword);
       }
 
       // Verify migration section exists (points to MIGRATION.md)
-      expect(FACTORY_MD_CONTENT).toContain('Migration');
-      expect(FACTORY_MD_CONTENT).toContain('MIGRATION.md');
+      expect(CLAUDE_MD_CONTENT).toContain('Migration');
+      expect(CLAUDE_MD_CONTENT).toContain('MIGRATION.md');
     });
 
     it('should contain markdown tables', () => {
       // Check for table structure
-      expect(FACTORY_MD_CONTENT).toMatch(/\|[^\n]+\|/); // Contains pipes
-      expect(FACTORY_MD_CONTENT).toMatch(/\|[-\s]+\|/); // Contains separator row
+      expect(CLAUDE_MD_CONTENT).toMatch(/\|[^\n]+\|/); // Contains pipes
+      expect(CLAUDE_MD_CONTENT).toMatch(/\|[-\s]+\|/); // Contains separator row
     });
   });
 
@@ -348,16 +327,16 @@ describe.skip('Installer Constants', () => {
 
     it('should match package.json version', () => {
       // This is a runtime check - VERSION should match the package.json
-      expect(VERSION).toBe('3.5.8');
+      expect(VERSION).toBe('3.8.6');
     });
   });
 
   describe('File Paths', () => {
     it('should define valid directory paths', () => {
-      const expectedBase = join(homedir(), '.factory', 'omd');
+      const expectedBase = join(homedir(), '.claude');
 
       expect(FACTORY_CONFIG_DIR).toBe(expectedBase);
-      expect(AGENTS_DIR).toBe(join(expectedBase, 'agents'));
+      expect(DROIDS_DIR).toBe(join(expectedBase, 'agents'));
       expect(COMMANDS_DIR).toBe(join(expectedBase, 'commands'));
       expect(SKILLS_DIR).toBe(join(expectedBase, 'skills'));
       expect(HOOKS_DIR).toBe(join(expectedBase, 'hooks'));
@@ -366,14 +345,15 @@ describe.skip('Installer Constants', () => {
     it('should use absolute paths', () => {
       const paths = [
         FACTORY_CONFIG_DIR,
-        AGENTS_DIR,
+        DROIDS_DIR,
         COMMANDS_DIR,
         SKILLS_DIR,
         HOOKS_DIR,
       ];
 
       for (const path of paths) {
-        expect(path).toMatch(/^[/~]/); // Starts with / or ~ (absolute)
+        // Absolute path: starts with / or ~ (Unix) or drive letter like C: (Windows)
+        expect(path).toMatch(/^([/~]|[A-Za-z]:)/);
       }
     });
   });
@@ -392,7 +372,7 @@ describe.skip('Installer Constants', () => {
     });
 
     it('should have agents referenced in FACTORY.md exist in AGENT_DEFINITIONS', () => {
-      const agentMatches = FACTORY_MD_CONTENT.matchAll(/\`([a-z-]+)\`\s*\|\s*(Opus|Sonnet|Haiku)/g);
+      const agentMatches = CLAUDE_MD_CONTENT.matchAll(/\`([a-z-]+)\`\s*\|\s*(Opus|Sonnet|Haiku)/g);
 
       for (const match of agentMatches) {
         const agentName = match[1];
@@ -413,6 +393,9 @@ describe.skip('Installer Constants', () => {
       const alternateFormatAgents = ['qa-tester.md'];
 
       for (const [filename, content] of Object.entries(AGENT_DEFINITIONS)) {
+        // Skip non-agent files
+        if (filename === 'AGENTS.md') continue;
+
         // Skip tiered variants and agents with alternate formats
         if (!filename.includes('-low') && !filename.includes('-medium') && !filename.includes('-high') && !alternateFormatAgents.includes(filename)) {
           // Check for either <Role> tags or role description in various forms
@@ -431,12 +414,13 @@ describe.skip('Installer Constants', () => {
 
       for (const agent of readOnlyAgents) {
         const content = AGENT_DEFINITIONS[agent];
-        const toolsMatch = content.match(/^tools:\s+(.+)/m);
-        expect(toolsMatch).toBeTruthy();
+        // Read-only agents use disallowedTools: to block Edit/Write
+        const disallowedMatch = content.match(/^disallowedTools:\s+(.+)/m);
+        expect(disallowedMatch).toBeTruthy();
 
-        const tools = toolsMatch![1];
-        expect(tools).not.toMatch(/\bEdit\b/);
-        expect(tools).not.toMatch(/\bWrite\b/);
+        const disallowed = disallowedMatch![1];
+        expect(disallowed).toMatch(/\bEdit\b/);
+        expect(disallowed).toMatch(/\bWrite\b/);
       }
     });
 
@@ -451,11 +435,16 @@ describe.skip('Installer Constants', () => {
 
       for (const agent of implementationAgents) {
         const content = AGENT_DEFINITIONS[agent];
-        const toolsMatch = content.match(/^tools:\s+(.+)/m);
-        expect(toolsMatch).toBeTruthy();
-
-        const tools = toolsMatch![1];
-        expect(tools).toMatch(/\b(Edit|Write)\b/);
+        // Implementation agents should NOT have Edit/Write in disallowedTools
+        // (If no disallowedTools field exists, all tools are available by default)
+        const disallowedMatch = content.match(/^disallowedTools:\s+(.+)/m);
+        if (disallowedMatch) {
+          const disallowed = disallowedMatch[1];
+          // If disallowedTools exists, Edit and Write should NOT be in it
+          expect(disallowed).not.toMatch(/\bEdit\b/);
+          expect(disallowed).not.toMatch(/\bWrite\b/);
+        }
+        // If no disallowedTools, all tools including Edit/Write are available - test passes
       }
     });
   });
@@ -465,30 +454,30 @@ describe.skip('Installer Constants', () => {
 
     beforeEach(() => {
       // Save original env var
-      originalEnv = process.env.FACTORY_PLUGIN_ROOT;
+      originalEnv = process.env.DROID_PLUGIN_ROOT;
     });
 
     afterEach(() => {
       // Restore original env var
       if (originalEnv !== undefined) {
-        process.env.FACTORY_PLUGIN_ROOT = originalEnv;
+        process.env.DROID_PLUGIN_ROOT = originalEnv;
       } else {
-        delete process.env.FACTORY_PLUGIN_ROOT;
+        delete process.env.DROID_PLUGIN_ROOT;
       }
     });
 
-    it('should return false when FACTORY_PLUGIN_ROOT is not set', () => {
-      delete process.env.FACTORY_PLUGIN_ROOT;
+    it('should return false when DROID_PLUGIN_ROOT is not set', () => {
+      delete process.env.DROID_PLUGIN_ROOT;
       expect(isRunningAsPlugin()).toBe(false);
     });
 
-    it('should return true when FACTORY_PLUGIN_ROOT is set', () => {
-      process.env.FACTORY_PLUGIN_ROOT = '/home/user/.factory/omd/plugins/marketplaces/oh-my-droid';
+    it('should return true when DROID_PLUGIN_ROOT is set', () => {
+      process.env.DROID_PLUGIN_ROOT = '/home/user/.factory/plugins/marketplaces/oh-my-droid';
       expect(isRunningAsPlugin()).toBe(true);
     });
 
     it('should detect plugin context from environment variable', () => {
-      process.env.FACTORY_PLUGIN_ROOT = '/any/path';
+      process.env.DROID_PLUGIN_ROOT = '/any/path';
       expect(isRunningAsPlugin()).toBe(true);
     });
   });
@@ -498,7 +487,7 @@ describe.skip('Installer Constants', () => {
       const allContent = [
         ...Object.values(AGENT_DEFINITIONS),
         ...Object.values(COMMAND_DEFINITIONS),
-        FACTORY_MD_CONTENT,
+        CLAUDE_MD_CONTENT,
       ];
 
       // Note: "TODO" appears intentionally in "Todo_Discipline", "TodoWrite" tool, and "TODO OBSESSION"
@@ -531,16 +520,19 @@ describe.skip('Installer Constants', () => {
     });
 
     it('should have proper markdown formatting in frontmatter', () => {
-      for (const content of Object.values(AGENT_DEFINITIONS)) {
+      for (const [filename, content] of Object.entries(AGENT_DEFINITIONS)) {
+        // Skip non-agent files
+        if (filename === 'AGENTS.md') continue;
+
         const frontmatterMatch = (content as string).match(/^---\n([\s\S]*?)\n---/);
         expect(frontmatterMatch).toBeTruthy();
 
         const frontmatter = frontmatterMatch![1];
 
-        // Each line should be key: value format
+        // Each line should be key: value format (allow camelCase keys like disallowedTools)
         const lines = frontmatter.split('\n').filter((line: string) => line.trim());
         for (const line of lines) {
-          expect(line).toMatch(/^[a-z]+:\s+.+/);
+          expect(line).toMatch(/^[a-zA-Z]+:\s+.+/);
         }
       }
     });

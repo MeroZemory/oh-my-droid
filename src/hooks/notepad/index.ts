@@ -1,80 +1,132 @@
 /**
- * Notepad Hook
+ * Notepad Support
  *
- * Plan-scoped wisdom capture for learnings, decisions, issues, and problems.
- * Adapted from oh-my-claudecode.
+ * Implements compaction-resilient memory persistence using notepad.md format.
+ * Provides a three-tier memory system:
+ * 1. Priority Context - Always loaded, critical discoveries (max 500 chars)
+ * 2. Working Memory - Session notes, auto-pruned after 7 days
+ * 3. MANUAL - User content, never auto-pruned
+ *
+ * Structure:
+ * ```markdown
+ * # Notepad
+ * <!-- Auto-managed by OMC. Manual edits preserved in MANUAL section. -->
+ *
+ * ## Priority Context
+ * <!-- ALWAYS loaded. Keep under 500 chars. Critical discoveries only. -->
+ *
+ * ## Working Memory
+ * <!-- Session notes. Auto-pruned after 7 days. -->
+ *
+ * ## MANUAL
+ * <!-- User content. Never auto-pruned. -->
+ * ```
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-/**
- * Notepad entry types
- */
-export type NotepadType = 'learnings' | 'decisions' | 'issues' | 'problems';
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface NotepadConfig {
+  /** Maximum characters for Priority Context section */
+  priorityMaxChars: number;
+  /** Days to keep Working Memory entries before pruning */
+  workingMemoryDays: number;
+  /** Maximum total file size in bytes */
+  maxTotalSize: number;
+}
+
+export interface NotepadStats {
+  /** Whether notepad.md exists */
+  exists: boolean;
+  /** Total file size in bytes */
+  totalSize: number;
+  /** Priority Context section size in bytes */
+  prioritySize: number;
+  /** Number of Working Memory entries */
+  workingMemoryEntries: number;
+  /** ISO timestamp of oldest Working Memory entry */
+  oldestEntry: string | null;
+}
+
+export interface PriorityContextResult {
+  /** Whether the operation succeeded */
+  success: boolean;
+  /** Warning message if content exceeds limit */
+  warning?: string;
+}
+
+export interface PruneResult {
+  /** Number of entries pruned */
+  pruned: number;
+  /** Number of entries remaining */
+  remaining: number;
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+export const NOTEPAD_FILENAME = 'notepad.md';
+
+export const DEFAULT_CONFIG: NotepadConfig = {
+  priorityMaxChars: 500,
+  workingMemoryDays: 7,
+  maxTotalSize: 8192 // 8KB
+};
+
+export const PRIORITY_HEADER = '## Priority Context';
+export const WORKING_MEMORY_HEADER = '## Working Memory';
+export const MANUAL_HEADER = '## MANUAL';
+
+// ============================================================================
+// File Operations
+// ============================================================================
 
 /**
- * Notepad entry
+ * Get the path to notepad.md in .omd subdirectory
  */
-export interface NotepadEntry {
-  timestamp: string;
-  content: string;
-  context?: string;
+export function getNotepadPath(directory: string): string {
+  return join(directory, '.omd', NOTEPAD_FILENAME);
 }
 
 /**
- * Wisdom summary
+ * Initialize notepad.md if it doesn't exist
  */
-export interface WisdomSummary {
-  learnings: number;
-  decisions: number;
-  issues: number;
-  problems: number;
-  totalEntries: number;
-}
+export function initNotepad(directory: string): boolean {
+  const omdDir = join(directory, '.omd');
+  if (!existsSync(omdDir)) {
+    try {
+      mkdirSync(omdDir, { recursive: true });
+    } catch {
+      return false;
+    }
+  }
 
-/**
- * Get notepads directory path
- */
-export function getNotepadsDir(directory: string): string {
-  return join(directory, '.omd', 'notepads');
-}
+  const notepadPath = getNotepadPath(directory);
+  if (existsSync(notepadPath)) {
+    return true; // Already exists
+  }
 
-/**
- * Get plan notepad directory
- */
-export function getPlanNotepadDir(directory: string, planName: string): string {
-  return join(getNotepadsDir(directory), planName);
-}
+  const content = `# Notepad
+<!-- Auto-managed by OMC. Manual edits preserved in MANUAL section. -->
 
-/**
- * Get notepad file path
- */
-export function getNotepadPath(directory: string, planName: string, type: NotepadType): string {
-  return join(getPlanNotepadDir(directory, planName), `${type}.md`);
-}
+${PRIORITY_HEADER}
+<!-- ALWAYS loaded. Keep under 500 chars. Critical discoveries only. -->
 
-/**
- * Initialize a plan notepad
- */
-export function initPlanNotepad(directory: string, planName: string): boolean {
-  const notepadDir = getPlanNotepadDir(directory, planName);
+${WORKING_MEMORY_HEADER}
+<!-- Session notes. Auto-pruned after 7 days. -->
+
+${MANUAL_HEADER}
+<!-- User content. Never auto-pruned. -->
+
+`;
 
   try {
-    if (!existsSync(notepadDir)) {
-      mkdirSync(notepadDir, { recursive: true });
-    }
-
-    // Create initial files
-    const types: NotepadType[] = ['learnings', 'decisions', 'issues', 'problems'];
-    for (const type of types) {
-      const path = getNotepadPath(directory, planName, type);
-      if (!existsSync(path)) {
-        const header = `# ${type.charAt(0).toUpperCase() + type.slice(1)}\n\nPlan: ${planName}\nStarted: ${new Date().toISOString()}\n\n---\n\n`;
-        writeFileSync(path, header);
-      }
-    }
-
+    writeFileSync(notepadPath, content);
     return true;
   } catch {
     return false;
@@ -82,33 +134,161 @@ export function initPlanNotepad(directory: string, planName: string): boolean {
 }
 
 /**
- * Add an entry to a notepad
+ * Read entire notepad content
  */
-function addEntry(
-  directory: string,
-  planName: string,
-  type: NotepadType,
-  content: string,
-  context?: string
-): boolean {
-  const path = getNotepadPath(directory, planName, type);
-
-  // Ensure notepad exists
-  if (!existsSync(path)) {
-    initPlanNotepad(directory, planName);
+export function readNotepad(directory: string): string | null {
+  const notepadPath = getNotepadPath(directory);
+  if (!existsSync(notepadPath)) {
+    return null;
   }
-
-  const timestamp = new Date().toISOString();
-  let entry = `## ${timestamp}\n\n${content}\n`;
-
-  if (context) {
-    entry += `\n**Context:** ${context}\n`;
-  }
-
-  entry += '\n---\n\n';
 
   try {
-    appendFileSync(path, entry);
+    return readFileSync(notepadPath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract a section from notepad content using regex
+ */
+function extractSection(content: string, header: string): string | null {
+  // Match from header to next section (## followed by space, at start of line)
+  // We need to match ## at the start of a line, not ### which is a subsection
+  const regex = new RegExp(`${header}\\n([\\s\\S]*?)(?=\\n## [^#]|$)`);
+  const match = content.match(regex);
+  if (!match) {
+    return null;
+  }
+
+  // Clean up the content - remove HTML comments and trim
+  let section = match[1];
+  section = section.replace(/<!--[\s\S]*?-->/g, '').trim();
+
+  return section || null;
+}
+
+/**
+ * Replace a section in notepad content
+ */
+function replaceSection(content: string, header: string, newContent: string): string {
+  const regex = new RegExp(`(${header}\\n)([\\s\\S]*?)(?=## |$)`);
+
+  // Preserve comment if it exists
+  const commentMatch = content.match(new RegExp(`${header}\\n(<!--[\\s\\S]*?-->)`));
+  const comment = commentMatch ? commentMatch[1] + '\n' : '';
+
+  return content.replace(regex, `$1${comment}${newContent}\n\n`);
+}
+
+// ============================================================================
+// Section Access
+// ============================================================================
+
+/**
+ * Get Priority Context section only (for injection)
+ */
+export function getPriorityContext(directory: string): string | null {
+  const content = readNotepad(directory);
+  if (!content) {
+    return null;
+  }
+
+  return extractSection(content, PRIORITY_HEADER);
+}
+
+/**
+ * Get Working Memory section
+ */
+export function getWorkingMemory(directory: string): string | null {
+  const content = readNotepad(directory);
+  if (!content) {
+    return null;
+  }
+
+  return extractSection(content, WORKING_MEMORY_HEADER);
+}
+
+/**
+ * Get MANUAL section
+ */
+export function getManualSection(directory: string): string | null {
+  const content = readNotepad(directory);
+  if (!content) {
+    return null;
+  }
+
+  return extractSection(content, MANUAL_HEADER);
+}
+
+// ============================================================================
+// Section Updates
+// ============================================================================
+
+/**
+ * Add/update Priority Context (replaces content, warns if over limit)
+ */
+export function setPriorityContext(
+  directory: string,
+  content: string,
+  config: NotepadConfig = DEFAULT_CONFIG
+): PriorityContextResult {
+  // Initialize if needed
+  if (!existsSync(getNotepadPath(directory))) {
+    if (!initNotepad(directory)) {
+      return { success: false };
+    }
+  }
+
+  const notepadPath = getNotepadPath(directory);
+  let notepadContent = readFileSync(notepadPath, 'utf-8');
+
+  // Check size
+  const warning = content.length > config.priorityMaxChars
+    ? `Priority Context exceeds ${config.priorityMaxChars} chars (${content.length} chars). Consider condensing.`
+    : undefined;
+
+  // Replace the section
+  notepadContent = replaceSection(notepadContent, PRIORITY_HEADER, content);
+
+  try {
+    writeFileSync(notepadPath, notepadContent);
+    return { success: true, warning };
+  } catch {
+    return { success: false };
+  }
+}
+
+/**
+ * Add entry to Working Memory with timestamp
+ */
+export function addWorkingMemoryEntry(directory: string, content: string): boolean {
+  // Initialize if needed
+  if (!existsSync(getNotepadPath(directory))) {
+    if (!initNotepad(directory)) {
+      return false;
+    }
+  }
+
+  const notepadPath = getNotepadPath(directory);
+  let notepadContent = readFileSync(notepadPath, 'utf-8');
+
+  // Get current Working Memory content
+  const currentMemory = extractSection(notepadContent, WORKING_MEMORY_HEADER) || '';
+
+  // Format timestamp
+  const now = new Date();
+  const timestamp = now.toISOString().slice(0, 16).replace('T', ' '); // YYYY-MM-DD HH:MM
+
+  // Add new entry
+  const newEntry = `### ${timestamp}\n${content}\n`;
+  const updatedMemory = currentMemory ? currentMemory + '\n' + newEntry : newEntry;
+
+  // Replace the section
+  notepadContent = replaceSection(notepadContent, WORKING_MEMORY_HEADER, updatedMemory);
+
+  try {
+    writeFileSync(notepadPath, notepadContent);
     return true;
   } catch {
     return false;
@@ -116,199 +296,188 @@ function addEntry(
 }
 
 /**
- * Add a learning
+ * Add to MANUAL section
  */
-export function addLearning(
-  directory: string,
-  planName: string,
-  content: string,
-  context?: string
-): boolean {
-  return addEntry(directory, planName, 'learnings', content, context);
-}
-
-/**
- * Add a decision
- */
-export function addDecision(
-  directory: string,
-  planName: string,
-  content: string,
-  context?: string
-): boolean {
-  return addEntry(directory, planName, 'decisions', content, context);
-}
-
-/**
- * Add an issue
- */
-export function addIssue(
-  directory: string,
-  planName: string,
-  content: string,
-  context?: string
-): boolean {
-  return addEntry(directory, planName, 'issues', content, context);
-}
-
-/**
- * Add a problem
- */
-export function addProblem(
-  directory: string,
-  planName: string,
-  content: string,
-  context?: string
-): boolean {
-  return addEntry(directory, planName, 'problems', content, context);
-}
-
-/**
- * Read notepad content
- */
-export function readNotepad(
-  directory: string,
-  planName: string,
-  type: NotepadType
-): string | null {
-  const path = getNotepadPath(directory, planName, type);
-
-  if (!existsSync(path)) {
-    return null;
+export function addManualEntry(directory: string, content: string): boolean {
+  // Initialize if needed
+  if (!existsSync(getNotepadPath(directory))) {
+    if (!initNotepad(directory)) {
+      return false;
+    }
   }
+
+  const notepadPath = getNotepadPath(directory);
+  let notepadContent = readFileSync(notepadPath, 'utf-8');
+
+  // Get current MANUAL content
+  const currentManual = extractSection(notepadContent, MANUAL_HEADER) || '';
+
+  // Add new entry with timestamp
+  const now = new Date();
+  const timestamp = now.toISOString().slice(0, 16).replace('T', ' '); // YYYY-MM-DD HH:MM
+  const newEntry = `### ${timestamp}\n${content}\n`;
+  const updatedManual = currentManual ? currentManual + '\n' + newEntry : newEntry;
+
+  // Replace the section
+  notepadContent = replaceSection(notepadContent, MANUAL_HEADER, updatedManual);
 
   try {
-    return readFileSync(path, 'utf-8');
+    writeFileSync(notepadPath, notepadContent);
+    return true;
   } catch {
+    return false;
+  }
+}
+
+// ============================================================================
+// Pruning
+// ============================================================================
+
+/**
+ * Prune Working Memory entries older than N days
+ */
+export function pruneOldEntries(
+  directory: string,
+  daysOld: number = DEFAULT_CONFIG.workingMemoryDays
+): PruneResult {
+  const notepadPath = getNotepadPath(directory);
+  if (!existsSync(notepadPath)) {
+    return { pruned: 0, remaining: 0 };
+  }
+
+  let notepadContent = readFileSync(notepadPath, 'utf-8');
+  const workingMemory = extractSection(notepadContent, WORKING_MEMORY_HEADER);
+
+  if (!workingMemory) {
+    return { pruned: 0, remaining: 0 };
+  }
+
+  // Parse entries
+  const entryRegex = /### (\d{4}-\d{2}-\d{2} \d{2}:\d{2})\n([\s\S]*?)(?=### |$)/g;
+  const entries: Array<{ timestamp: string; content: string }> = [];
+  let match;
+
+  while ((match = entryRegex.exec(workingMemory)) !== null) {
+    entries.push({
+      timestamp: match[1],
+      content: match[2].trim()
+    });
+  }
+
+  // Calculate cutoff date
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysOld);
+
+  // Filter entries
+  const kept = entries.filter(entry => {
+    const entryDate = new Date(entry.timestamp);
+    return entryDate >= cutoff;
+  });
+
+  const pruned = entries.length - kept.length;
+
+  // Rebuild Working Memory section
+  const newContent = kept
+    .map(entry => `### ${entry.timestamp}\n${entry.content}`)
+    .join('\n\n');
+
+  notepadContent = replaceSection(notepadContent, WORKING_MEMORY_HEADER, newContent);
+
+  try {
+    writeFileSync(notepadPath, notepadContent);
+    return { pruned, remaining: kept.length };
+  } catch {
+    return { pruned: 0, remaining: entries.length };
+  }
+}
+
+// ============================================================================
+// Stats and Info
+// ============================================================================
+
+/**
+ * Get notepad stats
+ */
+export function getNotepadStats(directory: string): NotepadStats {
+  const notepadPath = getNotepadPath(directory);
+
+  if (!existsSync(notepadPath)) {
+    return {
+      exists: false,
+      totalSize: 0,
+      prioritySize: 0,
+      workingMemoryEntries: 0,
+      oldestEntry: null
+    };
+  }
+
+  const content = readFileSync(notepadPath, 'utf-8');
+  const priorityContext = extractSection(content, PRIORITY_HEADER) || '';
+  const workingMemory = extractSection(content, WORKING_MEMORY_HEADER) || '';
+
+  // Count entries
+  const entryMatches = workingMemory.match(/### \d{4}-\d{2}-\d{2} \d{2}:\d{2}/g);
+  const entryCount = entryMatches ? entryMatches.length : 0;
+
+  // Find oldest entry
+  let oldestEntry: string | null = null;
+  if (entryMatches && entryMatches.length > 0) {
+    // Extract just the timestamp part
+    const timestamps = entryMatches.map(m => m.replace('### ', ''));
+    timestamps.sort();
+    oldestEntry = timestamps[0];
+  }
+
+  return {
+    exists: true,
+    totalSize: Buffer.byteLength(content, 'utf-8'),
+    prioritySize: Buffer.byteLength(priorityContext, 'utf-8'),
+    workingMemoryEntries: entryCount,
+    oldestEntry
+  };
+}
+
+// ============================================================================
+// Context Formatting
+// ============================================================================
+
+/**
+ * Format context for injection into session
+ */
+export function formatNotepadContext(directory: string): string | null {
+  const notepadPath = getNotepadPath(directory);
+  if (!existsSync(notepadPath)) {
     return null;
   }
-}
 
-/**
- * Read all plan wisdom
- */
-export function readPlanWisdom(
-  directory: string,
-  planName: string
-): Record<NotepadType, string | null> {
-  return {
-    learnings: readNotepad(directory, planName, 'learnings'),
-    decisions: readNotepad(directory, planName, 'decisions'),
-    issues: readNotepad(directory, planName, 'issues'),
-    problems: readNotepad(directory, planName, 'problems')
-  };
-}
+  const priorityContext = getPriorityContext(directory);
 
-/**
- * Count entries in a notepad
- */
-function countEntries(content: string | null): number {
-  if (!content) return 0;
-  // Count entry separators (---) minus the header separator
-  const matches = content.match(/\n---\n/g);
-  return matches ? Math.max(0, matches.length - 1) : 0;
-}
-
-/**
- * Get wisdom summary
- */
-export function getWisdomSummary(directory: string, planName: string): WisdomSummary {
-  const wisdom = readPlanWisdom(directory, planName);
-
-  const learnings = countEntries(wisdom.learnings);
-  const decisions = countEntries(wisdom.decisions);
-  const issues = countEntries(wisdom.issues);
-  const problems = countEntries(wisdom.problems);
-
-  return {
-    learnings,
-    decisions,
-    issues,
-    problems,
-    totalEntries: learnings + decisions + issues + problems
-  };
-}
-
-/**
- * Format wisdom for context injection
- */
-export function formatWisdomForContext(directory: string, planName: string): string {
-  const wisdom = readPlanWisdom(directory, planName);
-  const summary = getWisdomSummary(directory, planName);
-
-  if (summary.totalEntries === 0) {
-    return '';
+  if (!priorityContext) {
+    return null;
   }
 
-  const parts: string[] = [
-    `<plan-wisdom plan="${planName}">`,
+  const lines = [
+    '<notepad-priority>',
     '',
-    `Summary: ${summary.learnings} learnings, ${summary.decisions} decisions, ${summary.issues} issues, ${summary.problems} problems`,
+    '## Priority Context',
+    '',
+    priorityContext,
+    '',
+    '</notepad-priority>',
     ''
   ];
 
-  if (wisdom.learnings && summary.learnings > 0) {
-    parts.push('## Recent Learnings');
-    parts.push(extractRecentEntries(wisdom.learnings, 3));
-    parts.push('');
-  }
-
-  if (wisdom.decisions && summary.decisions > 0) {
-    parts.push('## Recent Decisions');
-    parts.push(extractRecentEntries(wisdom.decisions, 3));
-    parts.push('');
-  }
-
-  parts.push('</plan-wisdom>');
-  parts.push('');
-  parts.push('---');
-  parts.push('');
-
-  return parts.join('\n');
+  return lines.join('\n');
 }
 
 /**
- * Extract recent entries from content
+ * Format full notepad for display
  */
-function extractRecentEntries(content: string, count: number): string {
-  const entries = content.split(/\n---\n/).slice(1); // Skip header
-  const recent = entries.slice(-count);
-  return recent.join('\n---\n').trim();
-}
+export function formatFullNotepad(directory: string): string | null {
+  const content = readNotepad(directory);
+  if (!content) {
+    return null;
+  }
 
-/**
- * Create the notepad hook
- */
-export function createNotepadHook(defaultPlanName?: string) {
-  const planName = defaultPlanName || 'default';
-
-  return {
-    /**
-     * Session start - inject wisdom context
-     */
-    sessionStart: (input: { session_id: string; directory?: string }): string | null => {
-      const directory = input.directory || process.cwd();
-      return formatWisdomForContext(directory, planName) || null;
-    },
-
-    /**
-     * Add entries programmatically
-     */
-    addLearning: (directory: string, content: string, context?: string) =>
-      addLearning(directory, planName, content, context),
-
-    addDecision: (directory: string, content: string, context?: string) =>
-      addDecision(directory, planName, content, context),
-
-    addIssue: (directory: string, content: string, context?: string) =>
-      addIssue(directory, planName, content, context),
-
-    addProblem: (directory: string, content: string, context?: string) =>
-      addProblem(directory, planName, content, context),
-
-    /**
-     * Get summary
-     */
-    getSummary: (directory: string) => getWisdomSummary(directory, planName)
-  };
+  return content;
 }

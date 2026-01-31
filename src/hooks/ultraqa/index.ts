@@ -1,9 +1,8 @@
 /**
  * UltraQA Loop Hook
  *
- * QA cycling workflow that runs test -> architect verify -> fix -> repeat
+ * QA cycling workflow that runs test → architect verify → fix → repeat
  * until the QA goal is met or max cycles reached.
- * Adapted from oh-my-claudecode.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
@@ -57,16 +56,16 @@ const SAME_FAILURE_THRESHOLD = 3;
  */
 function getStateFilePath(directory: string): string {
   const omdDir = join(directory, '.omd');
-  return join(omdDir, 'ultraqa-state.json');
+  return join(omdDir, 'state', 'ultraqa-state.json');
 }
 
 /**
- * Ensure the .omd directory exists
+ * Ensure the .omd/state directory exists
  */
 function ensureStateDir(directory: string): void {
-  const omdDir = join(directory, '.omd');
-  if (!existsSync(omdDir)) {
-    mkdirSync(omdDir, { recursive: true });
+  const stateDir = join(directory, '.omd', 'state');
+  if (!existsSync(stateDir)) {
+    mkdirSync(stateDir, { recursive: true });
   }
 }
 
@@ -299,51 +298,4 @@ export function formatProgressMessage(
   status: string
 ): string {
   return `[ULTRAQA Cycle ${cycle}/${maxCycles}] ${status}`;
-}
-
-/**
- * Check if UltraQA is active
- */
-export function isUltraQAActive(directory: string): boolean {
-  const state = readUltraQAState(directory);
-  return state !== null && state.active === true;
-}
-
-/**
- * Create the UltraQA hook
- */
-export function createUltraQAHook() {
-  return {
-    /**
-     * Start UltraQA
-     */
-    start: (directory: string, goalType: UltraQAGoalType, sessionId: string, options?: UltraQAOptions) =>
-      startUltraQA(directory, goalType, sessionId, options),
-
-    /**
-     * Record failure
-     */
-    recordFailure: (directory: string, description: string) =>
-      recordFailure(directory, description),
-
-    /**
-     * Complete UltraQA
-     */
-    complete: (directory: string) => completeUltraQA(directory),
-
-    /**
-     * Cancel UltraQA
-     */
-    cancel: (directory: string) => cancelUltraQA(directory),
-
-    /**
-     * Get state
-     */
-    getState: (directory: string) => readUltraQAState(directory),
-
-    /**
-     * Check if active
-     */
-    isActive: (directory: string) => isUltraQAActive(directory)
-  };
 }

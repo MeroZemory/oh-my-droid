@@ -3,13 +3,16 @@ import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
+  initAutopilot,
+  transitionPhase,
   readAutopilotState,
-  writeAutopilotState,
-  updatePhase
+  transitionRalphToUltraQA,
+  transitionUltraQAToValidation,
+  transitionToComplete,
+  getTransitionPrompt
 } from '../state.js';
-import type { AutopilotState } from '../types.js';
 
-describe.skip('Phase Transitions', () => {
+describe('Phase Transitions', () => {
   let testDir: string;
 
   beforeEach(() => {

@@ -2,14 +2,13 @@
  * Unified Recovery Constants
  *
  * Constants, messages, and patterns for all recovery mechanisms.
- * Adapted from oh-my-claudecode.
  */
 
 import { join } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 
 /**
- * Get the data directory for Android Factory storage
+ * Get the data directory for Factory Droid storage
  * Follows XDG Base Directory specification
  */
 function getDataDir(): string {
@@ -17,15 +16,15 @@ function getDataDir(): string {
 }
 
 /**
- * Get the Android Factory storage directory
+ * Get the Factory Droid storage directory
  */
-function getFactoryStorageDir(): string {
-  return join(getDataDir(), 'android-factory', 'storage');
+function getClaudeCodeStorageDir(): string {
+  return join(getDataDir(), 'claude-code', 'storage');
 }
 
-export const FACTORY_STORAGE = getFactoryStorageDir();
-export const MESSAGE_STORAGE = join(FACTORY_STORAGE, 'message');
-export const PART_STORAGE = join(FACTORY_STORAGE, 'part');
+export const CLAUDE_CODE_STORAGE = getClaudeCodeStorageDir();
+export const MESSAGE_STORAGE = join(CLAUDE_CODE_STORAGE, 'message');
+export const PART_STORAGE = join(CLAUDE_CODE_STORAGE, 'part');
 
 /**
  * Debug logging configuration

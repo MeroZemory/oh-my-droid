@@ -1,49 +1,70 @@
 /**
- * Background Notification Types
+ * Background Notification Hook Types
  *
- * Type definitions for background task notification system.
- * Adapted from oh-my-claudecode.
+ * Type definitions for background task notification handling.
+ * Adapted from oh-my-opencode's background-notification hook.
  */
 
-/**
- * Background task status
- */
-export type TaskStatus = 'pending' | 'running' | 'completed' | 'error' | 'cancelled';
+import type { BackgroundTask } from '../../features/background-agent/index.js';
 
 /**
- * Background task information
+ * Configuration for background notification hook
  */
-export interface BackgroundTask {
-  /** Unique task identifier */
-  id: string;
-  /** Session ID the task belongs to */
-  sessionId: string;
-  /** Task description */
-  description: string;
-  /** Subagent type */
-  subagentType?: string;
-  /** Current status */
-  status: TaskStatus;
-  /** When the task was started */
-  startedAt: string;
-  /** When the task completed */
-  completedAt?: string;
-  /** Task output/result */
-  output?: string;
-  /** Error message if failed */
-  error?: string;
+export interface BackgroundNotificationHookConfig {
+  /**
+   * Custom formatter for notification messages
+   * If not provided, uses default formatting
+   */
+  formatNotification?: (tasks: BackgroundTask[]) => string;
+
+  /**
+   * Whether to automatically clear notifications after they're shown
+   * Default: true
+   */
+  autoClear?: boolean;
+
+  /**
+   * Whether to show notifications only for the current session
+   * Default: true (only show notifications for tasks launched by current session)
+   */
+  currentSessionOnly?: boolean;
 }
 
 /**
- * Notification configuration
+ * Input for background notification hook
  */
-export interface NotificationConfig {
-  /** Whether to show notifications */
-  enabled?: boolean;
-  /** Whether to show completion notifications */
-  showCompletion?: boolean;
-  /** Whether to show error notifications */
-  showErrors?: boolean;
-  /** Custom notification format */
-  customFormat?: (task: BackgroundTask) => string;
+export interface BackgroundNotificationHookInput {
+  /** Current session ID */
+  sessionId?: string;
+  /** Working directory */
+  directory?: string;
+  /** Event type (for shell hook compatibility) */
+  event?: {
+    type: string;
+    properties?: Record<string, unknown>;
+  };
+}
+
+/**
+ * Output from background notification hook
+ */
+export interface BackgroundNotificationHookOutput {
+  /** Whether to continue with the operation */
+  continue: boolean;
+  /** Notification message to inject into context */
+  message?: string;
+  /** Number of tasks with notifications */
+  notificationCount?: number;
+}
+
+/**
+ * Result of checking for background notifications
+ */
+export interface NotificationCheckResult {
+  /** Whether there are pending notifications */
+  hasNotifications: boolean;
+  /** Completed tasks to notify about */
+  tasks: BackgroundTask[];
+  /** Formatted notification message */
+  message?: string;
 }

@@ -3,8 +3,6 @@
  *
  * Defines the rules engine for model routing decisions.
  * Rules are evaluated in priority order, and the first matching rule wins.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import type {
@@ -28,21 +26,11 @@ export const DEFAULT_ROUTING_RULES: RoutingRule[] = [
   },
 
   // NOTE: ALL agents are now ADAPTIVE based on task complexity
-  // Only orchestrators (coordinator) are fixed to Opus
   // This includes: architect, planner, critic, analyst, explore, writer, etc.
-
-  // ============ Orchestrator Rule (Fixed Tier) ============
-
-  {
-    name: 'orchestrator-fixed-opus',
-    condition: (ctx) => ctx.agentType === 'coordinator',
-    action: { tier: 'HIGH', reason: 'Orchestrator requires Opus to analyze complexity and delegate' },
-    priority: 90,
-  },
 
   // ============ Advisory Agent Adaptive Rules ============
 
-  // Architect: Simple lookups -> LOW, tracing -> MEDIUM, debugging/architecture -> HIGH
+  // Architect: Simple lookups → LOW, tracing → MEDIUM, debugging/architecture → HIGH
   // Higher priority (85) to override generic rules like short-local-change
   {
     name: 'architect-complex-debugging',
@@ -67,7 +55,7 @@ export const DEFAULT_ROUTING_RULES: RoutingRule[] = [
     priority: 80,
   },
 
-  // Planner: Simple breakdown -> LOW, moderate planning -> MEDIUM, cross-domain -> HIGH
+  // Planner: Simple breakdown → LOW, moderate planning → MEDIUM, cross-domain → HIGH
   {
     name: 'planner-simple-breakdown',
     condition: (ctx, signals) =>
@@ -90,7 +78,7 @@ export const DEFAULT_ROUTING_RULES: RoutingRule[] = [
     priority: 75,
   },
 
-  // Critic: Checklist -> LOW, gap analysis -> MEDIUM, adversarial review -> HIGH
+  // Critic: Checklist → LOW, gap analysis → MEDIUM, adversarial review → HIGH
   {
     name: 'critic-checklist-review',
     condition: (ctx, signals) =>
@@ -110,7 +98,7 @@ export const DEFAULT_ROUTING_RULES: RoutingRule[] = [
     priority: 75,
   },
 
-  // Analyst: Simple impact -> LOW, dependency mapping -> MEDIUM, risk analysis -> HIGH
+  // Analyst: Simple impact → LOW, dependency mapping → MEDIUM, risk analysis → HIGH
   {
     name: 'analyst-simple-impact',
     condition: (ctx, signals) =>

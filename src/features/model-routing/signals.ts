@@ -3,8 +3,6 @@
  *
  * Extracts complexity signals from task prompts to inform routing decisions.
  * Signals are categorized into lexical, structural, and context types.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import type {

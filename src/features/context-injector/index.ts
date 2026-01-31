@@ -4,7 +4,7 @@
  * System for collecting and injecting context from multiple sources
  * into user prompts. Supports priority ordering and deduplication.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Ported from oh-my-opencode's context-injector.
  */
 
 // Collector

@@ -1,19 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Oh-My-Droid CLI
+ * Oh-My-Claude-Droid CLI
  *
- * Command-line interface for the multi-agent orchestration system.
+ * Command-line interface for the Droid multi-agent system.
  *
  * Commands:
- * - stats: Show aggregate statistics
- * - cost: Generate cost reports
- * - sessions: View session history
- * - agents: Show agent usage breakdown
- * - export: Export data to JSON/CSV
- * - cleanup: Clean up old logs
- * - backfill: Backfill analytics from transcripts
- * - tui: Launch interactive token visualization
+ * - run: Start an interactive session
+ * - init: Initialize configuration in current directory
+ * - config: Show or edit configuration
  */
 
 import { Command } from 'commander';
@@ -28,6 +23,18 @@ import {
   getConfigPaths,
   generateConfigSchema
 } from '../config/loader.js';
+import { createDroidSession } from '../index.js';
+import {
+  checkForUpdates,
+  performUpdate,
+  formatUpdateNotification,
+  getInstalledVersion
+} from '../features/auto-update.js';
+import {
+  install as installDroid,
+  isInstalled,
+  getInstallInfo
+} from '../installer/index.js';
 import { statsCommand } from './commands/stats.js';
 import { costCommand } from './commands/cost.js';
 import { sessionsCommand } from './commands/sessions.js';
@@ -41,18 +48,11 @@ import {
   getInstallInstructions
 } from './utils/tokscale-launcher.js';
 import {
-  install as installOmd,
-  installSlashCommands,
-  listInstalledCommands,
-  uninstallSlashCommands,
-  cleanupLegacyCommands,
-  uninstall as uninstallOmd,
-  cleanInstall as cleanInstallOmd,
-  isInstalled,
-  getInstallInfo,
-  FACTORY_COMMANDS_DIR,
-  FACTORY_CONFIG_DIR
-} from '../installer/index.js';
+  waitCommand,
+  waitStatusCommand,
+  waitDaemonCommand,
+  waitDetectCommand
+} from './commands/wait.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -70,7 +70,7 @@ const program = new Command();
 
 // Helper functions for auto-backfill
 async function checkIfBackfillNeeded(): Promise<boolean> {
-  const tokenLogPath = join(homedir(), '.factory', 'omd', 'state', 'token-tracking.jsonl');
+  const tokenLogPath = join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
   try {
     await fs.access(tokenLogPath);
     const stats = await fs.stat(tokenLogPath);
@@ -106,7 +106,7 @@ async function displayAnalyticsBanner() {
     const gradient = await import('gradient-string');
     const banner = gradient.default.pastel.multiline([
       '╔═══════════════════════════════════════╗',
-      '║   Oh-My-Droid - Analytics Dashboard   ║',
+      '║   Oh-My-ClaudeCode - Analytics Dashboard   ║',
       '╚═══════════════════════════════════════╝'
     ].join('\n'));
     console.log(banner);
@@ -114,7 +114,7 @@ async function displayAnalyticsBanner() {
   } catch (error) {
     // Fallback if gradient-string not installed
     console.log('╔═══════════════════════════════════════╗');
-    console.log('║   Oh-My-Droid - Analytics Dashboard   ║');
+    console.log('║   Oh-My-ClaudeCode - Analytics Dashboard   ║');
     console.log('╚═══════════════════════════════════════╝');
     console.log('');
   }
@@ -158,7 +158,7 @@ async function defaultAction() {
 
   if (tuiAvailable) {
     console.log('');
-    console.log(chalk.dim('Tip: Run `omd tui` for an interactive token visualization dashboard'));
+    console.log(chalk.dim('Tip: Run omd tui` for an interactive token visualization dashboard'));
   }
 }
 
@@ -305,7 +305,7 @@ program
  */
 program
   .command('init')
-  .description('Initialize oh-my-droid configuration in the current directory')
+  .description('Initialize Droid configuration in the current directory')
   .option('-g, --global', 'Initialize global user configuration')
   .option('-f, --force', 'Overwrite existing configuration')
   .action(async (options) => {
@@ -316,7 +316,7 @@ program
     const targetPath = options.global ? paths.user : paths.project;
     const targetDir = dirname(targetPath);
 
-    console.log(chalk.blue('Oh-My-Droid Configuration Setup\n'));
+    console.log(chalk.blue('Oh-My-ClaudeCode Configuration Setup\n'));
 
     // Check if config already exists
     if (existsSync(targetPath) && !options.force) {
@@ -332,14 +332,14 @@ program
     }
 
     // Generate config content
-    const configContent = `// Oh-My-Droid Configuration
+    const configContent = `// Oh-My-ClaudeCode Configuration
 // See: https://github.com/your-repo/oh-my-droid for documentation
 {
-  "$schema": "./omd-schema.json",
+  "$schema": "./droid-schema.json",
 
   // Agent model configurations
   "agents": {
-    "omd": {
+    "droid": {
       // Main orchestrator - uses the most capable model
       "model": "claude-opus-4-5-20251101"
     },
@@ -411,17 +411,17 @@ program
     console.log(chalk.green(`Created configuration: ${targetPath}`));
 
     // Also create the JSON schema for editor support
-    const schemaPath = join(targetDir, 'omd-schema.json');
+    const schemaPath = join(targetDir, 'droid-schema.json');
     writeFileSync(schemaPath, JSON.stringify(generateConfigSchema(), null, 2));
     console.log(chalk.green(`Created JSON schema: ${schemaPath}`));
 
     console.log(chalk.blue('\nSetup complete!'));
     console.log(chalk.gray('Edit the configuration file to customize your setup.'));
 
-    // Create DROID.md template if it doesn't exist
-    const droidMdPath = join(process.cwd(), 'DROID.md');
-    if (!existsSync(droidMdPath) && !options.global) {
-      const droidMdContent = `# Project Agents Configuration
+    // Create AGENTS.md template if it doesn't exist
+    const agentsMdPath = join(process.cwd(), 'AGENTS.md');
+    if (!existsSync(agentsMdPath) && !options.global) {
+      const agentsMdContent = `# Project Agents Configuration
 
 This file provides context and instructions to AI agents working on this project.
 
@@ -445,8 +445,8 @@ This file provides context and instructions to AI agents working on this project
 
 <!-- Describe common development tasks and how to perform them -->
 `;
-      writeFileSync(droidMdPath, droidMdContent);
-      console.log(chalk.green(`Created DROID.md template`));
+      writeFileSync(agentsMdPath, agentsMdContent);
+      console.log(chalk.green(`Created AGENTS.md template`));
     }
   });
 
@@ -516,26 +516,20 @@ program
   .command('info')
   .description('Show system and agent information')
   .action(async () => {
-    const config = loadConfig();
+    const session = createDroidSession();
 
-    console.log(chalk.blue.bold('\nOh-My-Droid System Information\n'));
+    console.log(chalk.blue.bold('\nOh-My-ClaudeCode System Information\n'));
     console.log(chalk.gray('━'.repeat(50)));
 
-    console.log(chalk.blue('\nConfigured Agents:'));
-    const agents = config.agents;
-    if (agents) {
-      for (const [name, agentConfig] of Object.entries(agents)) {
-        const typedConfig = agentConfig as { model?: string; enabled?: boolean };
-        const status = typedConfig.enabled === false ? chalk.gray('(disabled)') : '';
-        console.log(`  ${chalk.green(name)} ${status}`);
-        if (typedConfig.model) {
-          console.log(`    ${chalk.gray(`Model: ${typedConfig.model}`)}`);
-        }
-      }
+    console.log(chalk.blue('\nAvailable Agents:'));
+    const agents = session.queryOptions.options.agents;
+    for (const [name, agent] of Object.entries(agents)) {
+      console.log(`  ${chalk.green(name)}`);
+      console.log(`    ${chalk.gray(agent.description.split('\n')[0])}`);
     }
 
     console.log(chalk.blue('\nEnabled Features:'));
-    const features = config.features;
+    const features = session.config.features;
     if (features) {
       console.log(`  Parallel Execution:      ${features.parallelExecution ? chalk.green('enabled') : chalk.gray('disabled')}`);
       console.log(`  LSP Tools:               ${features.lspTools ? chalk.green('enabled') : chalk.gray('disabled')}`);
@@ -545,22 +539,115 @@ program
     }
 
     console.log(chalk.blue('\nMCP Servers:'));
-    const mcpServers = config.mcpServers;
-    if (mcpServers) {
-      for (const [name, serverConfig] of Object.entries(mcpServers)) {
-        const typedConfig = serverConfig as { enabled?: boolean };
-        const status = typedConfig.enabled ? chalk.green('enabled') : chalk.gray('disabled');
-        console.log(`  ${name}: ${status}`);
-      }
+    const mcpServers = session.queryOptions.options.mcpServers;
+    for (const name of Object.keys(mcpServers)) {
+      console.log(`  ${chalk.green(name)}`);
     }
 
     console.log(chalk.blue('\nMagic Keywords:'));
-    console.log(`  Ultrawork: ${chalk.cyan(config.magicKeywords?.ultrawork?.join(', ') ?? 'ultrawork, ulw, uw')}`);
-    console.log(`  Search:    ${chalk.cyan(config.magicKeywords?.search?.join(', ') ?? 'search, find, locate')}`);
-    console.log(`  Analyze:   ${chalk.cyan(config.magicKeywords?.analyze?.join(', ') ?? 'analyze, investigate, examine')}`);
+    console.log(`  Ultrawork: ${chalk.cyan(session.config.magicKeywords?.ultrawork?.join(', ') ?? 'ultrawork, ulw, uw')}`);
+    console.log(`  Search:    ${chalk.cyan(session.config.magicKeywords?.search?.join(', ') ?? 'search, find, locate')}`);
+    console.log(`  Analyze:   ${chalk.cyan(session.config.magicKeywords?.analyze?.join(', ') ?? 'analyze, investigate, examine')}`);
 
     console.log(chalk.gray('\n━'.repeat(50)));
     console.log(chalk.gray(`Version: ${version}`));
+  });
+
+/**
+ * Test command - Test prompt enhancement
+ */
+program
+  .command('test-prompt <prompt>')
+  .description('Test how a prompt would be enhanced')
+  .action(async (prompt: string) => {
+    const session = createDroidSession();
+
+    console.log(chalk.blue('Original prompt:'));
+    console.log(chalk.gray(prompt));
+
+    const keywords = session.detectKeywords(prompt);
+    if (keywords.length > 0) {
+      console.log(chalk.blue('\nDetected magic keywords:'));
+      console.log(chalk.yellow(keywords.join(', ')));
+    }
+
+    console.log(chalk.blue('\nEnhanced prompt:'));
+    console.log(chalk.green(session.processPrompt(prompt)));
+  });
+
+/**
+ * Update command - Check for and install updates
+ */
+program
+  .command('update')
+  .description('Check for and install updates')
+  .option('-c, --check', 'Only check for updates, do not install')
+  .option('-f, --force', 'Force reinstall even if up to date')
+  .option('-q, --quiet', 'Suppress output except for errors')
+  .action(async (options) => {
+    if (!options.quiet) {
+      console.log(chalk.blue('Oh-My-ClaudeCode Update\n'));
+    }
+
+    try {
+      // Show current version
+      const installed = getInstalledVersion();
+      if (!options.quiet) {
+        console.log(chalk.gray(`Current version: ${installed?.version ?? 'unknown'}`));
+        console.log(chalk.gray(`Install method: ${installed?.installMethod ?? 'unknown'}`));
+        console.log('');
+      }
+
+      // Check for updates
+      if (!options.quiet) {
+        console.log('Checking for updates...');
+      }
+
+      const checkResult = await checkForUpdates();
+
+      if (!checkResult.updateAvailable && !options.force) {
+        if (!options.quiet) {
+          console.log(chalk.green(`\n✓ You are running the latest version (${checkResult.currentVersion})`));
+        }
+        return;
+      }
+
+      if (!options.quiet) {
+        console.log(formatUpdateNotification(checkResult));
+      }
+
+      // If check-only mode, stop here
+      if (options.check) {
+        if (checkResult.updateAvailable) {
+          console.log(chalk.yellow('\nRun without --check to install the update.'));
+        }
+        return;
+      }
+
+      // Perform the update
+      if (!options.quiet) {
+        console.log(chalk.blue('\nStarting update...\n'));
+      }
+
+      const result = await performUpdate({ verbose: !options.quiet });
+
+      if (result.success) {
+        if (!options.quiet) {
+          console.log(chalk.green(`\n✓ ${result.message}`));
+          console.log(chalk.gray('\nPlease restart your Factory Droid session to use the new version.'));
+        }
+      } else {
+        console.error(chalk.red(`\n✗ ${result.message}`));
+        if (result.errors) {
+          result.errors.forEach(err => console.error(chalk.red(`  - ${err}`)));
+        }
+        process.exit(1);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(`Update failed: ${message}`));
+      process.exit(1);
+    }
   });
 
 /**
@@ -570,29 +657,46 @@ program
   .command('version')
   .description('Show detailed version information')
   .action(async () => {
-    console.log(chalk.blue.bold('\nOh-My-Droid Version Information\n'));
+    const installed = getInstalledVersion();
+
+    console.log(chalk.blue.bold('\nOh-My-ClaudeCode Version Information\n'));
     console.log(chalk.gray('━'.repeat(50)));
 
     console.log(`\n  Package version:   ${chalk.green(version)}`);
 
+    if (installed) {
+      console.log(`  Installed version: ${chalk.green(installed.version)}`);
+      console.log(`  Install method:    ${chalk.cyan(installed.installMethod)}`);
+      console.log(`  Installed at:      ${chalk.gray(installed.installedAt)}`);
+      if (installed.lastCheckAt) {
+        console.log(`  Last update check: ${chalk.gray(installed.lastCheckAt)}`);
+      }
+      if (installed.commitHash) {
+        console.log(`  Commit hash:       ${chalk.gray(installed.commitHash)}`);
+      }
+    } else {
+      console.log(chalk.yellow('  No installation metadata found'));
+      console.log(chalk.gray('  (Run the install script to create version metadata)'));
+    }
+
     console.log(chalk.gray('\n━'.repeat(50)));
-    console.log(chalk.gray('\nTo check for updates, run: omd update --check'));
+    console.log(chalk.gray('\nTo check for updates, run: oh-my-droid update --check'));
   });
 
 /**
- * Install command - Full installation to ~/.factory/
+ * Install command - Install agents and commands to ~/.factory/
  */
 program
   .command('install')
-  .description('Install oh-my-droid agents, hooks, and commands to Factory config (~/.factory/)')
+  .description('Install Droid agents and commands to Factory Droid config (~/.factory/)')
   .option('-f, --force', 'Overwrite existing files')
   .option('-q, --quiet', 'Suppress output except for errors')
-  .option('--skip-factory-check', 'Skip checking if Factory Droid is installed')
+  .option('--skip-claude-check', 'Skip checking if Factory Droid is installed')
   .action(async (options) => {
     if (!options.quiet) {
       console.log(chalk.blue('╔═══════════════════════════════════════════════════════════╗'));
-      console.log(chalk.blue('║              Oh-My-Droid Installer                        ║'));
-      console.log(chalk.blue('║   Multi-Agent Orchestration for Factory Droid            ║'));
+      console.log(chalk.blue('║         Oh-My-ClaudeCode Installer                        ║'));
+      console.log(chalk.blue('║   Multi-Agent Orchestration for Factory Droid               ║'));
       console.log(chalk.blue('╚═══════════════════════════════════════════════════════════╝'));
       console.log('');
     }
@@ -601,7 +705,7 @@ program
     if (isInstalled() && !options.force) {
       const info = getInstallInfo();
       if (!options.quiet) {
-        console.log(chalk.yellow('Oh-My-Droid is already installed.'));
+        console.log(chalk.yellow('Droid is already installed.'));
         if (info) {
           console.log(chalk.gray(`  Version: ${info.version}`));
           console.log(chalk.gray(`  Installed: ${info.installedAt}`));
@@ -612,59 +716,67 @@ program
     }
 
     // Run installation
-    const result = installOmd({
+    const result = installDroid({
       force: options.force,
       verbose: !options.quiet,
-      skipFactoryCheck: options.skipFactoryCheck
+      skipClaudeCheck: options.skipClaudeCheck
     });
 
     if (result.success) {
-      // Clean up legacy omd- prefixed commands from older versions
-      const legacyCleanup = cleanupLegacyCommands({ verbose: !options.quiet });
-      if (legacyCleanup.removed.length > 0 && !options.quiet) {
-        console.log(chalk.blue(`\nCleaned up ${legacyCleanup.removed.length} legacy commands`));
-      }
-
-      // Also install slash commands
-      if (!options.quiet) {
-        console.log(chalk.blue('\nInstalling slash commands...'));
-      }
-      const cmdResult = installSlashCommands({ force: options.force, verbose: !options.quiet });
-
       if (!options.quiet) {
         console.log('');
         console.log(chalk.green('╔═══════════════════════════════════════════════════════════╗'));
-        console.log(chalk.green('║              Installation Complete!                       ║'));
+        console.log(chalk.green('║         Installation Complete!                            ║'));
         console.log(chalk.green('╚═══════════════════════════════════════════════════════════╝'));
         console.log('');
-        console.log(chalk.gray(`Installed to: ${FACTORY_CONFIG_DIR}`));
-        console.log(chalk.gray(`Commands at:  ${FACTORY_COMMANDS_DIR}`));
+        console.log(chalk.gray(`Installed to: ~/.factory/`));
+        console.log('');
+        console.log(chalk.yellow('Usage:'));
+        console.log('  claude                        # Start Factory Droid normally');
         console.log('');
         console.log(chalk.yellow('Slash Commands:'));
-        console.log('  /omd-autopilot <task>         # Full autonomous execution');
-        console.log('  /omd-ultrawork <task>         # Maximum performance mode');
-        console.log('  /omd-ralph <task>             # Persistence until complete');
-        console.log('  /omd-deepsearch <query>       # Thorough codebase search');
-        console.log('  /omd-analyze <target>         # Deep analysis mode');
-        console.log('  /omd-plan <description>       # Start planning with Planner');
-        console.log('  /omd-setup                    # Configure oh-my-droid');
+        console.log('  /droid <task>              # Activate Droid orchestration mode');
+        console.log('  /droid-default             # Configure for current project');
+        console.log('  /droid-default-global      # Configure globally');
+        console.log('  /ultrawork <task>             # Maximum performance mode');
+        console.log('  /deepsearch <query>           # Thorough codebase search');
+        console.log('  /analyze <target>             # Deep analysis mode');
+        console.log('  /plan <description>           # Start planning with Planner');
+        console.log('  /review [plan-path]           # Review plan with Critic');
         console.log('');
         console.log(chalk.yellow('Available Agents (via Task tool):'));
         console.log(chalk.gray('  Base Agents:'));
-        console.log('    oh-my-droid:architect       - Architecture & debugging (Opus)');
-        console.log('    oh-my-droid:researcher      - Documentation & research (Sonnet)');
-        console.log('    oh-my-droid:explore         - Fast pattern matching (Haiku)');
-        console.log('    oh-my-droid:designer        - UI/UX specialist (Sonnet)');
-        console.log('    oh-my-droid:executor        - Focused execution (Sonnet)');
-        console.log('    oh-my-droid:planner         - Strategic planning (Opus)');
-        console.log(chalk.gray('  Tiered Variants:'));
-        console.log('    oh-my-droid:executor-high   - Complex tasks (Opus)');
-        console.log('    oh-my-droid:executor-low    - Trivial tasks (Haiku)');
+        console.log('    architect              - Architecture & debugging (Opus)');
+        console.log('    researcher           - Documentation & research (Sonnet)');
+        console.log('    explore             - Fast pattern matching (Haiku)');
+        console.log('    designer            - UI/UX specialist (Sonnet)');
+        console.log('    writer              - Technical writing (Haiku)');
+        console.log('    vision              - Visual analysis (Sonnet)');
+        console.log('    critic               - Plan review (Opus)');
+        console.log('    analyst               - Pre-planning analysis (Opus)');
+        console.log('    orchestrator-droid - Todo coordination (Opus)');
+        console.log('    executor            - Focused execution (Sonnet)');
+        console.log('    planner          - Strategic planning (Opus)');
+        console.log('    qa-tester           - Interactive CLI testing (Sonnet)');
+        console.log(chalk.gray('  Tiered Variants (for smart routing):'));
+        console.log('    architect-medium       - Simpler analysis (Sonnet)');
+        console.log('    architect-low          - Quick questions (Haiku)');
+        console.log('    executor-high       - Complex tasks (Opus)');
+        console.log('    executor-low        - Trivial tasks (Haiku)');
+        console.log('    researcher-low       - Quick lookups (Haiku)');
+        console.log('    explore-medium      - Thorough search (Sonnet)');
+        console.log('    designer-high       - Design systems (Opus)');
+        console.log('    designer-low        - Simple styling (Haiku)');
+        console.log('');
+        console.log(chalk.yellow('After Updates:'));
+        console.log('  Run \'/droid-default\' (project) or \'/droid-default-global\' (global)');
+        console.log('  to download the latest FACTORY.md configuration.');
+        console.log('  This ensures you get the newest features and agent behaviors.');
         console.log('');
         console.log(chalk.blue('Quick Start:'));
-        console.log('  1. Run Factory Droid in your project');
-        console.log('  2. Type \'/omd-setup\' to configure');
-        console.log('  3. Or use \'/omd-autopilot <task>\' for autonomous execution');
+        console.log('  1. Run \'claude\' to start Factory Droid');
+        console.log('  2. Type \'/droid-default\' for project or \'/droid-default-global\' for global');
+        console.log('  3. Or use \'/droid <task>\' for one-time activation');
       }
     } else {
       console.error(chalk.red(`Installation failed: ${result.message}`));
@@ -676,6 +788,63 @@ program
   });
 
 /**
+ * Wait command - Rate limit wait and auto-resume
+ *
+ * Zero learning curve design:
+ * - `omd wait` alone shows status and suggests next action
+ * - `omd wait --start` starts the daemon (shortcut)
+ * - `omd wait --stop` stops the daemon (shortcut)
+ * - Subcommands available for power users
+ */
+const waitCmd = program
+  .command('wait')
+  .description('Rate limit wait and auto-resume (just run "omd wait" to get started)')
+  .option('--json', 'Output as JSON')
+  .option('--start', 'Start the auto-resume daemon')
+  .option('--stop', 'Stop the auto-resume daemon')
+  .action(async (options) => {
+    await waitCommand(options);
+  });
+
+waitCmd
+  .command('status')
+  .description('Show detailed rate limit and daemon status')
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    await waitStatusCommand(options);
+  });
+
+waitCmd
+  .command('daemon <action>')
+  .description('Start or stop the auto-resume daemon')
+  .option('-v, --verbose', 'Enable verbose logging')
+  .option('-f, --foreground', 'Run in foreground (blocking)')
+  .option('-i, --interval <seconds>', 'Poll interval in seconds', '60')
+  .action(async (action: string, options) => {
+    if (action !== 'start' && action !== 'stop') {
+      console.error('Invalid action. Use: start or stop');
+      process.exit(1);
+    }
+    await waitDaemonCommand(action as 'start' | 'stop', {
+      verbose: options.verbose,
+      foreground: options.foreground,
+      interval: parseInt(options.interval),
+    });
+  });
+
+waitCmd
+  .command('detect')
+  .description('Scan for blocked Factory Droid sessions in tmux')
+  .option('--json', 'Output as JSON')
+  .option('-l, --lines <number>', 'Number of pane lines to analyze', '15')
+  .action(async (options) => {
+    await waitDetectCommand({
+      json: options.json,
+      lines: parseInt(options.lines),
+    });
+  });
+
+/**
  * Postinstall command - Silent install for npm postinstall hook
  */
 program
@@ -683,202 +852,21 @@ program
   .description('Run post-install setup (called automatically by npm)')
   .action(async () => {
     // Silent install - only show errors
-    const result = installOmd({
+    const result = installDroid({
       force: false,
       verbose: false,
-      skipFactoryCheck: true
+      skipClaudeCheck: true
     });
 
     if (result.success) {
-      console.log(chalk.green('✓ Oh-My-Droid installed successfully!'));
+      console.log(chalk.green('✓ Oh-My-ClaudeCode installed successfully!'));
       console.log(chalk.gray('  Run "oh-my-droid info" to see available agents.'));
-      console.log(chalk.gray('  Run "oh-my-droid install-commands" to add slash commands.'));
+      console.log(chalk.yellow('  Run "/droid-default" (project) or "/droid-default-global" (global) in Factory Droid.'));
     } else {
       // Don't fail the npm install, just warn
-      console.warn(chalk.yellow('⚠ Could not complete setup:'), result.message);
+      console.warn(chalk.yellow('⚠ Could not complete Droid setup:'), result.message);
       console.warn(chalk.gray('  Run "oh-my-droid install" manually to complete setup.'));
     }
-  });
-
-/**
- * Install Commands - Install oh-my-droid skills as Factory slash commands
- */
-program
-  .command('install-commands')
-  .description('Install oh-my-droid skills as Factory Droid slash commands')
-  .option('-f, --force', 'Overwrite existing commands')
-  .option('-v, --verbose', 'Show detailed progress')
-  .action(async (options) => {
-    console.log(chalk.blue('\nInstalling oh-my-droid slash commands...\n'));
-    console.log(chalk.gray(`Target: ${FACTORY_COMMANDS_DIR}\n`));
-
-    const result = installSlashCommands({
-      force: options.force,
-      verbose: true
-    });
-
-    if (result.success) {
-      console.log(chalk.green(`\n✓ Successfully installed ${result.installed.length} commands`));
-      if (result.skipped.length > 0) {
-        console.log(chalk.yellow(`  Skipped ${result.skipped.length} existing commands (use --force to overwrite)`));
-      }
-      console.log(chalk.gray(`\nCommands are available as /omd-<skill-name>`));
-      console.log(chalk.gray('Example: /omd-autopilot, /omd-ultrawork, /omd-ralph, /omd-setup'));
-    } else {
-      console.log(chalk.red(`\n✗ Installation failed with ${result.errors.length} errors`));
-      result.errors.forEach(err => console.log(chalk.red(`  - ${err}`)));
-      process.exit(1);
-    }
-  });
-
-/**
- * List Commands - List installed oh-my-droid slash commands
- */
-program
-  .command('list-commands')
-  .description('List installed oh-my-droid slash commands')
-  .action(async () => {
-    const commands = listInstalledCommands();
-
-    if (commands.length === 0) {
-      console.log(chalk.yellow('No oh-my-droid commands installed.'));
-      console.log(chalk.gray('Run `omd install-commands` to install them.'));
-      return;
-    }
-
-    console.log(chalk.blue(`\nInstalled oh-my-droid commands (${commands.length}):\n`));
-    commands.forEach(cmd => {
-      console.log(`  /${cmd}`);
-    });
-    console.log(chalk.gray(`\nLocation: ${FACTORY_COMMANDS_DIR}`));
-  });
-
-/**
- * Uninstall Commands - Remove oh-my-droid slash commands
- */
-program
-  .command('uninstall-commands')
-  .description('Remove oh-my-droid slash commands from Factory')
-  .option('-v, --verbose', 'Show detailed progress')
-  .action(async (options) => {
-    console.log(chalk.blue('\nRemoving oh-my-droid slash commands...\n'));
-
-    const result = uninstallSlashCommands({
-      verbose: options.verbose
-    });
-
-    if (result.removed.length > 0) {
-      console.log(chalk.green(`\n✓ Removed ${result.removed.length} commands`));
-    } else {
-      console.log(chalk.yellow('No commands to remove.'));
-    }
-
-    if (result.errors.length > 0) {
-      console.log(chalk.red(`\n✗ ${result.errors.length} errors occurred`));
-      result.errors.forEach(err => console.log(chalk.red(`  - ${err}`)));
-    }
-  });
-
-/**
- * Cleanup Legacy Commands - Remove legacy omd/ subfolder
- */
-program
-  .command('cleanup-legacy')
-  .description('Remove legacy omd/ subfolder from ~/.factory/commands/')
-  .option('-v, --verbose', 'Show detailed progress')
-  .action(async (options) => {
-    console.log(chalk.blue('\nCleaning up legacy omd/ subfolder...\n'));
-
-    const result = cleanupLegacyCommands({
-      verbose: options.verbose
-    });
-
-    if (result.removed.length > 0) {
-      console.log(chalk.green(`\n✓ Removed ${result.removed.length} legacy files`));
-    } else {
-      console.log(chalk.yellow('No legacy files to remove.'));
-    }
-
-    if (result.errors.length > 0) {
-      console.log(chalk.red(`\n✗ ${result.errors.length} errors occurred`));
-      result.errors.forEach(err => console.log(chalk.red(`  - ${err}`)));
-    }
-  });
-
-/**
- * Uninstall - Remove all oh-my-droid components
- */
-program
-  .command('uninstall')
-  .description('Remove all oh-my-droid components (commands, state, configuration)')
-  .option('-v, --verbose', 'Show detailed progress')
-  .action(async (options) => {
-    console.log(chalk.blue('\nUninstalling oh-my-droid...\n'));
-
-    const result = uninstallOmd({
-      verbose: options.verbose
-    });
-
-    if (result.success) {
-      console.log(chalk.green('\n✓ Successfully uninstalled oh-my-droid'));
-      console.log(`  Commands removed: ${result.removedCommands.length}`);
-      console.log(`  State directory removed: ${result.removedState ? 'Yes' : 'No'}`);
-    } else {
-      console.log(chalk.yellow('\n⚠ Uninstall completed with errors'));
-      result.errors.forEach(err => console.log(chalk.red(`  - ${err}`)));
-    }
-  });
-
-/**
- * Clean Install - Uninstall and reinstall fresh
- */
-program
-  .command('clean-install')
-  .description('Clean install: remove everything and reinstall fresh')
-  .option('-v, --verbose', 'Show detailed progress')
-  .action(async (options) => {
-    console.log(chalk.blue('\n🧹 Starting clean install of oh-my-droid...\n'));
-
-    const result = cleanInstallOmd({
-      verbose: options.verbose,
-      force: true
-    });
-
-    // Summary
-    console.log(chalk.blue('\n=== Clean Install Summary ===\n'));
-
-    // Uninstall results
-    if (result.uninstallResult.success) {
-      console.log(chalk.green('✓ Uninstall: Success'));
-      console.log(`  Removed ${result.uninstallResult.removedCommands.length} commands`);
-    } else {
-      console.log(chalk.yellow('⚠ Uninstall: Completed with errors'));
-    }
-
-    // Install results
-    if (result.installResult.success) {
-      console.log(chalk.green('✓ Install: Success'));
-      console.log(`  Droids: ${result.installResult.installedDroids.length}`);
-      console.log(`  Skills: ${result.installResult.installedSkills.length}`);
-      console.log(`  Hooks: ${result.installResult.hooksConfigured ? 'Configured' : 'Skipped'}`);
-    } else {
-      console.log(chalk.red('✗ Install: Failed'));
-      result.installResult.errors.forEach(err => console.log(chalk.red(`  - ${err}`)));
-    }
-
-    // Commands results
-    if (result.commandsResult.errors.length === 0) {
-      console.log(chalk.green('✓ Slash Commands: Success'));
-      console.log(`  Installed: ${result.commandsResult.installed}`);
-    } else {
-      console.log(chalk.yellow('⚠ Slash Commands: Completed with errors'));
-      result.commandsResult.errors.forEach(err => console.log(chalk.red(`  - ${err}`)));
-    }
-
-    console.log(chalk.blue('\n---'));
-    console.log('Commands are available as /omd-<skill-name>');
-    console.log('Example: /omd-setup, /omd-autopilot, /omd-ultrawork');
-    console.log(chalk.gray('\nRestart Factory Droid to see the changes.'));
   });
 
 // Parse arguments

@@ -4,7 +4,7 @@
  * Wrapper tool to resume a previous background agent session.
  * Returns context for the orchestrator to include in the next Task delegation.
  *
- * Since Claude Code's native Task tool cannot be extended, this tool provides
+ * Since Factory Droid's native Task tool cannot be extended, this tool provides
  * a convenient way to retrieve session context and build continuation prompts.
  */
 

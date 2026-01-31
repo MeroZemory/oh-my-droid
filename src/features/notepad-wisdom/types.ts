@@ -2,8 +2,6 @@
  * Notepad Wisdom Types
  *
  * Types for plan-scoped notepad wisdom system.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 export interface WisdomEntry {

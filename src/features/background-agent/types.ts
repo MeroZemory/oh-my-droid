@@ -2,7 +2,8 @@
  * Background Agent Types
  *
  * Type definitions for background task management.
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ *
+ * Adapted from oh-my-opencode's background-agent feature.
  */
 
 /**

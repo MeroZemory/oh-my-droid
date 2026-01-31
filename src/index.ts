@@ -1,8 +1,8 @@
 /**
- * Oh-My-Droid
+ * Oh-My-Claude-Droid
  *
- * A multi-agent orchestration system for the Android Factory SDK.
- * Inspired by oh-my-claudecode, adapted for Android Factory.
+ * A multi-agent orchestration system for the Claude Agent SDK.
+ * Inspired by oh-my-opencode, reimagined for Factory Droid.
  *
  * Main features:
  * - Droid: Primary orchestrator that delegates to specialized subagents
@@ -16,6 +16,7 @@
 import { loadConfig, findContextFiles, loadContextFromFiles } from './config/loader.js';
 import { getAgentDefinitions, omdSystemPrompt } from './agents/definitions.js';
 import { getDefaultMcpServers, toSdkMcpFormat } from './mcp/servers.js';
+import { omdToolsServer, getOmdToolNames } from './mcp/omd-tools-server.js';
 import { createMagicKeywordProcessor, detectMagicKeywords } from './features/magic-keywords.js';
 import { continuationSystemPromptAddition } from './features/continuation-enforcement.js';
 import {
@@ -29,6 +30,7 @@ import type { PluginConfig, SessionState } from './shared/types.js';
 export { loadConfig, getAgentDefinitions, omdSystemPrompt };
 export { getDefaultMcpServers, toSdkMcpFormat } from './mcp/servers.js';
 export { lspTools, astTools, allCustomTools } from './tools/index.js';
+export { omdToolsServer, omdToolNames, getOmdToolNames } from './mcp/omd-tools-server.js';
 export { createMagicKeywordProcessor, detectMagicKeywords } from './features/magic-keywords.js';
 export {
   createBackgroundTaskManager,
@@ -67,7 +69,7 @@ export * from './shared/types.js';
 // Hooks module exports
 export * from './hooks/index.js';
 
-// Features module exports (boulder-state, context-injector, etc.)
+// Features module exports (boulder-state, context-injector)
 export {
   // Boulder State
   type BoulderState,
@@ -106,159 +108,7 @@ export {
   type MessageContext,
   type OutputPart,
   type InjectionStrategy,
-  type InjectionResult,
-  // Background Agent
-  BackgroundManager,
-  ConcurrencyManager,
-  getBackgroundManager,
-  resetBackgroundManager,
-  type BackgroundTask,
-  type BackgroundTaskStatus,
-  type BackgroundTaskConfig,
-  type LaunchInput,
-  type ResumeInput,
-  type TaskProgress,
-  // Builtin Skills
-  createBuiltinSkills,
-  getBuiltinSkill,
-  listBuiltinSkillNames,
-  type BuiltinSkill,
-  type SkillMcpConfig,
-  type SkillRegistry,
-  // Model Routing
-  routeTask,
-  routeWithEscalation,
-  routeAndAdaptTask,
-  escalateModel,
-  canEscalate,
-  explainRouting,
-  quickTierForAgent,
-  extractLexicalSignals,
-  extractStructuralSignals,
-  extractContextSignals,
-  extractAllSignals,
-  calculateComplexityScore,
-  calculateComplexityTier,
-  scoreToTier,
-  getScoreBreakdown,
-  calculateConfidence,
-  evaluateRules,
-  getMatchingRules,
-  createRule,
-  mergeRules,
-  DEFAULT_ROUTING_RULES,
-  adaptPromptForTier,
-  getPromptStrategy,
-  getPromptPrefix,
-  getPromptSuffix,
-  createDelegationPrompt,
-  getTaskInstructions,
-  TIER_MODELS,
-  TIER_TO_MODEL_TYPE,
-  DEFAULT_ROUTING_CONFIG,
-  AGENT_CATEGORY_TIERS,
-  COMPLEXITY_KEYWORDS,
-  TIER_PROMPT_STRATEGIES,
-  TIER_TASK_INSTRUCTIONS,
-  type ComplexityTier,
-  type ComplexitySignals,
-  type LexicalSignals,
-  type StructuralSignals,
-  type ContextSignals,
-  type RoutingDecision,
-  type RoutingContext,
-  type RoutingConfig,
-  type RoutingRule,
-  type PromptAdaptationStrategy,
-  // Notepad Wisdom
-  initPlanNotepad,
-  readPlanWisdom,
-  addLearning,
-  addDecision,
-  addIssue,
-  addProblem,
-  getWisdomSummary,
-  type WisdomEntry,
-  type WisdomCategory,
-  type PlanWisdom,
-  // Delegation Categories
-  resolveCategory,
-  isValidCategory,
-  getAllCategories,
-  getCategoryDescription,
-  getCategoryTier,
-  getCategoryTemperature,
-  getCategoryThinkingBudget,
-  getCategoryThinkingBudgetTokens,
-  getCategoryForTask,
-  detectCategoryFromPrompt,
-  enhancePromptWithCategory,
-  CATEGORY_CONFIGS,
-  THINKING_BUDGET_TOKENS,
-  type DelegationCategory,
-  type CategoryConfig,
-  type ResolvedCategory,
-  type CategoryContext,
-  type ThinkingBudget,
-  // State Manager (from features)
-  StateManager,
-  createStateManager,
-  getStatePath,
-  getLegacyPaths,
-  ensureStateDir,
-  readState,
-  writeState,
-  clearState,
-  migrateState,
-  listStates,
-  cleanupOrphanedStates,
-  StateLocation,
-  isStateLocation,
-  DEFAULT_STATE_CONFIG,
-  type StateConfig,
-  type StateReadResult,
-  type StateWriteResult,
-  type StateClearResult,
-  type StateMigrationResult,
-  type StateFileInfo,
-  type ListStatesOptions,
-  type CleanupOptions,
-  type CleanupResult,
-  type StateData,
-  // Verification
-  createProtocol,
-  createChecklist,
-  runVerification,
-  checkEvidence,
-  formatReport,
-  validateChecklist,
-  STANDARD_CHECKS,
-  type VerificationProtocol,
-  type VerificationCheck,
-  type VerificationChecklist,
-  type VerificationEvidence,
-  type VerificationEvidenceType,
-  type VerificationSummary,
-  type ValidationResult,
-  type VerificationOptions,
-  type ReportOptions,
-  // Task Decomposer
-  decomposeTask,
-  analyzeTask,
-  identifyComponents,
-  generateSubtasks,
-  assignFileOwnership,
-  identifySharedFiles,
-  type TaskAnalysis,
-  type Component,
-  type Subtask,
-  type SharedFile,
-  type DecompositionResult,
-  type ProjectContext,
-  type TaskType,
-  type ComponentRole,
-  type FileOwnership,
-  type DecompositionStrategy
+  type InjectionResult
 } from './features/index.js';
 
 // Agent module exports (modular agent system)
@@ -288,6 +138,7 @@ export {
   buildKeyTriggersSection,
   validateAgentConfig,
   deepMerge,
+  loadAgentPrompt,
   // Individual agents with metadata (rebranded intuitive names)
   architectAgent,
   ARCHITECT_PROMPT_METADATA,
@@ -307,10 +158,11 @@ export {
   CRITIC_PROMPT_METADATA,
   analystAgent,
   ANALYST_PROMPT_METADATA,
-  coordinatorAgent,
-  ORCHESTRATOR_SISYPHUS_PROMPT_METADATA,
   plannerAgent,
-  PLANNER_PROMPT_METADATA
+  PLANNER_PROMPT_METADATA,
+  // Deprecated (backward compat - will be removed in v4.0.0)
+  coordinatorAgent,
+  ORCHESTRATOR_SISYPHUS_PROMPT_METADATA
 } from './agents/index.js';
 
 // Command expansion utilities for SDK integration
@@ -341,91 +193,6 @@ export {
   type InstallOptions
 } from './installer/index.js';
 
-// Analytics module exports
-export * from './analytics/index.js';
-
-// Config module exports (enhanced with JSONC support, context discovery, schema generation)
-export {
-  // Core config functions
-  loadJsoncFile,
-  loadEnvConfig,
-  getConfigPaths,
-  deepMerge as configDeepMerge,
-  getConfigValue,
-  isFeatureEnabled,
-  getAgentConfig,
-  getAgentModel,
-  isAgentEnabled,
-  DEFAULT_CONFIG,
-  // Context file discovery
-  findContextFiles,
-  loadContextFromFiles,
-  // Schema generation
-  generateConfigSchema
-} from './config/index.js';
-
-// CLI module - primarily a binary, entry point at cli/index.ts
-// HUD module - primarily a binary, entry point at hud/index.ts
-// Both are executed directly rather than imported programmatically
-
-// Platform detection utilities
-export {
-  PLATFORM,
-  isWindows,
-  isMacOS,
-  isLinux,
-  isUnix,
-  isPathRoot
-} from './platform/index.js';
-
-// Library utilities
-export * from './lib/index.js';
-
-// Utilities
-export {
-  getLocalStatePath,
-  getGlobalStatePath,
-  getLocalConfigPath,
-  getGlobalConfigPath,
-  ensureDir,
-  ensureLocalStateDir,
-  ensureGlobalStateDir,
-  ensureLocalConfigDir,
-  ensureGlobalConfigDir,
-  resolveProjectPath,
-  resolveHomePath,
-  pathExists,
-  getFileStats
-} from './utils/paths.js';
-
-export {
-  type JsonParseResult,
-  safeJsonParse,
-  safeJsonStringify,
-  parseJsonOrDefault,
-  deepCloneJson,
-  isValidJson,
-  prettyJson,
-  compactJson
-} from './utils/json.js';
-
-// MCP Server Configurations
-export {
-  type McpServerConfig,
-  type McpServersConfig,
-  createExaServer,
-  createContext7Server,
-  createPlaywrightServer,
-  createFilesystemServer,
-  createMemoryServer
-} from './mcp/index.js';
-
-// Legacy exports (deprecated - use new modules instead)
-export {
-  type ConfigPaths,
-  loadJsonFile
-} from './config-loader.js';
-
 /**
  * Options for creating a Droid session
  */
@@ -448,7 +215,7 @@ export interface DroidOptions {
  * Result of creating a Droid session
  */
 export interface DroidSession {
-  /** The query options to pass to Android Factory SDK */
+  /** The query options to pass to Claude Agent SDK */
   queryOptions: {
     options: {
       systemPrompt: string;
@@ -476,16 +243,16 @@ export interface DroidSession {
  * Create a Droid orchestration session
  *
  * This prepares all the configuration and options needed
- * to run a query with the Android Factory SDK.
+ * to run a query with the Claude Agent SDK.
  *
  * @example
  * ```typescript
- * import { createDroidSession } from 'oh-my-droid';
- * import { query } from '@anthropic-ai/factory-sdk';
+ * import { createOmcSession } from 'oh-my-droid';
+ * import { query } from '@anthropic-ai/claude-agent-sdk';
  *
  * const session = createDroidSession();
  *
- * // Use with Android Factory SDK
+ * // Use with Claude Agent SDK
  * for await (const message of query({
  *   prompt: session.processPrompt("ultrawork refactor the authentication module"),
  *   ...session.queryOptions
@@ -533,7 +300,7 @@ export function createDroidSession(options?: DroidOptions): DroidSession {
   const agents = getAgentDefinitions();
 
   // Build MCP servers configuration
-  const mcpServers = getDefaultMcpServers({
+  const externalMcpServers = getDefaultMcpServers({
     exaApiKey: config.mcpServers?.exa?.apiKey,
     enableExa: config.mcpServers?.exa?.enabled,
     enableContext7: config.mcpServers?.context7?.enabled
@@ -557,9 +324,17 @@ export function createDroidSession(options?: DroidOptions): DroidSession {
   }
 
   // Add MCP tool names
-  for (const serverName of Object.keys(mcpServers)) {
+  for (const serverName of Object.keys(externalMcpServers)) {
     allowedTools.push(`mcp__${serverName}__*`);
   }
+
+  // Add OMC custom tools in MCP format (LSP, AST, python_repl)
+  const omdTools = getOmdToolNames({
+    includeLsp: config.features?.lspTools !== false,
+    includeAst: config.features?.astTools !== false,
+    includePython: true
+  });
+  allowedTools.push(...omdTools);
 
   // Create magic keyword processor
   const processPrompt = createMagicKeywordProcessor(config.magicKeywords);
@@ -579,7 +354,10 @@ export function createDroidSession(options?: DroidOptions): DroidSession {
       options: {
         systemPrompt,
         agents,
-        mcpServers: toSdkMcpFormat(mcpServers),
+        mcpServers: {
+          ...toSdkMcpFormat(externalMcpServers),
+          'omd-tools': omdToolsServer as any
+        },
         allowedTools,
         permissionMode: 'acceptEdits'
       }
@@ -608,7 +386,7 @@ export function enhancePrompt(prompt: string, config?: PluginConfig): string {
 /**
  * Get the system prompt for the orchestrator (for direct use)
  */
-export function getOmdSystemPrompt(options?: {
+export function getOmcSystemPrompt(options?: {
   includeContinuation?: boolean;
   customAddition?: string;
 }): string {
@@ -623,13 +401,4 @@ export function getOmdSystemPrompt(options?: {
   }
 
   return prompt;
-}
-
-// Plugin initialization functions
-export function initialize() {
-  console.log('Oh My Droid plugin initialized');
-}
-
-export function shutdown() {
-  console.log('Oh My Droid plugin shutting down');
 }

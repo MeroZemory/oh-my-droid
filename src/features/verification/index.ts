@@ -3,8 +3,6 @@
  *
  * Reusable verification protocol logic extracted from ralph, ultrawork, and autopilot.
  * Provides a single source of truth for verification requirements and execution.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import { exec } from 'child_process';
@@ -400,7 +398,7 @@ export function formatReport(
   }
 
   for (const check of checklist.checks) {
-    const status = check.evidence?.passed ? 'v' : check.completed ? 'x' : 'o';
+    const status = check.evidence?.passed ? '✓' : check.completed ? '✗' : '○';
     const required = check.required ? '(required)' : '(optional)';
 
     if (format === 'markdown') {

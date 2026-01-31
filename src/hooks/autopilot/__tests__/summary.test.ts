@@ -3,19 +3,22 @@ import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
-  detectCompletion,
-  validateCanContinue,
-  needsVerification,
-  createResult
+  generateSummary,
+  formatSummary,
+  formatCompactSummary,
+  formatFailureSummary,
+  formatFileList
 } from '../validation.js';
 import {
-  readAutopilotState,
-  writeAutopilotState,
-  updatePhase
+  initAutopilot,
+  updateExecution,
+  updateQA,
+  transitionPhase,
+  readAutopilotState
 } from '../state.js';
 import type { AutopilotState } from '../types.js';
 
-describe.skip('AutopilotSummary', () => {
+describe('AutopilotSummary', () => {
   let testDir: string;
 
   beforeEach(() => {
@@ -185,6 +188,9 @@ describe.skip('AutopilotSummary', () => {
   describe('formatCompactSummary', () => {
     it('should return correct format for expansion phase', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       const compact = formatCompactSummary(state);
 
       expect(compact).toBe('[AUTOPILOT] Phase 1/5: EXPANSION | 0 files');
@@ -192,9 +198,14 @@ describe.skip('AutopilotSummary', () => {
 
     it('should return correct format for planning phase', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       transitionPhase(testDir, 'planning');
-      const updatedState = initAutopilot(testDir, 'Test');
-      updatedState.phase = 'planning';
+      const updatedState = readAutopilotState(testDir);
+      if (!updatedState) {
+        throw new Error('Failed to read autopilot state');
+      }
 
       const compact = formatCompactSummary(updatedState);
 
@@ -203,6 +214,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should return correct format for execution phase', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.phase = 'execution';
       updateExecution(testDir, {
         files_created: ['a.ts', 'b.ts'],
@@ -218,6 +232,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should return correct format for qa phase', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.phase = 'qa';
 
       const compact = formatCompactSummary(state);
@@ -227,6 +244,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should return correct format for validation phase', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.phase = 'validation';
 
       const compact = formatCompactSummary(state);
@@ -236,6 +256,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should show checkmark for complete phase', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       updateExecution(testDir, {
         files_created: ['a.ts'],
         files_modified: ['b.ts']
@@ -254,6 +277,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should show X for failed phase', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.phase = 'failed';
 
       const compact = formatCompactSummary(state);
@@ -265,6 +291,9 @@ describe.skip('AutopilotSummary', () => {
   describe('formatFailureSummary', () => {
     it('should include phase and no error', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.phase = 'execution';
 
       const formatted = formatFailureSummary(state);
@@ -278,6 +307,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should include error message', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.phase = 'qa';
 
       const formatted = formatFailureSummary(state, 'Build failed with exit code 1');
@@ -290,6 +322,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should handle long error messages by wrapping', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       state.phase = 'validation';
 
       const longError = 'This is a very long error message that exceeds the box width and should be wrapped across multiple lines to fit properly';
@@ -305,6 +340,9 @@ describe.skip('AutopilotSummary', () => {
 
     it('should limit error to 3 lines', () => {
       const state = initAutopilot(testDir, 'Test');
+      if (!state) {
+        throw new Error('Failed to initialize autopilot');
+      }
       const longError = 'a'.repeat(200); // Very long error
 
       const formatted = formatFailureSummary(state, longError);

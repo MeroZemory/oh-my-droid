@@ -3,8 +3,6 @@
  *
  * Calculates complexity tier based on extracted signals.
  * Uses weighted scoring to determine LOW/MEDIUM/HIGH tier.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import type {

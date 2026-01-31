@@ -7,12 +7,16 @@ import {
   writeAutopilotState,
   clearAutopilotState,
   isAutopilotActive,
-  updatePhase,
-  incrementIteration
+  initAutopilot,
+  transitionPhase,
+  updateExpansion,
+  updatePlanning,
+  updateExecution,
+  updateQA,
+  updateValidation
 } from '../state.js';
-import type { AutopilotState } from '../types.js';
 
-describe.skip('AutopilotState', () => {
+describe('AutopilotState', () => {
   let testDir: string;
 
   beforeEach(() => {
@@ -40,10 +44,11 @@ describe.skip('AutopilotState', () => {
   describe('initAutopilot', () => {
     it('should create new state with correct defaults', () => {
       const state = initAutopilot(testDir, 'build a cli tool');
-      expect(state.active).toBe(true);
-      expect(state.phase).toBe('expansion');
-      expect(state.originalIdea).toBe('build a cli tool');
-      expect(state.expansion.analyst_complete).toBe(false);
+      expect(state).not.toBeNull();
+      expect(state!.active).toBe(true);
+      expect(state!.phase).toBe('expansion');
+      expect(state!.originalIdea).toBe('build a cli tool');
+      expect(state!.expansion.analyst_complete).toBe(false);
     });
   });
 

@@ -26,7 +26,7 @@ import { join } from 'path';
  * Get summary file path for session ID.
  */
 export function getSummaryPath(sessionId: string): string {
-  return join(homedir(), '.factory', 'omd', 'state', `analytics-summary-${sessionId}.json`);
+  return join(homedir(), '.omd', 'state', `analytics-summary-${sessionId}.json`);
 }
 
 /**
@@ -163,7 +163,7 @@ async function rebuildSummaryIncremental(
   summary.cacheHitRate = calculateCacheHitRate(summary.totals);
 
   // Save updated summary
-  const summaryDir = join(homedir(), '.factory', 'omd', 'state');
+  const summaryDir = join(homedir(), '.omd', 'state');
   await fs.mkdir(summaryDir, { recursive: true });
   await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2));
 
@@ -177,12 +177,12 @@ async function rebuildSummaryIncremental(
  *
  * Strategy:
  * 1. Check if summary file exists and is fresh (mtime >= log mtime)
- * 2. If fresh -> return cached summary
- * 3. If stale -> rebuild incrementally from lastLogOffset
+ * 2. If fresh → return cached summary
+ * 3. If stale → rebuild incrementally from lastLogOffset
  */
 export async function loadAnalyticsFast(sessionId: string): Promise<AnalyticsSummary | null> {
   const summaryPath = getSummaryPath(sessionId);
-  const logPath = join(homedir(), '.factory', 'omd', 'state', 'token-tracking.jsonl');
+  const logPath = join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
 
   try {
     // Check if summary exists and is fresh
@@ -208,7 +208,7 @@ export async function loadAnalyticsFast(sessionId: string): Promise<AnalyticsSum
  */
 export async function rebuildAnalyticsSummary(sessionId: string): Promise<AnalyticsSummary> {
   const summaryPath = getSummaryPath(sessionId);
-  const logPath = join(homedir(), '.factory', 'omd', 'state', 'token-tracking.jsonl');
+  const logPath = join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
 
   // Delete existing summary to force full rebuild
   try {

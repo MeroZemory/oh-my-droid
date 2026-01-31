@@ -71,9 +71,33 @@ export class QueryEngine {
     }
   }
 
+  // UNUSED: Kept for reference, but tokscale path no longer mixes local JSONL
+  // private async convertParsedToEntries(parsed: any[], range: TimeRange): Promise<any[]> {
+  //   const tokenLogPath = path.join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
+  //   const entries: any[] = [];
+  //
+  //   try {
+  //     const content = await fs.readFile(tokenLogPath, 'utf-8');
+  //     const lines = content.trim().split('\n').filter(l => l.length > 0);
+  //
+  //     for (const line of lines) {
+  //       const record = JSON.parse(line);
+  //
+  //       // Filter by time range
+  //       if (record.timestamp >= range.start && record.timestamp <= range.end) {
+  //         entries.push(record);
+  //       }
+  //     }
+  //   } catch (error) {
+  //     // Return empty if error
+  //   }
+  //
+  //   return entries;
+  // }
+
   private async getCostReportLegacy(period: 'daily' | 'weekly' | 'monthly'): Promise<CostReport> {
     const range = this.calculateTimeRange(period);
-    const tokenLogPath = path.join(homedir(), '.factory', 'omd', 'state', 'token-tracking.jsonl');
+    const tokenLogPath = path.join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
 
     try {
       const content = await fs.readFile(tokenLogPath, 'utf-8');
@@ -139,7 +163,7 @@ export class QueryEngine {
 
   // Hybrid data merging: Read agent attribution from local JSONL
   private async getAgentCostFromLocalLog(range: TimeRange): Promise<Record<string, number>> {
-    const tokenLogPath = path.join(homedir(), '.factory', 'omd', 'state', 'token-tracking.jsonl');
+    const tokenLogPath = path.join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
     const byAgent: Record<string, number> = {};
 
     try {
@@ -174,7 +198,7 @@ export class QueryEngine {
   }
 
   async getUsagePatterns(): Promise<UsagePattern> {
-    const tokenLogPath = path.join(homedir(), '.factory', 'omd', 'state', 'token-tracking.jsonl');
+    const tokenLogPath = path.join(homedir(), '.omd', 'state', 'token-tracking.jsonl');
     const manager = getSessionManager();
     const history = await manager.getHistory();
 

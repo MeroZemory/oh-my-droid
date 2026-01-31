@@ -4,7 +4,7 @@
  * Parses YAML frontmatter from rule files.
  * Supports multiple formats for compatibility.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's rules-injector hook.
  */
 
 import type { RuleMetadata, RuleFrontmatterResult } from './types.js';
@@ -16,7 +16,7 @@ import type { RuleMetadata, RuleFrontmatterResult } from './types.js';
  * - Inline array: globs: ["**\/*.py", "src/**\/*.ts"]
  * - Multi-line array with dashes
  * - Comma-separated: globs: "**\/*.py, src/**\/*.ts"
- * - Android Factory 'paths' field (alias for globs)
+ * - Factory Droid 'paths' field (alias for globs)
  */
 export function parseRuleFrontmatter(content: string): RuleFrontmatterResult {
   const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
@@ -63,7 +63,7 @@ function parseYamlContent(yamlContent: string): RuleMetadata {
       metadata.alwaysApply = rawValue === 'true';
     } else if (key === 'globs' || key === 'paths' || key === 'applyTo') {
       const { value, consumed } = parseArrayOrStringValue(rawValue, lines, i);
-      // Merge paths into globs (Android Factory compatibility)
+      // Merge paths into globs (Factory Droid compatibility)
       metadata.globs = mergeGlobs(metadata.globs, value);
       i += consumed;
       continue;

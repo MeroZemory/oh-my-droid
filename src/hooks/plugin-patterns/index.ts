@@ -1,19 +1,36 @@
 /**
  * Popular Plugin Patterns
  *
- * Common hook patterns from the Claude Code community:
+ * Common hook patterns from the Factory Droid community:
  * - Auto-format on file save
  * - Lint validation before commit
  * - Commit message validation
  * - Test runner before commit
  * - Type checking enforcement
- *
- * Adapted from oh-my-claudecode.
  */
 
 import { existsSync, readFileSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, normalize, isAbsolute } from 'path';
 import { execSync } from 'child_process';
+
+// =============================================================================
+// SECURITY UTILITIES
+// =============================================================================
+
+/**
+ * Validate file path for security
+ * Blocks shell metacharacters and path traversal attempts
+ */
+export function isValidFilePath(filePath: string): boolean {
+  // Block shell metacharacters (sync with DANGEROUS_SHELL_CHARS but add \t)
+  if (/[;&|`$()<>{}[\]*?~!#\n\r\t\0\\]/.test(filePath)) return false;
+
+  // Block path traversal
+  const normalized = normalize(filePath);
+  if (normalized.includes('..') || isAbsolute(normalized)) return false;
+
+  return true;
+}
 
 // =============================================================================
 // AUTO-FORMAT PATTERN
@@ -67,6 +84,11 @@ export function isFormatterAvailable(command: string): boolean {
  * Format a file using the appropriate formatter
  */
 export function formatFile(filePath: string): { success: boolean; message: string } {
+  // Validate file path for security
+  if (!isValidFilePath(filePath)) {
+    return { success: false, message: 'Invalid file path: contains unsafe characters or path traversal' };
+  }
+
   const ext = extname(filePath);
   const formatter = getFormatter(ext);
 
@@ -120,6 +142,11 @@ export function getLinter(ext: string): string | null {
  * Run linter on a file
  */
 export function lintFile(filePath: string): { success: boolean; message: string } {
+  // Validate file path for security
+  if (!isValidFilePath(filePath)) {
+    return { success: false, message: 'Invalid file path: contains unsafe characters or path traversal' };
+  }
+
   const ext = extname(filePath);
   const linter = getLinter(ext);
 

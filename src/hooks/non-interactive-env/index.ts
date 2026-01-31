@@ -1,109 +1,81 @@
+import type { ShellHook } from "./types.js"
+import { HOOK_NAME, NON_INTERACTIVE_ENV, SHELL_COMMAND_PATTERNS } from "./constants.js"
+
+export * from "./constants.js"
+export * from "./detector.js"
+export * from "./types.js"
+
+const BANNED_COMMAND_PATTERNS = SHELL_COMMAND_PATTERNS.banned
+  .filter((cmd: string) => !cmd.includes("("))
+  .map((cmd: string) => new RegExp(`\\b${cmd}\\b`))
+
+function detectBannedCommand(command: string): string | undefined {
+  for (let i = 0; i < BANNED_COMMAND_PATTERNS.length; i++) {
+    if (BANNED_COMMAND_PATTERNS[i].test(command)) {
+      return SHELL_COMMAND_PATTERNS.banned[i]
+    }
+  }
+  return undefined
+}
+
 /**
- * Non-Interactive Environment Hook
+ * Shell-escape a value for use in VAR=value prefix.
+ * Wraps in single quotes if contains special chars.
+ */
+function shellEscape(value: string): string {
+  // Empty string needs quotes
+  if (value === "") return "''"
+  // If contains special chars, wrap in single quotes (escape existing single quotes)
+  if (/[^a-zA-Z0-9_\-.:\/]/.test(value)) {
+    return `'${value.replace(/'/g, "'\\''")}'`
+  }
+  return value
+}
+
+/**
+ * Build export statement for environment variables.
+ * Uses `export VAR1=val1 VAR2=val2;` format to ensure variables
+ * apply to ALL commands in a chain (e.g., `cmd1 && cmd2`).
  *
- * Detects and adapts to non-interactive environments like CI, Docker, etc.
- * Adapted from oh-my-claudecode.
+ * Previous approach used VAR=value prefix which only applies to the first command.
  */
-
-import {
-  detectEnvironment,
-  isCI,
-  isDocker,
-  isSSH,
-  isCron,
-  isExplicitlyNonInteractive
-} from './detector.js';
-import { NON_INTERACTIVE_ADAPTATIONS } from './constants.js';
-import type { EnvironmentType, EnvironmentInfo, EnvironmentConfig } from './types.js';
-
-// Export types
-export type { EnvironmentType, EnvironmentInfo, EnvironmentConfig } from './types.js';
-
-// Export constants
-export {
-  CI_ENV_VARS,
-  DOCKER_INDICATORS,
-  NON_INTERACTIVE_INDICATORS,
-  NON_INTERACTIVE_ADAPTATIONS
-} from './constants.js';
-
-// Export detector functions
-export {
-  detectEnvironment,
-  isCI,
-  isDocker,
-  isSSH,
-  isCron,
-  isExplicitlyNonInteractive
-} from './detector.js';
-
-/**
- * Cached environment info
- */
-let cachedEnvInfo: EnvironmentInfo | null = null;
-
-/**
- * Get environment info (cached)
- */
-export function getEnvironmentInfo(config?: EnvironmentConfig): EnvironmentInfo {
-  if (!cachedEnvInfo || config) {
-    cachedEnvInfo = detectEnvironment(config);
-  }
-  return cachedEnvInfo;
+function buildEnvPrefix(env: Record<string, string>): string {
+  const exports = Object.entries(env)
+    .map(([key, value]) => `${key}=${shellEscape(value)}`)
+    .join(" ")
+  return `export ${exports};`
 }
 
 /**
- * Format environment info for display
+ * Non-interactive environment hook for Factory Droid.
+ *
+ * Detects and handles non-interactive environments (CI, cron, etc.) by:
+ * - Warning about banned interactive commands (vim, less, etc.)
+ * - Injecting environment variables to prevent git/tools from prompting
+ * - Prepending export statements to git commands to block editors/pagers
  */
-export function formatEnvironmentInfo(info: EnvironmentInfo): string {
-  const lines = [
-    `Environment: ${info.type}`,
-    `Interactive: ${info.isInteractive}`,
-    `Indicators: ${info.indicators.join(', ')}`,
-  ];
+export const nonInteractiveEnvHook: ShellHook = {
+  name: HOOK_NAME,
 
-  if (info.adaptations.length > 0) {
-    lines.push(`Adaptations: ${info.adaptations.join(', ')}`);
-  }
+  async beforeCommand(command: string): Promise<{ command: string; warning?: string }> {
+    // Check for banned interactive commands
+    const bannedCmd = detectBannedCommand(command)
+    const warning = bannedCmd
+      ? `Warning: '${bannedCmd}' is an interactive command that may hang in non-interactive environments.`
+      : undefined
 
-  return lines.join('\n');
-}
+    // Only prepend env vars for git commands (editor blocking, pager, etc.)
+    const isGitCommand = /\bgit\b/.test(command)
+    if (!isGitCommand) {
+      return { command, warning }
+    }
 
-/**
- * Create the non-interactive environment hook
- */
-export function createNonInteractiveEnvHook(config?: EnvironmentConfig) {
-  const envInfo = getEnvironmentInfo(config);
+    // Prepend export statement to command to ensure non-interactive behavior
+    // Uses `export VAR=val;` format to ensure variables apply to ALL commands
+    // in a chain (e.g., `git add file && git rebase --continue`).
+    const envPrefix = buildEnvPrefix(NON_INTERACTIVE_ENV)
+    const modifiedCommand = `${envPrefix} ${command}`
 
-  return {
-    /**
-     * Session start - inject environment adaptations
-     */
-    sessionStart: (_input: { session_id: string }): string | null => {
-      if (envInfo.isInteractive) {
-        return null;
-      }
-
-      if (config?.injectAdaptations === false) {
-        return null;
-      }
-
-      return NON_INTERACTIVE_ADAPTATIONS;
-    },
-
-    /**
-     * Get environment info
-     */
-    getInfo: () => envInfo,
-
-    /**
-     * Check if interactive
-     */
-    isInteractive: () => envInfo.isInteractive,
-
-    /**
-     * Get environment type
-     */
-    getType: () => envInfo.type
-  };
+    return { command: modifiedCommand, warning }
+  },
 }

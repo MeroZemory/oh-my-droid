@@ -1,75 +1,64 @@
 /**
  * Agent Usage Reminder Constants
  *
- * Configuration and message templates for the agent usage reminder hook.
- * Adapted from oh-my-claudecode.
+ * Constants for tracking tool usage and encouraging agent delegation.
+ *
+ * Ported from oh-my-opencode's agent-usage-reminder hook.
  */
 
-/**
- * Keywords that indicate agent delegation might be appropriate
- */
-export const DELEGATION_KEYWORDS = [
-  'implement',
-  'refactor',
-  'build',
-  'create',
-  'add',
-  'fix',
-  'update',
-  'modify',
-  'change',
-  'write',
-  'develop',
-  'design',
-  'analyze',
-  'debug',
-  'test',
-  'review',
-  'document',
-  'migrate',
-  'upgrade',
-  'deploy'
-] as const;
+import { join } from 'path';
+import { homedir } from 'os';
 
-/**
- * Minimum prompt length to trigger reminder
- */
-export const MIN_PROMPT_LENGTH = 50;
+/** Storage directory for agent usage reminder state */
+export const OMC_STORAGE_DIR = join(homedir(), '.omd');
+export const AGENT_USAGE_REMINDER_STORAGE = join(
+  OMC_STORAGE_DIR,
+  'agent-usage-reminder',
+);
 
-/**
- * Cooldown period between reminders (ms)
- */
-export const REMINDER_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+/** All tool names normalized to lowercase for case-insensitive matching */
+export const TARGET_TOOLS = new Set([
+  'grep',
+  'safe_grep',
+  'glob',
+  'safe_glob',
+  'webfetch',
+  'context7_resolve-library-id',
+  'context7_query-docs',
+  'websearch_web_search_exa',
+  'context7_get-library-docs',
+]);
 
-/**
- * Maximum reminders per session
- */
-export const MAX_REMINDERS_PER_SESSION = 3;
+/** Agent tools that indicate agent usage */
+export const AGENT_TOOLS = new Set([
+  'task',
+  'call_omo_agent',
+  'omd_task',
+]);
 
-/**
- * Reminder message template
- */
-export const REMINDER_MESSAGE = `<agent-usage-reminder>
+/** Reminder message shown to users */
+export const REMINDER_MESSAGE = `
+[Agent Usage Reminder]
 
-[REMINDER: Multi-Agent Orchestration Available]
+You called a search/fetch tool directly without leveraging specialized agents.
 
-You have access to specialized agents for complex tasks. Consider delegating:
+RECOMMENDED: Use Task tool with explore/researcher agents for better results:
 
-- **executor**: Code implementation (single/multi-file changes)
-- **architect**: Deep analysis, debugging, system design
-- **designer**: UI/UX, frontend components
-- **researcher**: Documentation lookup, API research
-- **writer**: Documentation, technical writing
-
-Use the Task tool with subagent_type="oh-my-droid:<agent>" to delegate.
-
-Example:
 \`\`\`
-Task(subagent_type="oh-my-droid:executor", prompt="Implement the user authentication feature...")
+// Parallel exploration - fire multiple agents simultaneously
+Task(agent="explore", prompt="Find all files matching pattern X")
+Task(agent="explore", prompt="Search for implementation of Y")
+Task(agent="researcher", prompt="Lookup documentation for Z")
+
+// Then continue your work while they run in background
+// System will notify you when each completes
 \`\`\`
 
-</agent-usage-reminder>
+WHY:
+- Agents can perform deeper, more thorough searches
+- Background tasks run in parallel, saving time
+- Specialized agents have domain expertise
+- Reduces context window usage in main session
 
----
-
+ALWAYS prefer: Multiple parallel Task calls > Direct tool calls
 `;

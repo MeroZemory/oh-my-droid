@@ -6,8 +6,6 @@
  * - Complex multi-step analysis
  * - Strategic thinking and planning
  * - Handling ambiguity with sophisticated judgment
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 /**

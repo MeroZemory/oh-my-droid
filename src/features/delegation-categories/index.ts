@@ -4,8 +4,6 @@
  * Category-based delegation system that layers on top of ComplexityTier.
  * Provides semantic grouping with automatic tier, temperature, and thinking budget.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
- *
  * Usage:
  * ```typescript
  * import { resolveCategory, getCategoryForTask } from './delegation-categories';

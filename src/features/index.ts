@@ -1,7 +1,5 @@
 /**
  * Features Module Exports
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 export {
@@ -117,34 +115,6 @@ export {
   type ResumeInput,
   type TaskProgress
 } from './background-agent/index.js';
-
-// Background Tasks - task execution utilities
-export {
-  // Constants
-  DEFAULT_MAX_BACKGROUND_TASKS,
-  LONG_RUNNING_PATTERNS,
-  BLOCKING_PATTERNS,
-  // Functions
-  shouldRunInBackground,
-  createBackgroundTaskManager,
-  getBackgroundTaskGuidance,
-  // Types
-  type TaskExecutionDecision,
-  type BackgroundTaskManager
-} from './background-tasks.js';
-
-// Types
-export type {
-  ModelType,
-  AgentConfig,
-  PluginConfig,
-  SessionState,
-  AgentState,
-  MagicKeyword,
-  HookDefinition,
-  HookContext,
-  HookResult
-} from './types.js';
 
 // Builtin Skills - bundled skill definitions
 export {
@@ -285,6 +255,7 @@ export {
   type CleanupResult,
   type StateData
 } from './state-manager/index.js';
+
 
 // Verification - verification protocol for ralph, ultrawork, autopilot
 export {

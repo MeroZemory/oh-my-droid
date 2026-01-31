@@ -16,7 +16,7 @@ export async function agentsCommand(options: { json?: boolean; limit?: number })
 
   if (topAgents.length === 0) {
     console.log(colors.gray('No agent data available yet.'));
-    console.log(colors.gray('Run `omd backfill` to extract agent usage from Claude transcripts.\n'));
+    console.log(colors.gray('Run omd backfill` to extract agent usage from Claude transcripts.\n'));
     return;
   }
 

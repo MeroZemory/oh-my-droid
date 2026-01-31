@@ -3,16 +3,13 @@
  *
  * Unified state management that standardizes state file locations:
  * - Local state: .omd/state/{name}.json
- * - Global state: ~/.factory/omd/state/{name}.json
+ * - Global state: ~/.omd/state/{name}.json
  *
  * Features:
  * - Type-safe read/write operations
  * - Auto-create directories
  * - Legacy location support (for migration)
  * - State cleanup utilities
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
- * Uses .omd and ~/.factory/omd instead of .omc and ~/.omc.
  */
 
 import * as fs from 'fs';
@@ -35,16 +32,23 @@ import {
 
 // Standard state directories
 const LOCAL_STATE_DIR = '.omd/state';
-const GLOBAL_STATE_DIR = path.join(os.homedir(), '.factory', 'omd', 'state');
+const GLOBAL_STATE_DIR = path.join(os.homedir(), '.omd', 'state');
 
 // Legacy state locations (for backward compatibility)
 const LEGACY_LOCATIONS: Record<string, string[]> = {
   // Example legacy locations that might exist
-  'boulder': ['.omd/boulder.json', path.join(os.homedir(), '.factory', 'omd', 'boulder.json')],
+  'boulder': ['.omd/boulder.json', path.join(os.homedir(), '.omd', 'boulder.json')],
   'autopilot': ['.omd/autopilot-state.json'],
+  'autopilot-state': ['.omd/autopilot-state.json'],
   'ralph': ['.omd/ralph-state.json'],
-  'ultrawork': ['.omd/ultrawork-state.json'],
-  'ultraqa': ['.omd/ultraqa-state.json']
+  'ralph-state': ['.omd/ralph-state.json'],
+  'ralph-verification': ['.omd/ralph-verification.json'],
+  'ultrawork': ['.omd/ultrawork-state.json', path.join(os.homedir(), '.claude', 'ultrawork-state.json')],
+  'ultrawork-state': ['.omd/ultrawork-state.json', path.join(os.homedir(), '.claude', 'ultrawork-state.json')],
+  'ultraqa': ['.omd/ultraqa-state.json'],
+  'ultraqa-state': ['.omd/ultraqa-state.json'],
+  'hud-state': ['.omd/hud-state.json'],
+  'prd': ['.omd/prd.json']
 };
 
 /**

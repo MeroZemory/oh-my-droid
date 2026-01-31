@@ -3,8 +3,6 @@
  *
  * Provides model-specific prompt adaptations for Opus, Sonnet, and Haiku.
  * Each tier has prompts optimized for that model's capabilities.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import type { ComplexityTier, PromptAdaptationStrategy } from '../types.js';

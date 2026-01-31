@@ -72,7 +72,7 @@ export function createMemoryServer(): McpServerConfig {
 }
 
 /**
- * Get all default MCP servers for the oh-my-droid system
+ * Get all default MCP servers for the Droid system
  */
 export interface McpServersConfig {
   exa?: McpServerConfig;

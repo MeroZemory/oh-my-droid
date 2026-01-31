@@ -1,135 +1,93 @@
 /**
  * Auto Slash Command Detector
  *
- * Detects slash command patterns in user prompts.
- * Adapted from oh-my-claudecode.
+ * Detects slash commands in user prompts.
+ *
+ * Adapted from oh-my-opencode's auto-slash-command hook.
  */
 
 import {
-  TRIGGER_KEYWORDS,
-  COMMAND_MAPPINGS,
-  COMMAND_PRIORITY,
-  DEFAULT_CONFIDENCE_THRESHOLD
+  SLASH_COMMAND_PATTERN,
+  EXCLUDED_COMMANDS,
 } from './constants.js';
-import type { CommandDetection, DetectorConfig } from './types.js';
+import type { ParsedSlashCommand } from './types.js';
+
+/** Pattern to match code blocks */
+const CODE_BLOCK_PATTERN = /```[\s\S]*?```/g;
 
 /**
- * Detect slash command in prompt
+ * Remove code blocks from text to prevent false positives
  */
-export function detectCommand(
-  prompt: string,
-  config?: DetectorConfig
-): CommandDetection | null {
-  const promptLower = prompt.toLowerCase().trim();
-  const keywords = config?.customKeywords ?? TRIGGER_KEYWORDS;
-  const disabledCommands = new Set(config?.disabledCommands ?? []);
+export function removeCodeBlocks(text: string): string {
+  return text.replace(CODE_BLOCK_PATTERN, '');
+}
 
-  // Check for explicit slash commands first
-  const explicitMatch = promptLower.match(/^\/(oh-my-droid:)?(\w+)/);
-  if (explicitMatch) {
-    const command = explicitMatch[2];
-    const skill = COMMAND_MAPPINGS[command];
-    if (skill && !disabledCommands.has(command)) {
-      const args = prompt.slice(explicitMatch[0].length).trim();
-      return {
-        command,
-        skill,
-        confidence: 1.0,
-        matchedKeywords: [explicitMatch[0]],
-        originalPrompt: prompt,
-        args: args || undefined
-      };
-    }
-  }
+/**
+ * Parse a slash command from text
+ */
+export function parseSlashCommand(text: string): ParsedSlashCommand | null {
+  const trimmed = text.trim();
 
-  // Detect by keywords
-  const detections: CommandDetection[] = [];
-
-  for (const [command, commandKeywords] of Object.entries(keywords)) {
-    if (disabledCommands.has(command)) continue;
-
-    const skill = COMMAND_MAPPINGS[command];
-    if (!skill) continue;
-
-    const matched: string[] = [];
-    for (const keyword of commandKeywords) {
-      if (promptLower.includes(keyword.toLowerCase())) {
-        matched.push(keyword);
-      }
-    }
-
-    if (matched.length > 0) {
-      // Calculate confidence based on match quality
-      const confidence = calculateConfidence(prompt, matched, commandKeywords as unknown as string[]);
-
-      detections.push({
-        command,
-        skill,
-        confidence,
-        matchedKeywords: matched,
-        originalPrompt: prompt
-      });
-    }
-  }
-
-  if (detections.length === 0) {
+  if (!trimmed.startsWith('/')) {
     return null;
   }
 
-  // Sort by priority and confidence
-  detections.sort((a, b) => {
-    const priorityDiff =
-      (COMMAND_PRIORITY[b.command] ?? 0) - (COMMAND_PRIORITY[a.command] ?? 0);
-    if (priorityDiff !== 0) return priorityDiff;
-    return b.confidence - a.confidence;
-  });
-
-  // Return best match if it meets threshold
-  const best = detections[0];
-  const threshold = config?.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
-
-  if (best.confidence >= threshold) {
-    return best;
+  const match = trimmed.match(SLASH_COMMAND_PATTERN);
+  if (!match) {
+    return null;
   }
 
-  return null;
+  const [raw, command, args] = match;
+  return {
+    command: command.toLowerCase(),
+    args: args.trim(),
+    raw,
+  };
 }
 
 /**
- * Calculate confidence score for a detection
+ * Check if a command should be excluded from auto-expansion
  */
-function calculateConfidence(
-  prompt: string,
-  matched: string[],
-  allKeywords: string[]
-): number {
-  // Base confidence from keyword matches
-  let confidence = matched.length / allKeywords.length;
-
-  // Boost if keyword appears at start
-  const promptLower = prompt.toLowerCase();
-  if (matched.some(kw => promptLower.startsWith(kw.toLowerCase()))) {
-    confidence += 0.2;
-  }
-
-  // Boost for explicit command-like patterns
-  if (/^\s*\w+:\s/.test(prompt)) {
-    confidence += 0.1;
-  }
-
-  return Math.min(1.0, confidence);
+export function isExcludedCommand(command: string): boolean {
+  return EXCLUDED_COMMANDS.has(command.toLowerCase());
 }
 
 /**
- * Check if auto-execute should trigger
+ * Detect a slash command in user input text
+ * Returns null if no command detected or if command is excluded
  */
-export function shouldAutoExecute(
-  detection: CommandDetection | null,
-  config?: DetectorConfig
-): boolean {
-  if (!detection) return false;
-  if (config?.autoExecute === false) return false;
+export function detectSlashCommand(text: string): ParsedSlashCommand | null {
+  // Remove code blocks first
+  const textWithoutCodeBlocks = removeCodeBlocks(text);
+  const trimmed = textWithoutCodeBlocks.trim();
 
-  const threshold = config?.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
-  return detection.confidence >= threshold;
+  // Must start with slash
+  if (!trimmed.startsWith('/')) {
+    return null;
+  }
+
+  const parsed = parseSlashCommand(trimmed);
+
+  if (!parsed) {
+    return null;
+  }
+
+  // Check exclusion list
+  if (isExcludedCommand(parsed.command)) {
+    return null;
+  }
+
+  return parsed;
+}
+
+/**
+ * Extract text content from message parts array
+ */
+export function extractPromptText(
+  parts: Array<{ type: string; text?: string }>
+): string {
+  return parts
+    .filter((p) => p.type === 'text')
+    .map((p) => p.text || '')
+    .join(' ');
 }

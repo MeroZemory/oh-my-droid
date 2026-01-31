@@ -1,8 +1,6 @@
 /**
  * Manual tests for delegation categories
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
- *
  * Run with: npx tsx src/features/delegation-categories/test-categories.ts
  */
 

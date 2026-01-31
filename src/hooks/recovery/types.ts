@@ -1,8 +1,7 @@
 /**
  * Unified Recovery Types
  *
- * Type definitions for all recovery mechanisms in Android Factory.
- * Adapted from oh-my-claudecode.
+ * Type definitions for all recovery mechanisms in Factory Droid.
  */
 
 /**

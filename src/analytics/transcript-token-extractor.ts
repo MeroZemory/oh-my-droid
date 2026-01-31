@@ -113,7 +113,7 @@ function generateEntryId(sessionId: string, timestamp: string, model: string): s
  * @param entry - Transcript entry from JSONL file
  * @param sessionId - Session ID (override if not in entry)
  * @param sourceFile - Source file path for tracking
- * @param agentLookup - Map of toolUseId -> agentType for attributing progress entries
+ * @param agentLookup - Map of toolUseId → agentType for attributing progress entries
  * @returns ExtractedUsage or null if entry has no usage data
  */
 export function extractTokenUsage(

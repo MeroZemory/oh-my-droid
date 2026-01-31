@@ -4,7 +4,7 @@
  * Activates extended thinking/reasoning mode when users include
  * think keywords in their prompts.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's think-mode hook.
  */
 
 import { detectThinkKeyword, extractPromptText, detectUltrathinkKeyword } from './detector.js';
@@ -66,7 +66,7 @@ export function processThinkMode(
 }
 
 /**
- * Create the think mode hook for Android Factory integration.
+ * Create the think mode hook for Factory Droid integration.
  */
 export function createThinkModeHook() {
   return {

@@ -3,7 +3,6 @@
  *
  * Detects context window limit errors and injects recovery messages
  * to help Claude recover gracefully.
- * Adapted from oh-my-claudecode.
  */
 
 import * as fs from 'fs';
@@ -183,6 +182,63 @@ export function parseTokenLimitError(
 
   const combinedText = textSources.join(' ');
   if (!isTokenLimitError(combinedText)) return null;
+
+  // Try to parse structured response body
+  if (typeof responseBody === 'string') {
+    try {
+      interface AnthropicErrorData {
+        type: 'error';
+        error: {
+          type: string;
+          message: string;
+        };
+        request_id?: string;
+      }
+
+      const jsonPatterns = [
+        /data:\s*(\{[\s\S]*\})\s*$/m,
+        /(\{"type"\s*:\s*"error"[\s\S]*\})/,
+        /(\{[\s\S]*"error"[\s\S]*\})/,
+      ];
+
+      for (const pattern of jsonPatterns) {
+        const dataMatch = responseBody.match(pattern);
+        if (dataMatch) {
+          try {
+            const jsonData: AnthropicErrorData = JSON.parse(dataMatch[1]);
+            const message = jsonData.error?.message || '';
+            const tokens = extractTokensFromMessage(message);
+
+            if (tokens) {
+              return {
+                currentTokens: tokens.current,
+                maxTokens: tokens.max,
+                requestId: jsonData.request_id,
+                errorType: jsonData.error?.type || 'token_limit_exceeded',
+              };
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        }
+      }
+
+      // Check for Bedrock-style errors
+      const bedrockJson = JSON.parse(responseBody);
+      if (
+        typeof bedrockJson.message === 'string' &&
+        isTokenLimitError(bedrockJson.message)
+      ) {
+        return {
+          currentTokens: 0,
+          maxTokens: 0,
+          errorType: 'bedrock_input_too_long',
+        };
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }
 
   // Extract tokens from any text source
   for (const text of textSources) {

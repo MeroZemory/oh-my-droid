@@ -4,12 +4,49 @@
  * Prevents stopping when incomplete tasks remain in the todo list.
  * Forces the agent to continue until all tasks are marked complete.
  *
- * Adapted from oh-my-claudecode.
+ * Ported from oh-my-opencode's todo-continuation-enforcer hook.
  */
+
+/**
+ * TERMINOLOGY:
+ * - "Task" (capitalized): New Factory Droid Task system (~/.factory/tasks/)
+ * - "todo" (lowercase): Legacy todo system (~/.factory/todos/)
+ * - "item": Generic term for either Task or todo
+ */
+
+/**
+ * Debug logging for task/todo operations.
+ * Set OMD_DEBUG=1 or OMD_DEBUG=todo-continuation for verbose output.
+ */
+function debugLog(message: string, ...args: unknown[]): void {
+  const debug = process.env.OMD_DEBUG;
+  if (debug === '1' || debug === 'todo-continuation' || debug === 'true') {
+    console.error('[todo-continuation]', message, ...args);
+  }
+}
 
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+
+/**
+ * Validates that a session ID is safe to use in file paths.
+ * Session IDs should be alphanumeric with optional hyphens and underscores.
+ * This prevents path traversal attacks (e.g., "../../../etc").
+ *
+ * @param sessionId - The session ID to validate
+ * @returns true if the session ID is safe, false otherwise
+ */
+export function isValidSessionId(sessionId: string): boolean {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return false;
+  }
+  // Allow alphanumeric, hyphens, and underscores only
+  // Must be 1-256 characters (reasonable length limit)
+  // Must not start with a dot (hidden files) or hyphen
+  const SAFE_SESSION_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$/;
+  return SAFE_SESSION_ID_PATTERN.test(sessionId);
+}
 
 export interface Todo {
   content: string;
@@ -18,25 +55,55 @@ export interface Todo {
   id?: string;
 }
 
+/**
+ * Factory Droid Task system task
+ *
+ * IMPORTANT: This interface is based on observed behavior and the TaskCreate/TaskUpdate
+ * tool schema. The file structure ~/.factory/tasks/{sessionId}/{taskId}.json is inferred
+ * from Factory Droid's implementation and may change in future versions.
+ *
+ * As of 2025-01, Anthropic has not published official documentation for the Task system
+ * file format. This implementation should be verified empirically when issues arise.
+ *
+ * @see https://docs.anthropic.com/en/docs/claude-code (check for updates)
+ */
+export interface Task {
+  id: string;
+  subject: string;
+  description?: string;
+  activeForm?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'deleted';
+  blocks?: string[];
+  blockedBy?: string[];
+}
+
+/** Internal result for Task checking */
+export interface TaskCheckResult {
+  count: number;          // Incomplete tasks
+  tasks: Task[];          // The incomplete tasks
+  total: number;          // Total tasks found
+}
+
 export interface IncompleteTodosResult {
   count: number;
   todos: Todo[];
   total: number;
+  source: 'task' | 'todo' | 'both' | 'none';
 }
 
 /**
  * Context from Stop hook event
  *
  * NOTE: Field names support both camelCase and snake_case variants
- * for compatibility with different Android Factory versions.
+ * for compatibility with different Factory Droid versions.
  *
  * IMPORTANT: The abort detection patterns below are assumed. Verify
- * actual stop_reason values from Android Factory before finalizing.
+ * actual stop_reason values from Factory Droid before finalizing.
  */
 export interface StopContext {
-  /** Reason for stop (from Android Factory) - snake_case variant */
+  /** Reason for stop (from Factory Droid) - snake_case variant */
   stop_reason?: string;
-  /** Reason for stop (from Android Factory) - camelCase variant */
+  /** Reason for stop (from Factory Droid) - camelCase variant */
   stopReason?: string;
   /** End turn reason (from API) - snake_case variant */
   end_turn_reason?: string;
@@ -55,8 +122,22 @@ export interface TodoContinuationHook {
 /**
  * Detect if stop was due to user abort (not natural completion)
  *
- * NOTE: These patterns are ASSUMED. Verify against actual Android Factory
- * API responses and update as needed.
+ * WARNING: These patterns are ASSUMED based on common conventions.
+ * As of 2025-01, Anthropic's Stop hook input schema does not document
+ * the exact stop_reason values. The patterns below are educated guesses:
+ *
+ * - user_cancel, user_interrupt: Likely user-initiated via UI
+ * - ctrl_c: Terminal interrupt (Ctrl+C)
+ * - manual_stop: Explicit stop button
+ * - abort, cancel, interrupt: Generic abort patterns
+ *
+ * NOTE: Per official Anthropic docs, the Stop hook "Does not run if
+ * the stoppage occurred due to a user interrupt." This means this
+ * function may never receive user-abort contexts in practice.
+ * It is kept as defensive code in case the behavior changes.
+ *
+ * If the hook fails to detect user aborts correctly, these patterns
+ * should be updated based on observed Factory Droid behavior.
  */
 export function isUserAbort(context?: StopContext): boolean {
   if (!context) return false;
@@ -65,56 +146,60 @@ export function isUserAbort(context?: StopContext): boolean {
   if (context.user_requested || context.userRequested) return true;
 
   // Check stop_reason patterns indicating user abort
-  // Unified patterns: includes both specific (user_cancel) and generic (cancel)
-  const abortPatterns = [
-    'user_cancel',
-    'user_interrupt',
-    'ctrl_c',
-    'manual_stop',
-    'aborted',
-    'abort',      // generic patterns from shell/Node.js templates
-    'cancel',
-    'interrupt',
-  ];
+  // Exact-match patterns: short generic words that cause false positives with .includes()
+  const exactPatterns = ['aborted', 'abort', 'cancel', 'interrupt'];
+  // Substring patterns: compound words safe for .includes() matching
+  const substringPatterns = ['user_cancel', 'user_interrupt', 'ctrl_c', 'manual_stop'];
 
   // Support both snake_case and camelCase field names
   const reason = (context.stop_reason ?? context.stopReason ?? '').toLowerCase();
-  return abortPatterns.some(pattern => reason.includes(pattern));
+  return exactPatterns.some(p => reason === p) ||
+         substringPatterns.some(p => reason.includes(p));
+}
+
+/**
+ * Detect if stop was triggered by context-limit related reasons.
+ * When context is exhausted, Factory Droid needs to stop so it can compact.
+ * Blocking these stops causes a deadlock: can't compact because can't stop,
+ * can't continue because context is full.
+ *
+ * See: https://github.com/Yeachan-Heo/oh-my-droid/issues/213
+ */
+export function isContextLimitStop(context?: StopContext): boolean {
+  if (!context) return false;
+
+  const reason = (context.stop_reason ?? context.stopReason ?? '').toLowerCase();
+  const endTurnReason = (context.end_turn_reason ?? context.endTurnReason ?? '').toLowerCase();
+
+  const contextPatterns = [
+    'context_limit', 'context_window', 'context_exceeded', 'context_full',
+    'max_context', 'token_limit', 'max_tokens', 'conversation_too_long', 'input_too_long'
+  ];
+
+  return contextPatterns.some(p => reason.includes(p) || endTurnReason.includes(p));
 }
 
 /**
  * Get possible todo file locations
  */
 function getTodoFilePaths(sessionId?: string, directory?: string): string[] {
-  const factoryDir = join(homedir(), '.factory', 'omd');
+  const claudeDir = join(homedir(), '.claude');
   const paths: string[] = [];
 
   // Session-specific todos
   if (sessionId) {
-    paths.push(join(factoryDir, 'sessions', sessionId, 'todos.json'));
-    paths.push(join(factoryDir, 'todos', `${sessionId}.json`));
+    paths.push(join(claudeDir, 'sessions', sessionId, 'todos.json'));
+    paths.push(join(claudeDir, 'todos', `${sessionId}.json`));
   }
 
   // Project-specific todos
   if (directory) {
     paths.push(join(directory, '.omd', 'todos.json'));
-    paths.push(join(directory, '.factory', 'todos.json'));
+    paths.push(join(directory, '.claude', 'todos.json'));
   }
 
-  // Global todos directory
-  const todosDir = join(factoryDir, 'todos');
-  if (existsSync(todosDir)) {
-    try {
-      const files = readdirSync(todosDir);
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          paths.push(join(todosDir, file));
-        }
-      }
-    } catch {
-      // Ignore errors reading directory
-    }
-  }
+  // NOTE: Global todos directory scan removed to prevent false positives.
+  // Only session-specific and project-local todos are now checked.
 
   return paths;
 }
@@ -149,7 +234,8 @@ function parseTodoFile(filePath: string): Todo[] {
     }
 
     return [];
-  } catch {
+  } catch (err) {
+    debugLog('Failed to parse todo file:', filePath, err);
     return [];
   }
 }
@@ -162,44 +248,125 @@ function isIncomplete(todo: Todo): boolean {
 }
 
 /**
- * Check for incomplete todos across all possible locations
+ * Get the Task directory for a session
+ *
+ * NOTE: This path (~/.factory/tasks/{sessionId}/) is inferred from Factory Droid's
+ * implementation. Anthropic has not officially documented this structure.
+ * The Task files are created by Factory Droid's TaskCreate tool.
  */
-export async function checkIncompleteTodos(
-  sessionId?: string,
-  directory?: string,
-  stopContext?: StopContext  // NEW parameter
-): Promise<IncompleteTodosResult> {
-  // If user aborted, don't force continuation (return count: 0)
-  if (isUserAbort(stopContext)) {
-    return {
-      count: 0,
-      todos: [],
-      total: 0
-    };
+export function getTaskDirectory(sessionId: string): string {
+  // Security: validate sessionId before constructing path
+  if (!isValidSessionId(sessionId)) {
+    return ''; // Return empty string for invalid sessions
   }
+  return join(homedir(), '.claude', 'tasks', sessionId);
+}
 
+/**
+ * Validates that a parsed JSON object is a valid Task.
+ * Required fields: id (string), subject (string), status (string).
+ */
+export function isValidTask(data: unknown): data is Task {
+  if (data === null || typeof data !== 'object') return false;
+  const obj = data as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' && obj.id.length > 0 &&
+    typeof obj.subject === 'string' && obj.subject.length > 0 &&
+    typeof obj.status === 'string' &&
+    // Accept 'deleted' as valid - matches Task interface status union type
+    ['pending', 'in_progress', 'completed', 'deleted'].includes(obj.status)
+  );
+}
+
+/**
+ * Read all Task files from a session's task directory
+ */
+export function readTaskFiles(sessionId: string): Task[] {
+  if (!isValidSessionId(sessionId)) {
+    return [];
+  }
+  const taskDir = getTaskDirectory(sessionId);
+  if (!taskDir || !existsSync(taskDir)) return [];
+
+  const tasks: Task[] = [];
+  try {
+    for (const file of readdirSync(taskDir)) {
+      // Skip non-JSON files and .lock file (used by Factory Droid for atomic writes)
+      // The .lock file prevents concurrent modifications to task files
+      if (!file.endsWith('.json') || file === '.lock') continue;
+      try {
+        const content = readFileSync(join(taskDir, file), 'utf-8');
+        const parsed = JSON.parse(content);
+        if (isValidTask(parsed)) tasks.push(parsed);
+      } catch (err) {
+        debugLog('Failed to parse task file:', file, err);
+      }
+    }
+  } catch (err) {
+    debugLog('Failed to read task directory:', sessionId, err);
+  }
+  return tasks;
+}
+
+/**
+ * Check if a Task is incomplete.
+ *
+ * NOTE: Task system has 3 statuses (pending, in_progress, completed).
+ * The TaskUpdate tool also supports 'deleted' status, but deleted task files
+ * may be removed rather than marked. If a 'deleted' status is encountered,
+ * we treat it as complete (not requiring continuation).
+ *
+ * Unlike legacy todos, Tasks do not have a 'cancelled' status. The Task system
+ * uses 'deleted' for removal, which is handled by file deletion rather than
+ * status change.
+ */
+export function isTaskIncomplete(task: Task): boolean {
+  // Treat 'completed' and any unknown/deleted status as complete
+  return task.status === 'pending' || task.status === 'in_progress';
+}
+
+/**
+ * Check for incomplete tasks in the new Task system
+ *
+ * SYNC NOTICE: This function is intentionally duplicated across:
+ * - templates/hooks/persistent-mode.mjs
+ * - templates/hooks/stop-continuation.mjs
+ * - src/hooks/todo-continuation/index.ts (as checkIncompleteTasks)
+ *
+ * Templates cannot import shared modules (they're standalone scripts).
+ * When modifying this logic, update ALL THREE files to maintain consistency.
+ */
+export function checkIncompleteTasks(sessionId: string): TaskCheckResult {
+  if (!isValidSessionId(sessionId)) {
+    return { count: 0, tasks: [], total: 0 };
+  }
+  const tasks = readTaskFiles(sessionId);
+  const incomplete = tasks.filter(isTaskIncomplete);
+  return {
+    count: incomplete.length,
+    tasks: incomplete,
+    total: tasks.length
+  };
+}
+
+/**
+ * Check for incomplete todos in the legacy system
+ */
+export function checkLegacyTodos(sessionId?: string, directory?: string): IncompleteTodosResult {
   const paths = getTodoFilePaths(sessionId, directory);
   const seenContents = new Set<string>();
   const allTodos: Todo[] = [];
   const incompleteTodos: Todo[] = [];
 
-  for (const path of paths) {
-    if (!existsSync(path)) {
-      continue;
-    }
+  for (const p of paths) {
+    if (!existsSync(p)) continue;
 
-    const todos = parseTodoFile(path);
-
+    const todos = parseTodoFile(p);
     for (const todo of todos) {
-      // Deduplicate by content
       const key = `${todo.content}:${todo.status}`;
-      if (seenContents.has(key)) {
-        continue;
-      }
+      if (seenContents.has(key)) continue;
       seenContents.add(key);
-
       allTodos.push(todo);
-
       if (isIncomplete(todo)) {
         incompleteTodos.push(todo);
       }
@@ -209,8 +376,62 @@ export async function checkIncompleteTodos(
   return {
     count: incompleteTodos.length,
     todos: incompleteTodos,
-    total: allTodos.length
+    total: allTodos.length,
+    source: incompleteTodos.length > 0 ? 'todo' : 'none'
   };
+}
+
+/**
+ * Check for incomplete todos/tasks across all possible locations.
+ * Checks new Task system first, then falls back to legacy todos.
+ *
+ * Priority Logic:
+ * - If Task system has incomplete items, returns Task count only (source: 'task' or 'both')
+ * - The returned count reflects Tasks only because Tasks are the authoritative source
+ * - Legacy todos are checked to set source='both' for informational purposes
+ * - If no incomplete Tasks exist, returns legacy todo count (source: 'todo')
+ *
+ * NOTE ON COUNTING: Shell templates use a combined Task + Todo count for the
+ * "should continue?" boolean check, which may differ from the count returned here.
+ * The boolean decision (continue or not) is equivalent; only the displayed count differs.
+ */
+export async function checkIncompleteTodos(
+  sessionId?: string,
+  directory?: string,
+  stopContext?: StopContext
+): Promise<IncompleteTodosResult> {
+  // If user aborted, don't force continuation
+  if (isUserAbort(stopContext)) {
+    return { count: 0, todos: [], total: 0, source: 'none' };
+  }
+
+  let taskResult: TaskCheckResult | null = null;
+
+  // Priority 1: Check new Task system (if sessionId provided)
+  if (sessionId) {
+    taskResult = checkIncompleteTasks(sessionId);
+  }
+
+  // Priority 2: Check legacy todo system
+  const todoResult = checkLegacyTodos(sessionId, directory);
+
+  // Combine results (prefer Tasks if available)
+  if (taskResult && taskResult.count > 0) {
+    return {
+      count: taskResult.count,
+      // taskResult.tasks only contains incomplete tasks (pending/in_progress)
+      // so status is safe to cast to Todo['status'] (no 'deleted' will appear)
+      todos: taskResult.tasks.map(t => ({
+        content: t.subject,
+        status: t.status as Todo['status'],
+        id: t.id
+      })),
+      total: taskResult.total,
+      source: todoResult.count > 0 ? 'both' : 'task'
+    };
+  }
+
+  return todoResult;
 }
 
 /**

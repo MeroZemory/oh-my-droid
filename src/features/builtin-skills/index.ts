@@ -1,9 +1,9 @@
 /**
  * Builtin Skills Feature
  *
- * Provides bundled skills for Oh-My-Droid.
+ * Provides bundled skills for Oh-My-ClaudeCode-Droid.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Adapted from oh-my-opencode's builtin-skills feature.
  */
 
 export * from './types.js';

@@ -4,7 +4,6 @@
  * Manages persistent ultrawork mode state across sessions.
  * When ultrawork is activated and todos remain incomplete,
  * this module ensures the mode persists until all work is done.
- * Adapted from oh-my-claudecode.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
@@ -42,34 +41,34 @@ const _DEFAULT_STATE: UltraworkState = {
 function getStateFilePath(directory?: string): string {
   const baseDir = directory || process.cwd();
   const omdDir = join(baseDir, '.omd');
-  return join(omdDir, 'ultrawork-state.json');
+  return join(omdDir, 'state', 'ultrawork-state.json');
 }
 
 /**
  * Get global state file path (for cross-session persistence)
  */
 function getGlobalStateFilePath(): string {
-  return join(homedir(), '.factory', 'omd', 'ultrawork-state.json');
+  return join(homedir(), '.claude', 'ultrawork-state.json');
 }
 
 /**
- * Ensure the .omd directory exists
+ * Ensure the .omd/state directory exists
  */
 function ensureStateDir(directory?: string): void {
   const baseDir = directory || process.cwd();
-  const omdDir = join(baseDir, '.omd');
+  const omdDir = join(baseDir, '.omd', 'state');
   if (!existsSync(omdDir)) {
     mkdirSync(omdDir, { recursive: true });
   }
 }
 
 /**
- * Ensure the ~/.factory/omd directory exists
+ * Ensure the ~/.factory directory exists
  */
 function ensureGlobalStateDir(): void {
-  const factoryDir = join(homedir(), '.factory', 'omd');
-  if (!existsSync(factoryDir)) {
-    mkdirSync(factoryDir, { recursive: true });
+  const claudeDir = join(homedir(), '.claude');
+  if (!existsSync(claudeDir)) {
+    mkdirSync(claudeDir, { recursive: true });
   }
 }
 
@@ -112,7 +111,7 @@ export function writeUltraworkState(state: UltraworkState, directory?: string): 
     const localStateFile = getStateFilePath(directory);
     writeFileSync(localStateFile, JSON.stringify(state, null, 2));
 
-    // Write to global ~/.factory/omd for cross-session persistence
+    // Write to global ~/.factory for cross-session persistence
     ensureGlobalStateDir();
     const globalStateFile = getGlobalStateFilePath();
     writeFileSync(globalStateFile, JSON.stringify(state, null, 2));
@@ -243,14 +242,6 @@ Original task: ${state.original_prompt}
 }
 
 /**
- * Check if ultrawork is active
- */
-export function isUltraworkActive(directory?: string): boolean {
-  const state = readUltraworkState(directory);
-  return state !== null && state.active === true;
-}
-
-/**
  * Create an Ultrawork State hook instance
  */
 export function createUltraworkStateHook(directory: string) {
@@ -261,7 +252,6 @@ export function createUltraworkStateHook(directory: string) {
     getState: () => readUltraworkState(directory),
     shouldReinforce: (sessionId?: string) =>
       shouldReinforceUltrawork(sessionId, directory),
-    incrementReinforcement: () => incrementReinforcement(directory),
-    isActive: () => isUltraworkActive(directory)
+    incrementReinforcement: () => incrementReinforcement(directory)
   };
 }

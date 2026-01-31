@@ -5,7 +5,7 @@
  * Allows multiple sources to register context that gets merged
  * and injected into prompts.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Ported from oh-my-opencode's context-injector.
  */
 
 /**

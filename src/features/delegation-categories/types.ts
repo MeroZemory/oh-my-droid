@@ -3,8 +3,6 @@
  *
  * Category-based delegation system that layers on top of ComplexityTier.
  * Categories provide semantic grouping with tier, temperature, and thinking budget.
- *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
  */
 
 import type { ComplexityTier } from '../model-routing/types.js';

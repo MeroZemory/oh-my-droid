@@ -7,6 +7,8 @@
  * - Opus: 50% (detailed reasoning)
  */
 
+import * as crypto from 'crypto';
+
 const MODEL_OUTPUT_RATIOS: Record<string, number> = {
   'haiku': 0.30,
   'sonnet': 0.40,
@@ -32,12 +34,17 @@ export function estimateOutputTokens(inputTokens: number, modelName: string): nu
 /**
  * Extract session ID from transcript path.
  *
- * Pattern: /path/to/.factory/omd/projects/{sessionId}/transcript.jsonl
+ * Pattern: /path/to/.factory/projects/{sessionId}/transcript.jsonl
  *
  * @param transcriptPath - Full path to transcript file
  * @returns Session ID (extracted or hashed)
  */
 export function extractSessionId(transcriptPath: string): string {
+  // Guard against null/undefined/empty
+  if (!transcriptPath) {
+    return crypto.createHash('md5').update('unknown').digest('hex').slice(0, 16);
+  }
+
   // Try to extract from path pattern
   const match = transcriptPath.match(/projects\/([a-f0-9]{8,})/i);
 
@@ -46,7 +53,6 @@ export function extractSessionId(transcriptPath: string): string {
   }
 
   // Fallback: hash the path
-  const crypto = require('crypto');
   return crypto.createHash('md5')
     .update(transcriptPath)
     .digest('hex')

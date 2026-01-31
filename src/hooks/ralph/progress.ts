@@ -8,8 +8,6 @@
  * - Codebase Patterns section at top (consolidated learnings)
  * - Per-story progress entries appended
  * - Learnings captured for future iterations
- *
- * Adapted from oh-my-claudecode.
  */
 
 import { existsSync, readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';

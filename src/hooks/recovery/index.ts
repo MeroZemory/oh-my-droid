@@ -8,8 +8,6 @@
  * 1. Context Window Limit - Most critical, blocks all progress
  * 2. Edit Errors - Immediate user feedback needed
  * 3. Session Recovery - Structural errors that need fixing
- *
- * Adapted from oh-my-claudecode.
  */
 
 import {
@@ -188,7 +186,7 @@ export function detectEditErrorInOutput(output: string): boolean {
 }
 
 /**
- * Create unified recovery hook for Android Factory
+ * Create unified recovery hook for Factory Droid
  *
  * This hook provides a single entry point for all recovery mechanisms.
  */

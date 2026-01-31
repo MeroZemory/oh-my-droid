@@ -2,7 +2,6 @@
  * Session Recovery Storage Operations
  *
  * Functions for reading and manipulating stored session data.
- * Adapted from oh-my-claudecode.
  */
 
 import {

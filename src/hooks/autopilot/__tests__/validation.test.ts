@@ -3,15 +3,18 @@ import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import {
-  detectCompletion,
-  validateCanContinue,
-  needsVerification,
-  createResult
+  recordValidationVerdict,
+  getValidationStatus,
+  startValidationRound,
+  shouldRetryValidation,
+  getIssuesToFix,
+  getValidationSpawnPrompt,
+  formatValidationResults
 } from '../validation.js';
-import { readAutopilotState, writeAutopilotState, updatePhase } from '../state.js';
+import { initAutopilot, transitionPhase } from '../state.js';
 import type { AutopilotState } from '../types.js';
 
-describe.skip('AutopilotValidation', () => {
+describe('AutopilotValidation', () => {
   let testDir: string;
 
   beforeEach(() => {

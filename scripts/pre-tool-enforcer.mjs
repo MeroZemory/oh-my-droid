@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * oh-my-droid Pre-Tool Enforcer Hook (Node.js)
- * Enforces delegation rules before tool execution
+ * PreToolUse Hook: Droid Reminder Enforcer (Node.js)
+ * Injects contextual reminders before every tool execution
  * Cross-platform: Windows, macOS, Linux
  */
 
 import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join, extname } from 'path';
+import { join } from 'path';
 import { homedir } from 'os';
 
 // Read all stdin
@@ -19,131 +19,109 @@ async function readStdin() {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
-// Source file extensions that should be delegated
-const SOURCE_EXTENSIONS = new Set([
-  '.ts', '.tsx', '.js', '.jsx',
-  '.py', '.go', '.rs', '.java',
-  '.c', '.cpp', '.h', '.hpp',
-  '.svelte', '.vue', '.rb', '.php',
-  '.cs', '.kt', '.swift', '.dart'
-]);
-
-// System/config paths that are allowed for direct editing
-const ALLOWED_PATHS = [
-  '.omd/',
-  '.factory/',
-  '.claude/',
-  '.github/workflows/',
-  'CLAUDE.md',
-  'AGENTS.md',
-  'README.md'
-];
-
-// Check if path is allowed for direct editing
-function isAllowedPath(filePath) {
-  return ALLOWED_PATHS.some(allowed => filePath.includes(allowed));
+// Simple JSON field extraction
+function extractJsonField(input, field, defaultValue = '') {
+  try {
+    const data = JSON.parse(input);
+    return data[field] ?? defaultValue;
+  } catch {
+    // Fallback regex extraction
+    const match = input.match(new RegExp(`"${field}"\\s*:\\s*"([^"]*)"`, 'i'));
+    return match ? match[1] : defaultValue;
+  }
 }
 
-// Check if file is a source file
-function isSourceFile(filePath) {
-  const ext = extname(filePath);
-  return SOURCE_EXTENSIONS.has(ext);
-}
+// Get todo status from project and global todos
+function getTodoStatus(directory) {
+  let pending = 0;
+  let inProgress = 0;
 
-// Count incomplete todos
-function countIncompleteTodos(directory) {
-  let count = 0;
-
-  // Check project todos
-  for (const path of [
+  // Check project-local todos
+  const localPaths = [
     join(directory, '.omd', 'todos.json'),
-    join(directory, '.factory', 'todos.json')
-  ]) {
-    try {
-      if (!existsSync(path)) continue;
-      const data = JSON.parse(readFileSync(path, 'utf-8'));
-      const todos = data?.todos || data;
-      if (Array.isArray(todos)) {
-        count += todos.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length;
+    join(directory, '.claude', 'todos.json')
+  ];
+
+  for (const todoFile of localPaths) {
+    if (existsSync(todoFile)) {
+      try {
+        const content = readFileSync(todoFile, 'utf-8');
+        const data = JSON.parse(content);
+        const todos = data.todos || data;
+        if (Array.isArray(todos)) {
+          pending += todos.filter(t => t.status === 'pending').length;
+          inProgress += todos.filter(t => t.status === 'in_progress').length;
+        }
+      } catch {
+        // Ignore errors
       }
-    } catch {}
+    }
   }
 
-  // Check global todos
-  const todosDir = join(homedir(), '.factory', 'todos');
-  if (existsSync(todosDir)) {
+  // Check global Factory Droid todos directory
+  const globalTodosDir = join(homedir(), '.claude', 'todos');
+  if (existsSync(globalTodosDir)) {
     try {
-      const files = readdirSync(todosDir).filter(f => f.endsWith('.json'));
+      const files = readdirSync(globalTodosDir).filter(f => f.endsWith('.json'));
       for (const file of files) {
-        const data = JSON.parse(readFileSync(join(todosDir, file), 'utf-8'));
-        if (Array.isArray(data)) {
-          count += data.filter(t => t.status !== 'completed' && t.status !== 'cancelled').length;
+        try {
+          const content = readFileSync(join(globalTodosDir, file), 'utf-8');
+          const todos = JSON.parse(content);
+          if (Array.isArray(todos)) {
+            pending += todos.filter(t => t.status === 'pending').length;
+            inProgress += todos.filter(t => t.status === 'in_progress').length;
+          }
+        } catch {
+          // Ignore individual file errors
         }
       }
-    } catch {}
+    } catch {
+      // Ignore directory read errors
+    }
   }
 
-  return count;
+  if (pending + inProgress > 0) {
+    return `[${inProgress} active, ${pending} pending] `;
+  }
+
+  return '';
 }
 
-// Main
+// Generate contextual message based on tool type
+function generateMessage(toolName, todoStatus) {
+  const messages = {
+    TodoWrite: `${todoStatus}Mark todos in_progress BEFORE starting, completed IMMEDIATELY after finishing.`,
+    Bash: `${todoStatus}Use parallel execution for independent tasks. Use run_in_background for long operations (npm install, builds, tests).`,
+    Task: `${todoStatus}Launch multiple agents in parallel when tasks are independent. Use run_in_background for long operations.`,
+    Edit: `${todoStatus}Verify changes work after editing. Test functionality before marking complete.`,
+    Write: `${todoStatus}Verify changes work after editing. Test functionality before marking complete.`,
+    Read: `${todoStatus}Read multiple files in parallel when possible for faster analysis.`,
+    Grep: `${todoStatus}Combine searches in parallel when investigating multiple patterns.`,
+    Glob: `${todoStatus}Combine searches in parallel when investigating multiple patterns.`,
+  };
+
+  return messages[toolName] || `${todoStatus}The boulder never stops. Continue until all tasks complete.`;
+}
+
 async function main() {
   try {
     const input = await readStdin();
-    let data = {};
-    try { data = JSON.parse(input); } catch {}
 
-    const toolName = data.tool_name || '';
-    const toolInput = data.tool_input || {};
-    const directory = data.cwd || process.cwd();
+    const toolName = extractJsonField(input, 'toolName', 'unknown');
+    const directory = extractJsonField(input, 'directory', process.cwd());
 
-    // Only enforce for Edit and Write tools
-    if (!['Edit', 'Write'].includes(toolName)) {
-      console.log(JSON.stringify({ continue: true }));
-      return;
-    }
+    const todoStatus = getTodoStatus(directory);
+    const message = generateMessage(toolName, todoStatus);
 
-    const filePath = toolInput.file_path || '';
-
-    // Allow system/config files
-    if (isAllowedPath(filePath)) {
-      console.log(JSON.stringify({ continue: true }));
-      return;
-    }
-
-    // Check if it's a source file
-    if (!isSourceFile(filePath)) {
-      console.log(JSON.stringify({ continue: true }));
-      return;
-    }
-
-    // Count incomplete todos
-    const todoCount = countIncompleteTodos(directory);
-
-    // Build warning message
-    let message = '<delegation-warning>\n\n';
-    message += `[DELEGATION REMINDER: ${toolName} on ${filePath}]\n\n`;
-    message += 'You are directly modifying source code. Consider:\n\n';
-    message += '1. For simple changes: Use executor-low droid\n';
-    message += '2. For complex changes: Use executor or executor-high droid\n';
-    message += '3. For multi-file refactoring: Use architect droid first\n\n';
-
-    if (todoCount > 0) {
-      message += `Note: You have ${todoCount} incomplete todos. Consider using boulder mode for persistent execution.\n\n`;
-    }
-
-    message += 'This is a soft reminder. The operation will proceed.\n\n';
-    message += '</delegation-warning>\n\n';
-
-    // Return with warning (but continue)
     console.log(JSON.stringify({
       continue: true,
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         additionalContext: message
       }
-    }));
+    }, null, 2));
   } catch (error) {
+    // On error, always continue
     console.log(JSON.stringify({ continue: true }));
   }
 }

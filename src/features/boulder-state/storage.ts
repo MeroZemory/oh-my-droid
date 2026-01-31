@@ -3,7 +3,7 @@
  *
  * Handles reading/writing boulder.json for active plan tracking.
  *
- * Ported from oh-my-claudecode with adaptations for oh-my-droid.
+ * Ported from oh-my-opencode's boulder-state.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';

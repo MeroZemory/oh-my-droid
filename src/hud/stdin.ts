@@ -1,14 +1,14 @@
 /**
- * OMD HUD - Stdin Parser
+ * OMC HUD - Stdin Parser
  *
- * Parse stdin JSON from Factory statusline interface.
+ * Parse stdin JSON from Factory Droid statusline interface.
  * Based on claude-hud reference implementation.
  */
 
 import type { StatuslineStdin } from './types.js';
 
 /**
- * Read and parse stdin JSON from Factory.
+ * Read and parse stdin JSON from Factory Droid.
  * Returns null if stdin is not available or invalid.
  */
 export async function readStdin(): Promise<StatuslineStdin | null> {
@@ -51,7 +51,7 @@ function getTotalTokens(stdin: StatuslineStdin): number {
 
 /**
  * Get context window usage percentage.
- * Prefers native percentage from Factory v2.1.6+, falls back to manual calculation.
+ * Prefers native percentage from Factory Droid v2.1.6+, falls back to manual calculation.
  */
 export function getContextPercent(stdin: StatuslineStdin): number {
   // Prefer native percentage (v2.1.6+) - accurate and matches /context

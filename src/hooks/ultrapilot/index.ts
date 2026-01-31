@@ -4,8 +4,6 @@
  * Manages parallel worker spawning and coordination for ultrapilot mode.
  * Decomposes tasks, spawns workers (max 5), tracks progress, and integrates results
  * while managing file ownership to avoid conflicts.
- *
- * Adapted from oh-my-claudecode.
  */
 
 import type {
@@ -30,6 +28,31 @@ import {
   recordConflict
 } from './state.js';
 
+// AI-powered decomposition utilities
+// TODO: Use these with the Architect agent for intelligent task decomposition
+// Example integration:
+//   const prompt = generateDecompositionPrompt(task, codebaseContext);
+//   const response = await Task({ subagent_type: 'architect', prompt });
+//   const result = parseDecompositionResult(response);
+//   const subtasks = toSimpleSubtasks(result);
+export {
+  generateDecompositionPrompt,
+  parseDecompositionResult,
+  generateParallelGroups,
+  validateFileOwnership,
+  extractSharedFiles,
+  toSimpleSubtasks,
+  DEFAULT_SHARED_FILE_PATTERNS
+} from './decomposer.js';
+
+export type {
+  DecomposedTask,
+  DecompositionResult,
+  DecompositionOptions,
+  AgentType,
+  ModelTier
+} from './decomposer.js';
+
 /**
  * Start ultrapilot coordinator
  *
@@ -52,6 +75,9 @@ export async function startUltrapilot(
 
   // Initialize state
   const state = initUltrapilot(cwd, task, subtasks, undefined, mergedConfig);
+  if (!state) {
+    throw new Error('Failed to initialize ultrapilot: another mode is active');
+  }
 
   return state;
 }
@@ -60,6 +86,35 @@ export async function startUltrapilot(
  * Decompose a task into parallelizable subtasks
  *
  * Uses heuristics to identify independent work units that can be executed in parallel.
+ * For more intelligent decomposition with file ownership and dependencies, use the
+ * AI-powered decomposition functions:
+ *
+ * @example AI-powered decomposition (recommended for complex tasks):
+ * ```typescript
+ * import {
+ *   generateDecompositionPrompt,
+ *   parseDecompositionResult,
+ *   toSimpleSubtasks
+ * } from './decomposer.js';
+ *
+ * // Generate prompt for Architect agent
+ * const prompt = generateDecompositionPrompt(task, codebaseContext);
+ *
+ * // Call Architect agent (via Task tool in orchestrator)
+ * const response = await Task({
+ *   subagent_type: 'oh-my-droid:architect',
+ *   model: 'opus',
+ *   prompt
+ * });
+ *
+ * // Parse structured result with file ownership
+ * const result = parseDecompositionResult(response);
+ *
+ * // Use result.subtasks for full DecomposedTask objects with:
+ * // - id, description, files, blockedBy, agentType, model
+ * // Or convert to simple strings for legacy compatibility:
+ * const subtasks = toSimpleSubtasks(result);
+ * ```
  *
  * @param task - Task description
  * @param config - Configuration options
@@ -69,8 +124,9 @@ export async function decomposeTask(
   task: string,
   config: Required<UltrapilotConfig>
 ): Promise<string[]> {
-  // For now, implement basic heuristics for task decomposition
-  // In future, this could use an AI agent to analyze the task
+  // Heuristic-based decomposition for simple cases
+  // For complex tasks, use generateDecompositionPrompt() with Architect agent
+  // to get structured DecompositionResult with file ownership and dependencies
 
   const subtasks: string[] = [];
 

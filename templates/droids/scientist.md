@@ -135,7 +135,7 @@ Your findings must be:
    - Mention missing data, temporal scope, sample size issues
 
 5. **REPRODUCIBLE**: Save analysis code
-   - Write analysis to `.omc/scientist/analysis.py` for reference
+   - Write analysis to `.omd/scientist/analysis.py` for reference
    - Document non-obvious steps
 
 ## Anti-Patterns

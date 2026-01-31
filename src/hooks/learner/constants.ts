@@ -6,10 +6,16 @@ import { join } from 'path';
 import { homedir } from 'os';
 
 /** User-level skills directory (read by skill-injector.mjs hook) */
-export const USER_SKILLS_DIR = join(homedir(), '.factory', 'omd', 'skills', 'omd-learned');
+export const USER_SKILLS_DIR = join(homedir(), '.claude', 'skills', 'omd-learned');
+
+/** Global skills directory (new preferred location: ~/.omd/skills) */
+export const GLOBAL_SKILLS_DIR = join(homedir(), '.omd', 'skills');
 
 /** Project-level skills subdirectory */
-export const PROJECT_SKILLS_SUBDIR = '.omd/skills';
+export const PROJECT_SKILLS_SUBDIR = join('.omd', 'skills');
+
+/** Maximum recursion depth for skill file discovery */
+export const MAX_RECURSION_DEPTH = 10;
 
 /** Valid skill file extension */
 export const SKILL_EXTENSION = '.md';

@@ -1,5 +1,5 @@
 /**
- * Dynamic Prompt Generator for Oh-My-Droid
+ * Dynamic Prompt Generator for Oh-My-Claude-Droid
  *
  * Generates orchestrator prompts dynamically from agent metadata.
  * Adding a new agent to definitions.ts automatically includes it in the generated prompt.

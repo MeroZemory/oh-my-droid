@@ -135,7 +135,7 @@ export class BackfillEngine extends EventEmitter {
     const batch: TokenUsage[] = [];
     const BATCH_SIZE = 100;
 
-    // Build a lookup of toolUseId -> agentType for attributing progress entries
+    // Build a lookup of toolUseId → agentType for attributing progress entries
     // This is populated as we encounter assistant entries with Task tool calls
     const agentLookup = new Map<string, string>();
 
