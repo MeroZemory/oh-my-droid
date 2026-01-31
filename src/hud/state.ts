@@ -29,14 +29,14 @@ function getLocalStateFilePath(directory?: string): string {
  * Get global HUD state file path (for cross-session persistence)
  */
 function getGlobalStateFilePath(): string {
-  return join(homedir(), '.claude', 'hud-state.json');
+  return join(homedir(), '.factory', '.omd', 'hud-state.json');
 }
 
 /**
  * Get the HUD config file path
  */
 function getConfigFilePath(): string {
-  return join(homedir(), '.claude', '.omd', 'hud-config.json');
+  return join(homedir(), '.factory', '.omd', 'hud-config.json');
 }
 
 /**
@@ -54,7 +54,7 @@ function ensureStateDir(directory?: string): void {
  * Ensure the ~/.factory/.omd directory exists
  */
 function ensureGlobalConfigDir(): void {
-  const configDir = join(homedir(), '.claude', '.omd');
+  const configDir = join(homedir(), '.factory', '.omd');
   if (!existsSync(configDir)) {
     mkdirSync(configDir, { recursive: true });
   }
@@ -64,9 +64,9 @@ function ensureGlobalConfigDir(): void {
  * Ensure the ~/.factory directory exists
  */
 function ensureGlobalStateDir(): void {
-  const claudeDir = join(homedir(), '.claude');
-  if (!existsSync(claudeDir)) {
-    mkdirSync(claudeDir, { recursive: true });
+  const stateDir = join(homedir(), '.factory', '.omd');
+  if (!existsSync(stateDir)) {
+    mkdirSync(stateDir, { recursive: true });
   }
 }
 

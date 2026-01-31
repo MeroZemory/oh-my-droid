@@ -48,27 +48,17 @@ function countIncompleteTodos(todosDir) {
 
 // Check if HUD is properly installed
 function checkHudInstallation() {
-  // Factory Droid uses ~/.factory; keep ~/.claude as legacy fallback.
-  const hudScripts = [
-    join(homedir(), '.factory', 'hud', 'omd-hud.mjs'),
-    join(homedir(), '.claude', 'hud', 'omd-hud.mjs'),
-  ];
-  const settingsFiles = [
-    join(homedir(), '.factory', 'settings.json'),
-    join(homedir(), '.claude', 'settings.json'),
-  ];
-
-  const hudScript = hudScripts.find((p) => existsSync(p));
-  const settingsFile = settingsFiles.find((p) => existsSync(p));
+  const hudScript = join(homedir(), '.factory', 'hud', 'omd-hud.mjs');
+  const settingsFile = join(homedir(), '.factory', 'settings.json');
 
   // Check if HUD script exists
-  if (!hudScript) {
+  if (!existsSync(hudScript)) {
     return { installed: false, reason: 'HUD script missing' };
   }
 
   // Check if statusLine is configured
   try {
-    if (!settingsFile) return { installed: false, reason: 'settings.json missing' };
+    if (!existsSync(settingsFile)) return { installed: false, reason: 'settings.json missing' };
 
     const settings = JSON.parse(readFileSync(settingsFile, 'utf-8'));
     if (!settings.statusLine) {
