@@ -199,9 +199,11 @@ function safeRealpathSync(filePath: string): string {
  * Check if a resolved path is within a boundary directory.
  */
 function isWithinBoundary(realPath: string, boundary: string): boolean {
-  const sep = process.platform === 'win32' ? '\\' : '/';
+  // Normalize + resolve boundary to avoid macOS /var -> /private/var realpath mismatches
+  const boundaryReal = safeRealpathSync(boundary);
+
   const normalizedReal = realPath.replace(/\\/g, '/').replace(/\/+/g, '/');
-  const normalizedBoundary = boundary.replace(/\\/g, '/').replace(/\/+/g, '/');
+  const normalizedBoundary = boundaryReal.replace(/\\/g, '/').replace(/\/+/g, '/');
   return normalizedReal === normalizedBoundary ||
          normalizedReal.startsWith(normalizedBoundary + '/');
 }

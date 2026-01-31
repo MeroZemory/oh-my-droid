@@ -174,7 +174,11 @@ describe('Discovery System', () => {
         },
       });
 
-      const servers = discoverMcpServers({ mcpConfigPath: TEST_MCP_CONFIG });
+      const servers = discoverMcpServers({
+        mcpConfigPath: TEST_MCP_CONFIG,
+        // Avoid reading any real user settings.json during tests
+        settingsPath: join(TEST_DIR, 'nonexistent-settings.json'),
+      });
 
       expect(servers).toHaveLength(1);
       expect(servers[0].name).toBe('test-server');
@@ -189,7 +193,11 @@ describe('Discovery System', () => {
         },
       });
 
-      const servers = discoverMcpServers({ settingsPath: TEST_SETTINGS });
+      const servers = discoverMcpServers({
+        settingsPath: TEST_SETTINGS,
+        // Avoid reading any real user claude_desktop_config.json during tests
+        mcpConfigPath: join(TEST_DIR, 'nonexistent-claude_desktop_config.json'),
+      });
 
       expect(servers).toHaveLength(1);
       expect(servers[0].name).toBe('settings-server');

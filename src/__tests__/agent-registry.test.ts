@@ -15,7 +15,7 @@ describe('Agent Registry Validation', () => {
 
   test('all agents have .md prompt files', () => {
     const agents = Object.keys(getAgentDefinitions());
-    const agentsDir = path.join(__dirname, '../../agents');
+    const agentsDir = path.join(__dirname, '../../droids');
     for (const name of agents) {
       const mdPath = path.join(agentsDir, `${name}.md`);
       expect(fs.existsSync(mdPath), `Missing .md file for agent: ${name}`).toBe(true);

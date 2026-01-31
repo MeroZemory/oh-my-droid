@@ -32,6 +32,7 @@ export function renderTable(data: any[], columns: TableColumn[]): string {
 }
 
 function padString(str: string, width: number, align: 'left' | 'right' | 'center'): string {
+  // eslint-disable-next-line no-control-regex -- strip ANSI escape codes
   const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '');
   const visibleLength = stripAnsi(str).length;
   const padding = Math.max(0, width - visibleLength);

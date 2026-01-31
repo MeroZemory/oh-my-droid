@@ -102,7 +102,7 @@ async function ensureBackfillDone(): Promise<void> {
 // Display enhanced banner using gradient-string (loaded dynamically)
 async function displayAnalyticsBanner() {
   try {
-    // @ts-ignore - gradient-string will be installed during setup
+    // @ts-expect-error - optional dependency; installed during setup
     const gradient = await import('gradient-string');
     const banner = gradient.default.pastel.multiline([
       '╔═══════════════════════════════════════╗',

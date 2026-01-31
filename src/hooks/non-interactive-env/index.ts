@@ -26,7 +26,7 @@ function shellEscape(value: string): string {
   // Empty string needs quotes
   if (value === "") return "''"
   // If contains special chars, wrap in single quotes (escape existing single quotes)
-  if (/[^a-zA-Z0-9_\-.:\/]/.test(value)) {
+  if (/[^a-zA-Z0-9_\-.:/]/.test(value)) {
     return `'${value.replace(/'/g, "'\\''")}'`
   }
   return value

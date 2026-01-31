@@ -51,8 +51,9 @@ function safeRealpathSync(filePath: string): string {
  * Used to prevent symlink escapes.
  */
 function isWithinBoundary(realPath: string, boundary: string): boolean {
-  const normalizedReal = normalize(realPath);
-  const normalizedBoundary = normalize(boundary);
+  // Resolve both paths to avoid macOS /var -> /private/var realpath mismatches
+  const normalizedReal = normalize(safeRealpathSync(realPath));
+  const normalizedBoundary = normalize(safeRealpathSync(boundary));
   return normalizedReal === normalizedBoundary ||
          normalizedReal.startsWith(normalizedBoundary + sep);
 }

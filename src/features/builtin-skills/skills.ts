@@ -93,6 +93,10 @@ function loadSkillsFromDirectory(): BuiltinSkill[] {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
+      // Exclude deprecated/alias skill folders from builtin registry
+      // (kept in repo for backwards compatibility / reference)
+      if (entry.name === 'planner' || entry.name === 'setup') continue;
+
       const skillPath = join(SKILLS_DIR, entry.name, 'SKILL.md');
       if (existsSync(skillPath)) {
         const skill = loadSkillFromFile(skillPath, entry.name);

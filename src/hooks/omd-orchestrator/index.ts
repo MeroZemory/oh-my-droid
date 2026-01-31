@@ -66,11 +66,15 @@ function getEnforcementLevel(directory: string): EnforcementLevel {
   }
 
   const localConfig = path.join(directory, '.omd', 'config.json');
-  const globalConfig = path.join(os.homedir(), '.claude', '.omd-config.json');
+  const globalConfigs = [
+    path.join(os.homedir(), '.factory', '.omd-config.json'),
+    // Legacy location
+    path.join(os.homedir(), '.claude', '.omd-config.json'),
+  ];
 
   let level: EnforcementLevel = 'warn'; // Default
 
-  for (const configPath of [localConfig, globalConfig]) {
+  for (const configPath of [localConfig, ...globalConfigs]) {
     if (existsSync(configPath)) {
       try {
         const content = readFileSync(configPath, 'utf-8');

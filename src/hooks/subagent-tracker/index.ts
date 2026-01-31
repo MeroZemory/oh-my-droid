@@ -116,7 +116,7 @@ function acquireLock(directory: string): boolean {
         const lockTime = parseInt(lockContent, 10);
         if (Date.now() - lockTime > LOCK_TIMEOUT_MS) {
           // Stale lock, remove it
-          try { unlinkSync(lockPath); } catch {}
+          try { unlinkSync(lockPath); } catch { void 0; }
         } else {
           // Lock is held, wait and retry
           syncSleep(LOCK_RETRY_MS);

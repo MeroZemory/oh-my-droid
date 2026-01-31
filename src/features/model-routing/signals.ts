@@ -88,7 +88,7 @@ export function extractAllSignals(
 function countFilePaths(prompt: string): number {
   // Match common file path patterns
   const patterns = [
-    /(?:^|\s)[.\/~]?(?:[\w-]+\/)+[\w.-]+\.\w+/gm,  // Unix-style paths
+    /(?:^|\s)[./~]?(?:[\w-]+\/)+[\w.-]+\.\w+/gm,  // Unix-style paths
     /`[^`]+\.\w+`/g,  // Backtick-quoted files
     /['"][^'"]+\.\w+['"]/g,  // Quoted files
   ];

@@ -575,12 +575,8 @@ class LspClientManager {
     let client = this.clients.get(key);
     if (!client) {
       client = new LspClient(workspaceRoot, serverConfig);
-      try {
-        await client.connect();
-        this.clients.set(key, client);
-      } catch (error) {
-        throw error;
-      }
+      await client.connect();
+      this.clients.set(key, client);
     }
 
     return client;

@@ -13,11 +13,22 @@ export const ALLOWED_PATH_PREFIX = '.omd/';
 
 /** Path patterns that orchestrator IS allowed to modify directly */
 export const ALLOWED_PATH_PATTERNS = [
-  /^\.omc\//,                    // .omd/**
-  /^\.claude\//,                 // .claude/** (local)
-  /^~?\/\.claude\//,             // ~/.factory/** (global)
-  /\/\.claude\//,                // any /.factory/ path
-  /CLAUDE\.md$/,                 // **/FACTORY.md
+  /^\.omd\//,                    // .omd/** (project state/config)
+  /^\.omc\//,                    // .omc/** (legacy)
+
+  // Local project config dirs
+  /^\.factory\//,                // .factory/**
+  /^\.claude\//,                 // .claude/** (legacy)
+
+  // Global config dirs
+  /^~?\/\.factory\//,            // ~/.factory/**
+  /\/\.factory\//,               // any /.factory/ path
+  /^~?\/\.claude\//,             // ~/.claude/** (legacy)
+  /\/\.claude\//,                // any /.claude/ path
+
+  // Context files
+  /FACTORY\.md$/,                // **/FACTORY.md
+  /CLAUDE\.md$/,                 // **/CLAUDE.md (legacy)
   /AGENTS\.md$/,                 // **/AGENTS.md
 ];
 

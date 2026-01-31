@@ -231,8 +231,8 @@ export function extractContext(prompt: string): MatchContext {
   // File detection
   const filePatterns = [
     /\b([a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+\.[a-z]{2,4}\b/g, // Relative paths
-    /\b\/[a-zA-Z0-9_\/-]+\.[a-z]{2,4}\b/g, // Absolute paths
-    /\bsrc\/[a-zA-Z0-9_\/-]+/g, // src/ paths
+    /\b\/[a-zA-Z0-9_/-]+\.[a-z]{2,4}\b/g, // Absolute paths
+    /\bsrc\/[a-zA-Z0-9_/-]+/g, // src/ paths
   ];
 
   for (const pattern of filePatterns) {
@@ -283,7 +283,7 @@ export function calculateConfidence(
   if (total === 0) return 0;
 
   const matchRatio = matches / total;
-  let baseScore = matchRatio * 100;
+  const baseScore = matchRatio * 100;
 
   // Apply multiplier based on match type
   const multipliers: Record<string, number> = {

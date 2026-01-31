@@ -4,7 +4,7 @@ import { toForwardSlash, toShellPath, getDataDir, getConfigDir } from '../paths.
 describe('cross-platform path utilities', () => {
   describe('toForwardSlash', () => {
     it('should convert backslashes to forward slashes', () => {
-      expect(toForwardSlash('C:\\Users\\test\\.claude')).toBe('C:/Users/test/.factory');
+      expect(toForwardSlash('C:\\Users\\test\\.claude')).toBe('C:/Users/test/.claude');
     });
 
     it('should leave forward slashes unchanged', () => {
@@ -12,7 +12,7 @@ describe('cross-platform path utilities', () => {
     });
 
     it('should handle mixed slashes', () => {
-      expect(toForwardSlash('C:\\Users/test\\.claude')).toBe('C:/Users/test/.factory');
+      expect(toForwardSlash('C:\\Users/test\\.claude')).toBe('C:/Users/test/.claude');
     });
 
     it('should handle empty string', () => {

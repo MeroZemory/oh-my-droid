@@ -176,9 +176,11 @@ function processKeywordDetector(input: HookInput): HookOutput {
     switch (keywordType) {
       case 'ralph':
         // Activate ralph state which also auto-activates ultrawork
-        const hook = createRalphLoopHook(directory);
-        hook.startLoop(sessionId || 'cli-session', promptText);
-        messages.push(RALPH_MESSAGE);
+        {
+          const hook = createRalphLoopHook(directory);
+          hook.startLoop(sessionId || 'cli-session', promptText);
+          messages.push(RALPH_MESSAGE);
+        }
         break;
 
       case 'ultrawork':

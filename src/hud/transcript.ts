@@ -77,7 +77,7 @@ export async function parseTranscript(
 
   const agentMap = new Map<string, ActiveAgent>();
   const backgroundAgentMap: BackgroundAgentMap = new Map();
-  let latestTodos: TodoItem[] = [];
+  const latestTodos: TodoItem[] = [];
 
   try {
     // Check file size to determine parsing strategy

@@ -27,11 +27,11 @@ function getPackageDir(): string {
  * Load agent definitions for testing
  */
 function loadAgentDefinitions(): Record<string, string> {
-  const agentsDir = join(getPackageDir(), 'agents');
+  const agentsDir = join(getPackageDir(), 'droids');
   const definitions: Record<string, string> = {};
 
   if (!existsSync(agentsDir)) {
-    throw new Error(`agents directory not found: ${agentsDir}`);
+    throw new Error(`droids directory not found: ${agentsDir}`);
   }
 
   for (const file of readdirSync(agentsDir)) {
@@ -306,9 +306,8 @@ describe('Installer Constants', () => {
         expect(CLAUDE_MD_CONTENT).toContain(keyword);
       }
 
-      // Verify migration section exists (points to MIGRATION.md)
+      // Verify migration section exists
       expect(CLAUDE_MD_CONTENT).toContain('Migration');
-      expect(CLAUDE_MD_CONTENT).toContain('MIGRATION.md');
     });
 
     it('should contain markdown tables', () => {

@@ -107,9 +107,9 @@ function extractFilePaths(text: string): string[] {
   // Match common path patterns
   const pathPatterns = [
     // Absolute paths: /path/to/file.ext or C:\path\to\file.ext
-    /(?:^|\s)((?:[A-Z]:)?(?:\/|\\)[\w\/\\.-]+\.\w+)/gi,
+    /(?:^|\s)((?:[A-Z]:)?(?:\/|\\)[\w/\\.-]+\.\w+)/gi,
     // Relative paths: ./path/to/file.ext or ../path/to/file.ext
-    /(?:^|\s)(\.\.?\/[\w\/.-]+\.\w+)/gi,
+    /(?:^|\s)(\.\.?\/[\w/.-]+\.\w+)/gi,
     // Simple paths: src/components/Button.tsx
     /(?:^|\s)([\w-]+(?:\/[\w-]+)+\.\w+)/gi,
   ];
