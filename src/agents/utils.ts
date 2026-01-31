@@ -24,7 +24,7 @@ import type {
 // ============================================================
 
 /**
- * Get the package root directory (where agents/ folder lives)
+ * Get the package root directory (where droids/ folder lives)
  */
 function getPackageDir(): string {
   const __filename = fileURLToPath(import.meta.url);
@@ -34,7 +34,7 @@ function getPackageDir(): string {
 }
 
 /**
- * Load an agent prompt from /agents/{agentName}.md
+ * Load an agent prompt from /droids/{agentName}.md
  * Strips YAML frontmatter and returns the content
  *
  * Security: Validates agent name to prevent path traversal attacks
@@ -47,7 +47,7 @@ export function loadAgentPrompt(agentName: string): string {
   }
 
   try {
-    const agentsDir = join(getPackageDir(), 'agents');
+    const agentsDir = join(getPackageDir(), 'droids');
     const agentPath = join(agentsDir, `${agentName}.md`);
 
     // Security: Verify resolved path is within the agents directory

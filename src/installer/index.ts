@@ -114,7 +114,7 @@ function getPackageDir(): string {
 }
 
 /**
- * Load agent definitions from /agents/*.md files
+ * Load agent definitions from /droids/*.md files
  */
 function loadAgentDefinitions(): Record<string, string> {
   const agentsDir = join(getPackageDir(), 'agents');

@@ -3,7 +3,7 @@
  *
  * This module provides:
  * 1. Re-exports of base agents from individual files
- * 2. Tiered agent variants with dynamically loaded prompts from /agents/*.md
+ * 2. Tiered agent variants with dynamically loaded prompts from /droids/*.md
  * 3. getAgentDefinitions() for agent registry
  * 4. omdSystemPrompt for the main orchestrator
  */
@@ -322,7 +322,7 @@ export function getAgentDefinitions(overrides?: Partial<Record<string, Partial<A
     planner: plannerAgent,
     'qa-tester': qaTesterAgent,
     scientist: scientistAgent,
-    // Tiered variants (prompts loaded from /agents/*.md)
+    // Tiered variants (prompts loaded from /droids/*.md)
     'architect-medium': architectMediumAgent,
     'architect-low': architectLowAgent,
     'executor-high': executorHighAgent,

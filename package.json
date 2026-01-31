@@ -19,7 +19,7 @@
   },
   "files": [
     "dist",
-    "agents",
+    "droids",
     "bridge",
     "hooks",
     "scripts",
@@ -27,7 +27,7 @@
     "templates",
     "docs",
     ".factory-plugin",
-    ".mcp.json",
+    "mcp.json",
     "README.md",
     "LICENSE"
   ],

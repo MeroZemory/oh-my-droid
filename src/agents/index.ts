@@ -36,7 +36,7 @@ export { plannerAgent, PLANNER_PROMPT_METADATA } from './planner.js';
 export { qaTesterAgent, QA_TESTER_PROMPT_METADATA } from './qa-tester.js';
 export { scientistAgent, SCIENTIST_PROMPT_METADATA } from './scientist.js';
 
-// Tiered agent variants (prompts loaded dynamically from /agents/*.md)
+// Tiered agent variants (prompts loaded dynamically from /droids/*.md)
 export {
   architectMediumAgent,
   architectLowAgent,
