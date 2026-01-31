@@ -1,6 +1,6 @@
 {
   "name": "oh-my-droid",
-  "description": "Multi-agent orchestration plugin for Factory AI Droid CLI",
+  "description": "Factory Droid native multi-agent orchestration - intelligent model routing, 28 agents, 31 skills",
   "owner": {
     "name": "Jio Kim",
     "email": "merozemory@gmail.com"
@@ -8,9 +8,16 @@
   "plugins": [
     {
       "name": "oh-my-droid",
-      "description": "Transform Droid into an orchestration conductor with 33 specialized agents and 35 skills",
-      "source": ".",
-      "category": "productivity"
+      "description": "Factory Droid native multi-agent orchestration with intelligent model routing, 28 agent variants, and 30 powerful skills. Zero learning curve. Maximum power.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Jio Kim",
+        "email": "merozemory@gmail.com"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/MeroZemory/oh-my-droid",
+      "tags": ["multi-agent", "orchestration", "delegation", "todo-management", "ultrawork"]
     }
   ]
 }
