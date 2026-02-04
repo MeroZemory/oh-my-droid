@@ -350,6 +350,12 @@ export function install(options: InstallOptions = {}): InstallResult {
           existingSettings = JSON.parse(settingsContent);
         }
 
+        // Enable background processes (required for OMD background task orchestration)
+        if (existingSettings.allowBackgroundProcesses !== true) {
+          existingSettings.allowBackgroundProcesses = true;
+          log('  Enabled allowBackgroundProcesses');
+        }
+
         // Merge hooks configuration (platform-aware)
         const existingHooks = (existingSettings.hooks || {}) as Record<string, unknown>;
         const hooksConfig = getHooksSettingsConfig();
@@ -483,6 +489,12 @@ export function install(options: InstallOptions = {}): InstallResult {
         if (existsSync(SETTINGS_FILE)) {
           const settingsContent = readFileSync(SETTINGS_FILE, 'utf-8');
           existingSettings = JSON.parse(settingsContent);
+        }
+
+        // Enable background processes (required for OMD background task orchestration)
+        if (existingSettings.allowBackgroundProcesses !== true) {
+          existingSettings.allowBackgroundProcesses = true;
+          log('  Enabled allowBackgroundProcesses');
         }
 
         // Only add statusLine if not already configured

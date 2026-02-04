@@ -97,6 +97,10 @@ try {
     type: 'command',
     command: `node ${hudScriptPath}`
   };
+
+  // Enable background processes (required for OMD background task orchestration)
+  settings.allowBackgroundProcesses = true;
+
   writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
   console.log('[OMD] Configured HUD statusLine in settings.json');
 } catch (e) {

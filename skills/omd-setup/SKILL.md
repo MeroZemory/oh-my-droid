@@ -462,6 +462,40 @@ Skip this step - the plugin provides all features.
 grep -q "oh-my-droid" ~/.factory/settings.json && echo "Plugin verified" || echo "Plugin NOT found - run: droid /plugin install oh-my-droid@oh-my-droid"
 ```
 
+## Step 4.1: Ensure allowBackgroundProcesses is Enabled
+
+OMD background task orchestration may require Factory Droid's experimental background process support.
+
+If `allowBackgroundProcesses` is already `true`, **skip** this step.
+
+```bash
+node - <<'NODE'
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const file = path.join(os.homedir(), '.factory', 'settings.json');
+let settings = {};
+
+if (fs.existsSync(file)) {
+  try {
+    settings = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    // Keep empty settings if file is invalid
+  }
+}
+
+if (settings.allowBackgroundProcesses !== true) {
+  settings.allowBackgroundProcesses = true;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(settings, null, 2));
+  console.log('[OMD] Enabled allowBackgroundProcesses in', file);
+} else {
+  console.log('[OMD] allowBackgroundProcesses already enabled');
+}
+NODE
+```
+
 ## Step 5: Offer MCP Server Configuration
 
 MCP servers extend Factory Droid with additional tools (web search, GitHub, etc.).
