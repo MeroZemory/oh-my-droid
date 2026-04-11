@@ -104,5 +104,13 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "overrides": {
+    "ajv": ">=8.18.0",
+    "hono": ">=4.12.12",
+    "minimatch": ">=9.0.5",
+    "path-to-regexp": ">=8.2.0",
+    "rollup": ">=4.40.0",
+    "vite": ">=6.3.5"
   }
 }

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
   test: {
@@ -21,7 +22,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': '/home/bellman/Workspace/oh-my-droid/src',
+      '@': resolve(__dirname, 'src'),
     },
   },
 });
