@@ -25,28 +25,22 @@ oh-my-droid v3.8.17 has **solid security foundations** following the hardening w
 
 ### H1: Dependency Vulnerabilities
 
-**Status:** FIXED in this PR via `overrides` in package.json
+**Status:** FIXED in this PR via direct dependency updates + `npm audit fix`
 
-**Issue:** 12 npm packages had known vulnerabilities:
-- `@modelcontextprotocol/sdk` - cross-client data leak
-- `hono` - auth bypass, prototype pollution
-- `vite` - path traversal
-- `rollup` - arbitrary file write
-- `minimatch` - ReDoS
+**Issue:** 9 npm packages had known vulnerabilities (2 moderate, 7 high):
+- `@hono/node-server` - authorization bypass via encoded slashes
+- `hono` - 10 vulnerabilities (timing attack, cookie injection, prototype pollution, path traversal, etc.)
+- `ajv` - ReDoS with `$data` option
+- `flatted` - unbounded recursion DoS, prototype pollution
+- `brace-expansion` - zero-step sequence causes process hang
 
 **Fix Applied:**
-```json
-"overrides": {
-  "ajv": ">=8.18.0",
-  "hono": ">=4.12.12",
-  "minimatch": ">=9.0.5",
-  "path-to-regexp": ">=8.2.0",
-  "rollup": ">=4.40.0",
-  "vite": ">=6.3.5"
-}
-```
+1. Updated `@modelcontextprotocol/sdk` from `^1.25.3` to `^1.26.0` (aligns with oh-my-claudecode v4.11.5)
+2. Ran `npm audit fix` to update transitive dependencies to patched versions
 
-**Comparison:** oh-my-codex (upstream) uses similar overrides pattern.
+**Result:** `npm audit` now shows **0 vulnerabilities**
+
+**Approach:** Same as oh-my-claudecode - direct dependency updates without overrides. This is cleaner than using `overrides` which can mask underlying issues.
 
 ### H2: JSON State File Race Conditions
 
