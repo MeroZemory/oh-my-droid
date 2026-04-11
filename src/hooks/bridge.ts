@@ -533,6 +533,20 @@ function processAutopilot(input: HookInput): HookOutput {
 }
 
 /**
+ * Cached parsed OMD_SKIP_HOOKS for performance (env vars don't change during process lifetime)
+ */
+let _cachedSkipHooks: string[] | null = null;
+function getSkipHooks(): string[] {
+  if (_cachedSkipHooks === null) {
+    _cachedSkipHooks =
+      process.env.OMD_SKIP_HOOKS?.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean) ?? [];
+  }
+  return _cachedSkipHooks;
+}
+
+/**
  * Main hook processor
  * Routes to specific hook handler based on type
  */
@@ -540,6 +554,18 @@ export async function processHook(
   hookType: HookType,
   input: HookInput
 ): Promise<HookOutput> {
+  // Environment kill-switches for plugin coexistence (inspired by oh-my-claudecode)
+  // Set DISABLE_OMD=1 or DISABLE_OMD=true to run Factory Droid in vanilla mode
+  if (process.env.DISABLE_OMD === '1' || process.env.DISABLE_OMD === 'true') {
+    return { continue: true };
+  }
+
+  // Optional: Skip specific hooks via OMD_SKIP_HOOKS=hook1,hook2
+  const skipHooks = getSkipHooks();
+  if (skipHooks.includes(hookType)) {
+    return { continue: true };
+  }
+
   try {
     switch (hookType) {
       case 'keyword-detector':
