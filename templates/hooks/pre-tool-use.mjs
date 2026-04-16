@@ -7,15 +7,15 @@
 
 import * as path from 'path';
 import { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Dynamic import for the shared stdin module
-const { readStdin } = await import(path.join(__dirname, 'lib', 'stdin.mjs'));
+// Dynamic import for the shared stdin module (pathToFileURL required on Windows)
+const { readStdin } = await import(pathToFileURL(path.join(__dirname, 'lib', 'stdin.mjs')).href);
 
 // Allowed path patterns (no warning)
 const ALLOWED_PATH_PATTERNS = [

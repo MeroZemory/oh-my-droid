@@ -5,13 +5,13 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Dynamic import for the shared stdin module
-const { readStdin } = await import(join(__dirname, 'lib', 'stdin.mjs'));
+// Dynamic import for the shared stdin module (pathToFileURL required on Windows)
+const { readStdin } = await import(pathToFileURL(join(__dirname, 'lib', 'stdin.mjs')).href);
 
 // Constants
 const NOTEPAD_TEMPLATE = '# Notepad\n' +
