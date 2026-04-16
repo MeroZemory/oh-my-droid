@@ -1,25 +1,26 @@
 ---
 name: ultrawork
-description: Activate maximum performance mode with parallel agent orchestration for high-throughput task completion
+description: "Decompose multi-step tasks into parallel sub-agent workloads, route each sub-task to the cheapest capable model tier (Haiku/Sonnet/Opus), run long-running commands in the background, and verify all deliverables before stopping. Use when the user asks to 'go fast', 'parallelize', 'ultrawork', or when a request contains 3+ independent sub-tasks that benefit from concurrent execution."
 ---
 
-# Ultrawork Skill
+# Ultrawork
 
-Activates maximum performance mode with parallel agent orchestration.
+Orchestrate parallel sub-agents across model tiers to complete multi-part tasks faster and cheaper.
 
-## When Activated
+## Workflow
 
-This skill enhances the agent's capabilities by:
+Follow these steps in order for every ultrawork session:
 
-1. **Parallel Execution**: Running multiple agents simultaneously for independent tasks
-2. **Aggressive Delegation**: Routing tasks to specialist agents immediately
-3. **Background Operations**: Using `run_in_background: true` for long operations
-4. **Persistence Enforcement**: Never stopping until all tasks are verified complete
-5. **Smart Model Routing**: Using tiered agents to save tokens
+1. **Decompose** -- Break the user request into independent sub-tasks. List each task with its domain (Analysis, Execution, Search, etc.).
+2. **Route** -- Assign each sub-task to the cheapest sufficient agent tier using the routing table below (LOW first, escalate only when needed).
+3. **Dispatch** -- Launch independent sub-tasks in parallel via `Task()`. Set `run_in_background: true` for any command expected to take longer than a few seconds (builds, installs, test suites, Docker operations).
+4. **Monitor** -- Track each sub-agent to completion. If a sub-task fails or returns incomplete results, escalate to the next tier and retry.
+5. **Verify** -- Run the verification checklist (below). If any item fails, continue working until all pass.
+6. **Clean up** -- Delete ``.omd/state/ultrawork-state.json`` so no stale state persists.
 
-## Smart Model Routing (CRITICAL - SAVE TOKENS)
+## Smart Model Routing
 
-**Choose tier based on task complexity: LOW (haiku) → MEDIUM (sonnet) → HIGH (opus)**
+Always start at the lowest tier that can handle the task. Escalate only on failure or when complexity demands it: **LOW (Haiku) -> MEDIUM (Sonnet) -> HIGH (Opus)**.
 
 ### Available Agents by Tier
 
@@ -70,38 +71,30 @@ Task(subagent_type="oh-my-droid:explore", model="claude-haiku-4-5-20251001", pro
 Task(subagent_type="oh-my-droid:explore-medium", model="claude-sonnet-4-5-20250929", prompt="Find all authentication patterns in the codebase")
 ```
 
-## Background Execution Rules
+## Background vs Foreground Execution
 
-**Run in Background** (set `run_in_background: true`):
-- Package installation: npm install, pip install, cargo build
-- Build processes: npm run build, make, tsc
-- Test suites: npm test, pytest, cargo test
-- Docker operations: docker build, docker pull
+Set `run_in_background: true` for any command that typically takes more than a few seconds:
 
-**Run Blocking** (foreground):
-- Quick status checks: git status, ls, pwd
-- File reads, edits
-- Simple commands
+| Background (`run_in_background: true`) | Foreground (blocking) |
+|-----------------------------------------|-----------------------|
+| `npm install`, `pip install`, `cargo build` | `git status`, `ls`, `pwd` |
+| `npm run build`, `make`, `tsc` | File reads and edits |
+| `npm test`, `pytest`, `cargo test` | Short single-file commands |
+| `docker build`, `docker pull` | |
 
 ## Verification Checklist
 
-Before stopping, verify:
-- [ ] TODO LIST: Zero pending/in_progress tasks
-- [ ] FUNCTIONALITY: All requested features work
-- [ ] TESTS: All tests pass (if applicable)
-- [ ] ERRORS: Zero unaddressed errors
+Before stopping, every item must pass. If any fails, continue working.
 
-**If ANY checkbox is unchecked, CONTINUE WORKING.**
+- [ ] **Tasks complete** -- Zero pending or in-progress sub-tasks remain
+- [ ] **Functionality** -- All requested features work as specified
+- [ ] **Tests** -- All tests pass (when applicable)
+- [ ] **Errors** -- Zero unaddressed errors in output
 
-## STATE CLEANUP ON COMPLETION
+## State Cleanup
 
-**IMPORTANT: Delete state files on completion - do NOT just set `active: false`**
-
-When all verification passes and work is complete:
+On completion, delete state files -- do not leave them with `active: false`:
 
 ```bash
-# Delete ultrawork state files
 rm -f .omd/state/ultrawork-state.json
 ```
-
-This ensures clean state for future sessions. Stale state files with `active: false` should not be left behind.

@@ -1,11 +1,9 @@
 ---
 name: tdd
-description: Test-Driven Development enforcement skill - write tests first, always
+description: "Enforce strict Test-Driven Development (TDD) using the red-green-refactor cycle. Use when writing unit tests, practicing test-first development, applying TDD discipline, or implementing features via red-green-refactor workflows."
 ---
 
 # TDD Mode
-
-[TDD MODE ACTIVATED]
 
 ## The Iron Law
 
@@ -47,13 +45,78 @@ Write code before test? DELETE IT. Start over. No exceptions.
 
 Before each implementation:
 ```bash
-npm test  # Should have ONE new failure
+npx jest --watchAll  # Should have ONE new failure
+# or: npx vitest run, pytest, go test ./...
 ```
 
 After implementation:
 ```bash
-npm test  # New test should pass, all others still pass
+npx jest --watchAll  # New test should pass, all others still pass
 ```
+
+## Worked Example: Adding a `capitalize` Function
+
+### RED Phase — Write the Failing Test
+
+```js
+// src/strings.test.js
+const { capitalize } = require('./strings');
+
+describe('capitalize', () => {
+  it('should uppercase the first letter and lowercase the rest', () => {
+    expect(capitalize('hello')).toBe('Hello');
+  });
+
+  it('should handle single character strings', () => {
+    expect(capitalize('h')).toBe('H');
+  });
+
+  it('should return empty string for empty input', () => {
+    expect(capitalize('')).toBe('');
+  });
+});
+```
+
+Run tests — they fail because `strings.js` does not export `capitalize`:
+```
+FAIL  src/strings.test.js
+  ● capitalize › should uppercase the first letter and lowercase the rest
+    TypeError: capitalize is not a function
+```
+
+### GREEN Phase — Minimal Implementation
+
+```js
+// src/strings.js
+function capitalize(str) {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+module.exports = { capitalize };
+```
+
+Run tests — all three pass:
+```
+PASS  src/strings.test.js
+  capitalize
+    ✓ should uppercase the first letter and lowercase the rest
+    ✓ should handle single character strings
+    ✓ should return empty string for empty input
+```
+
+### REFACTOR Phase — Clean Up
+
+Extract a guard clause for clarity, ensure tests still pass:
+
+```js
+function capitalize(str) {
+  if (str.length === 0) return '';
+  return str[0].toUpperCase() + str.slice(1).toLowerCase();
+}
+```
+
+Tests still green. Move to the next failing test.
 
 ## Output Format
 

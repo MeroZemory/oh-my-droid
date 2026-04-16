@@ -1,95 +1,95 @@
 ---
 name: autopilot
-description: Full autonomous execution from idea to working code
+description: "Expand a product idea into a spec, plan implementation with critic validation, execute code across parallel agents, run iterative QA cycles, and perform multi-reviewer validation. Use when the user provides a feature description or project idea and wants end-to-end autonomous implementation without manual phase transitions."
 ---
 
-# Autopilot Skill
+# Autopilot
 
-Full autonomous execution from idea to working code.
+Take a product idea or feature description and autonomously expand it into a specification, plan the implementation, execute code generation with parallel agents, run QA cycles until tests pass, and validate with multi-perspective review.
 
-## Overview
+## Trigger Phrases
 
-Autopilot is the ultimate hands-off mode. Give it a brief product idea (2-3 lines) and it handles everything:
-
-1. **Understands** your requirements (Analyst)
-2. **Designs** the technical approach (Architect)
-3. **Plans** the implementation (Critic-validated)
-4. **Builds** with parallel agents (Ralph + Ultrawork)
-5. **Tests** until everything passes (UltraQA)
-6. **Validates** quality and security (Multi-architect review)
-
-## Usage
+Activate via command or natural language:
 
 ```
-/autopilot <your idea>
-/ap "A CLI tool that tracks daily habits"
-/autopilot Add dark mode to the app
+/autopilot <description>
+/ap <description>
 ```
 
-## Magic Keywords
+Also activates on: "autopilot", "auto pilot", "autonomous", "build me", "create me", "make me", "full auto", "handle it all", "I want a/an..."
 
-These phrases auto-activate autopilot:
-- "autopilot", "auto pilot", "autonomous"
-- "build me", "create me", "make me"
-- "full auto", "handle it all"
-- "I want a/an..."
+## Workflow
 
-## Phases
+### Phase 0: Expansion — Idea to Spec
 
-### Phase 0: Expansion
+1. Analyst agent (Opus) extracts functional requirements, user stories, constraints, and acceptance criteria from the user's input
+2. Architect agent (Opus) produces a technical specification with stack choices, data models, API contracts, and component boundaries
+3. Write combined spec to `.omd/autopilot/spec.md`
 
-**Goal:** Turn vague idea into detailed spec
+**Checkpoint:** Verify spec contains at least: functional requirements list, technical stack decision, data model outline, and API surface. If any are missing, loop Analyst and Architect until complete. If `pauseAfterExpansion` is true, present the spec to the user and wait for confirmation before proceeding.
 
-**Agents:**
-- Analyst (Opus) - Extract requirements
-- Architect (Opus) - Technical specification
+### Phase 1: Planning — Spec to Implementation Plan
 
-**Output:** `.omd/autopilot/spec.md`
+1. Architect agent (Opus) reads the spec from `.omd/autopilot/spec.md` and generates a task-level implementation plan with dependency ordering and complexity labels (low/standard/high)
+2. Critic agent (Opus) reviews the plan for gaps, circular dependencies, missing edge cases, and unrealistic task scoping
+3. Architect revises based on Critic feedback
+4. Write final plan to `.omd/plans/autopilot-impl.md`
 
-### Phase 1: Planning
+**Checkpoint:** Verify plan contains: ordered task list with complexity labels, no circular dependencies flagged by Critic, and all spec requirements mapped to at least one task. If `pauseAfterPlanning` is true, present the plan to the user and wait for confirmation.
 
-**Goal:** Create implementation plan from spec
+### Phase 2: Execution — Plan to Code
 
-**Agents:**
-- Architect (Opus) - Create plan (direct mode, no interview)
-- Critic (Opus) - Validate plan
+Route tasks from the plan to agents by complexity using Ralph (persistence) + Ultrawork (parallelism):
 
-**Output:** `.omd/plans/autopilot-impl.md`
+| Complexity | Agent | Model |
+|-----------|-------|-------|
+| Low | Executor-low | Haiku |
+| Standard | Executor | Sonnet |
+| High | Executor-high | Opus |
 
-### Phase 2: Execution
+Each agent implements its assigned tasks, writes files, and marks tasks complete in the plan state.
 
-**Goal:** Implement the plan
+**Checkpoint:** After all tasks complete, verify every task in `.omd/plans/autopilot-impl.md` is marked done. If any remain incomplete after `maxIterations` (default: 10), report which tasks failed and why.
 
-**Mode:** Ralph + Ultrawork (persistence + parallelism)
+### Phase 3: QA — Iterative Test Cycles
 
-**Agents:**
-- Executor-low (Haiku) - Simple tasks
-- Executor (Sonnet) - Standard tasks
-- Executor-high (Opus) - Complex tasks
+Run UltraQA cycles (max `maxQaCycles`, default: 5):
 
-### Phase 3: QA
+1. Run the project build command. On failure, fix build errors and restart cycle.
+2. Run linter. On failure, fix lint issues and restart cycle.
+3. Run test suite. On failure, analyze test output, fix failing code, and restart cycle.
+4. If all three pass, proceed to Phase 4.
 
-**Goal:** All tests pass
+**Checkpoint:** If the same error recurs 3 consecutive times, stop cycling — this indicates a design-level issue. Report the recurring error pattern and suggest the user refine requirements. Skip this phase if `skipQa` is true.
 
-**Mode:** UltraQA
+### Phase 4: Validation — Multi-Reviewer Approval
 
-**Cycle:**
-1. Build
-2. Lint
-3. Test
-4. Fix failures
-5. Repeat (max 5 cycles)
+Run three reviewers in parallel:
 
-### Phase 4: Validation
+- **Architect reviewer** — checks all spec requirements are implemented, no missing features
+- **Security reviewer** — scans for common vulnerabilities (injection, auth bypass, secrets in code, insecure defaults)
+- **Code reviewer** — evaluates code quality, naming consistency, error handling, test coverage
 
-**Goal:** Multi-perspective approval
+**Gate:** All three must return APPROVE. On rejection:
+1. Collect all rejection reasons
+2. Fix the identified issues
+3. Re-run only the reviewers that rejected
+4. Repeat up to `maxValidationRounds` (default: 3)
 
-**Agents (parallel):**
-- Architect - Functional completeness
-- Security-reviewer - Vulnerability check
-- Code-reviewer - Quality review
+Skip this phase if `skipValidation` is true.
 
-**Rule:** All must APPROVE or issues get fixed and re-validated.
+## State Cleanup on Completion
+
+When all phases complete successfully (validation passed), delete state files to ensure clean future sessions:
+
+```bash
+rm -f .omd/state/autopilot-state.json
+rm -f .omd/state/ralph-state.json
+rm -f .omd/state/ultrawork-state.json
+rm -f .omd/state/ultraqa-state.json
+```
+
+**Safeguard:** Only delete state files when the final phase status is `complete` with all reviewers approved. Never delete state files on cancellation, failure, or partial completion — the user may want to resume.
 
 ## Configuration
 
@@ -111,73 +111,40 @@ Optional settings in `.factory/settings.json`:
 }
 ```
 
-## Cancellation
+## Cancel and Resume
 
-```
-/cancel
-```
+Cancel with `/cancel` or by saying "stop", "cancel", "abort". State is preserved automatically.
 
-Or say: "stop", "cancel", "abort"
-
-Progress is preserved for resume.
-
-## Resume
-
-If autopilot was cancelled or failed, just run `/autopilot` again to resume from where it stopped.
+Resume by running `/autopilot` again — execution continues from the last completed phase.
 
 ## Examples
 
-**New Project:**
+**New project:**
 ```
-/autopilot A REST API for a bookstore inventory with CRUD operations
+/autopilot A REST API for a bookstore inventory with CRUD operations, using TypeScript and PostgreSQL
 ```
 
-**Feature Addition:**
+**Feature addition to existing codebase:**
 ```
-/autopilot Add user authentication with JWT tokens
+/autopilot Add user authentication with JWT tokens, refresh token rotation, and role-based access control
 ```
 
 **Enhancement:**
 ```
-/ap Add dark mode support with system preference detection
+/ap Add dark mode support with system preference detection and manual toggle persistence
 ```
 
-## Best Practices
+## Input Tips
 
-1. **Be specific about the domain** - "bookstore" not "store"
-2. **Mention key features** - "with CRUD", "with authentication"
-3. **Specify constraints** - "using TypeScript", "with PostgreSQL"
-4. **Let it run** - Don't interrupt unless truly needed
-
-## STATE CLEANUP ON COMPLETION
-
-**IMPORTANT: Delete ALL state files on successful completion**
-
-When autopilot reaches the `complete` phase (all validation passed):
-
-```bash
-# Delete autopilot and all sub-mode state files
-rm -f .omd/state/autopilot-state.json
-rm -f .omd/state/ralph-state.json
-rm -f .omd/state/ultrawork-state.json
-rm -f .omd/state/ultraqa-state.json
-```
-
-This ensures clean state for future sessions.
+- Include the domain ("bookstore inventory" not just "store")
+- List key capabilities ("with CRUD, search, and pagination")
+- Specify technology constraints ("using TypeScript", "with PostgreSQL")
+- Mention non-obvious requirements ("with rate limiting", "WCAG 2.1 AA compliant")
 
 ## Troubleshooting
 
-**Stuck in a phase?**
-- Check TODO list for blocked tasks
-- Review `.omd/autopilot-state.json` for state
-- Cancel and resume if needed
-
-**Validation keeps failing?**
-- Review the specific issues
-- Consider if requirements were too vague
-- Cancel and provide more detail
-
-**QA cycles exhausted?**
-- Same error 3 times = fundamental issue
-- Review the error pattern
-- May need manual intervention
+| Symptom | Likely Cause | Action |
+|---------|-------------|--------|
+| Stuck in a phase | Blocked task or missing dependency | Check `.omd/autopilot-state.json` for current state, then `/cancel` and `/autopilot` to resume |
+| Validation keeps failing | Requirements too vague for reviewers to verify | Cancel, add specific acceptance criteria, and restart |
+| QA cycles exhausted | Same error 3 times indicates design issue | Review the error pattern in QA output; may need to refine the spec or add missing constraints |
