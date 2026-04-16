@@ -181,10 +181,20 @@ describe('finalizeTeam', () => {
 // ── Phase transitions ─────────────────────────────────────────────────────
 
 describe('advancePhase', () => {
-  it('manually advances phase', () => {
+  it('advances through valid transitions', () => {
     initTeam({ name: 'ph', taskDescription: 'X', roles: [{ role: 'a' }] });
+    // delegate → coordinate is valid
+    advancePhase('ph', 'coordinate');
+    expect(getOrchestratorState('ph')!.phase).toBe('coordinate');
+    // coordinate → collect is valid
     advancePhase('ph', 'collect');
     expect(getOrchestratorState('ph')!.phase).toBe('collect');
+  });
+
+  it('rejects invalid transitions', () => {
+    initTeam({ name: 'inv', taskDescription: 'X', roles: [{ role: 'a' }] });
+    // delegate → finalize is not valid
+    expect(() => advancePhase('inv', 'finalize')).toThrow('Invalid phase transition');
   });
 
   it('throws for non-existent team', () => {

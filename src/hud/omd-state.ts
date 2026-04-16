@@ -257,7 +257,9 @@ export function isAnyModeActive(directory: string): boolean {
   const ultrawork = readUltraworkStateForHud(directory);
   const autopilot = readAutopilotStateForHud(directory);
 
-  return (ralph?.active ?? false) || (ultrawork?.active ?? false) || (autopilot?.active ?? false);
+  const team = readTeamStateForHud(directory);
+
+  return (ralph?.active ?? false) || (ultrawork?.active ?? false) || (autopilot?.active ?? false) || (team?.active ?? false);
 }
 
 /**
@@ -279,6 +281,11 @@ export function getActiveSkills(directory: string): string[] {
   const ultrawork = readUltraworkStateForHud(directory);
   if (ultrawork?.active) {
     skills.push('ultrawork');
+  }
+
+  const team = readTeamStateForHud(directory);
+  if (team?.active) {
+    skills.push('team');
   }
 
   return skills;

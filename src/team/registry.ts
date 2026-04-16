@@ -74,6 +74,16 @@ function saveTeam(team: Team): void {
 }
 
 // ---------------------------------------------------------------------------
+// Team name validation
+// ---------------------------------------------------------------------------
+
+function validateTeamName(name: string): void {
+  if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(`Invalid team name "${name}": must be non-empty, alphanumeric with hyphens/underscores only`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Team lifecycle
 // ---------------------------------------------------------------------------
 
@@ -82,6 +92,7 @@ export function createTeam(
   leaderId: string,
   config?: Partial<TeamConfig>,
 ): Team {
+  validateTeamName(name);
   if (getTeam(name)) {
     throw new Error(`Team "${name}" already exists`);
   }
@@ -155,6 +166,9 @@ export function addMember(
 ): TeamMember {
   const team = getTeam(teamName);
   if (!team) throw new Error(`Team "${teamName}" not found`);
+  if (team.members.length >= team.config.maxMembers) {
+    throw new Error(`Team "${teamName}" has reached maxMembers limit (${team.config.maxMembers})`);
+  }
 
   const uniqueName = resolveUniqueName(team, member.name);
   const newMember: TeamMember = {

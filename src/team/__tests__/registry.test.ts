@@ -97,6 +97,38 @@ describe('team lifecycle', () => {
   });
 });
 
+// ── Team name validation ──────────────────────────────────────────────────
+
+describe('team name validation', () => {
+  it('rejects path traversal in team name', () => {
+    expect(() => createTeam('../../etc/passwd', 'leader')).toThrow('Invalid team name');
+  });
+
+  it('rejects empty name', () => {
+    expect(() => createTeam('', 'leader')).toThrow('Invalid team name');
+  });
+
+  it('rejects names with special characters', () => {
+    expect(() => createTeam('my team!', 'leader')).toThrow('Invalid team name');
+  });
+
+  it('allows hyphens and underscores', () => {
+    const team = createTeam('my-team_1', 'leader');
+    expect(team.name).toBe('my-team_1');
+  });
+});
+
+// ── maxMembers enforcement ───────────────────────────────────────────────
+
+describe('maxMembers enforcement', () => {
+  it('throws when adding beyond maxMembers', () => {
+    createTeam('limit', 'leader', { maxMembers: 2 });
+    addMember('limit', { id: 't1', name: 'a', role: 'executor' });
+    addMember('limit', { id: 't2', name: 'b', role: 'executor' });
+    expect(() => addMember('limit', { id: 't3', name: 'c', role: 'executor' })).toThrow('maxMembers limit');
+  });
+});
+
 // ── Status transitions ────────────────────────────────────────────────────
 
 describe('status transitions', () => {

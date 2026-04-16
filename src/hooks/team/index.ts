@@ -195,9 +195,8 @@ export function checkHeartbeats(teamName: string, thresholdMs: number = 300_000)
 // Shutdown handler
 // ---------------------------------------------------------------------------
 
-export function shutdownTeam(teamName: string): void {
-  // Import cleanupTeam lazily to avoid circular import in tests
-  const { cleanupTeam } = require('../../team/orchestrator.js');
+export async function shutdownTeam(teamName: string): Promise<void> {
+  const { cleanupTeam } = await import('../../team/orchestrator.js');
   cleanupTeam(teamName);
 }
 

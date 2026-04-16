@@ -254,9 +254,21 @@ export function getOrchestratorState(teamName: string): OrchestratorState | unde
   return readOrcState(teamName);
 }
 
+const VALID_TRANSITIONS: Record<OrchestratorPhase, OrchestratorPhase[]> = {
+  init: ['delegate'],
+  delegate: ['coordinate'],
+  coordinate: ['collect', 'finalize'],
+  collect: ['finalize'],
+  finalize: [],
+};
+
 export function advancePhase(teamName: string, phase: OrchestratorPhase): void {
   const state = readOrcState(teamName);
   if (!state) throw new Error(`Orchestrator state not found for "${teamName}"`);
+  const allowed = VALID_TRANSITIONS[state.phase];
+  if (!allowed.includes(phase)) {
+    throw new Error(`Invalid phase transition: "${state.phase}" → "${phase}"`);
+  }
   state.phase = phase;
   writeOrcState(teamName, state);
 }
