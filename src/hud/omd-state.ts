@@ -5,7 +5,7 @@
  * These are read-only functions that don't modify the state files.
  */
 
-import { existsSync, readFileSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import type {
   RalphStateForHud,
@@ -309,18 +309,33 @@ interface OrchestratorStateFile {
  * Scans .omd/state/team/ for active teams.
  */
 export function readTeamStateForHud(directory: string): TeamStateForHud | null {
-  const teamDir = join(directory, '.omd', 'state', 'team');
-
-  if (!existsSync(teamDir)) {
-    return null;
-  }
-
   try {
-    const files = require('fs').readdirSync(teamDir) as string[];
-    const teamFiles = files.filter((f: string) => f.endsWith('.json'));
+    const teamDir = join(directory, '.omd', 'state', 'team');
+
+    if (!existsSync(teamDir)) {
+      return null;
+    }
+
+    let files: string[];
+    try {
+      files = readdirSync(teamDir);
+    } catch {
+      return null;
+    }
+
+    // Only consider .json files at the top level (not subdirectories)
+    const teamFiles = files.filter((f) => f.endsWith('.json'));
 
     for (const file of teamFiles) {
       const filePath = join(teamDir, file);
+
+      // Skip stale files and directories
+      try {
+        const stat = statSync(filePath);
+        if (!stat.isFile()) continue;
+      } catch {
+        continue;
+      }
       if (isStateFileStale(filePath)) continue;
 
       try {
@@ -359,11 +374,12 @@ export function readTeamStateForHud(directory: string): TeamStateForHud | null {
         continue;
       }
     }
+
+    return null;
   } catch {
+    // Any unexpected error — return null silently to keep HUD stable
     return null;
   }
-
-  return null;
 }
 
 // Re-export for convenience
