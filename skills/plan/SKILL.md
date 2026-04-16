@@ -31,6 +31,8 @@ You guide users through planning by:
 - Concrete implementation approach described
 - User explicitly says "skip interview" or "just plan"
 
+**Team Mode Suggestion**: When a BROAD request spans multiple domains (e.g., API design + implementation + testing), suggest team mode before planning: "This task spans multiple domains. Consider running `/team --roles architect,executor,qa-tester` for coordinated parallel execution."
+
 ### Interview Mode Workflow
 
 When requirements are unclear, activate interview mode:

@@ -5,7 +5,7 @@
  * These are read-only functions that don't modify the state files.
  */
 
-import { existsSync, readFileSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import type {
   RalphStateForHud,
@@ -257,7 +257,9 @@ export function isAnyModeActive(directory: string): boolean {
   const ultrawork = readUltraworkStateForHud(directory);
   const autopilot = readAutopilotStateForHud(directory);
 
-  return (ralph?.active ?? false) || (ultrawork?.active ?? false) || (autopilot?.active ?? false);
+  const team = readTeamStateForHud(directory);
+
+  return (ralph?.active ?? false) || (ultrawork?.active ?? false) || (autopilot?.active ?? false) || (team?.active ?? false);
 }
 
 /**
@@ -281,8 +283,112 @@ export function getActiveSkills(directory: string): string[] {
     skills.push('ultrawork');
   }
 
+  const team = readTeamStateForHud(directory);
+  if (team?.active) {
+    skills.push('team');
+  }
+
   return skills;
+}
+
+// ============================================================================
+// Team State
+// ============================================================================
+
+import type { TeamStateForHud } from './elements/team.js';
+
+interface TeamStateFile {
+  name: string;
+  status: string;
+  members: Array<{
+    name: string;
+    status: string;
+  }>;
+}
+
+interface OrchestratorStateFile {
+  teamName: string;
+  phase: string;
+}
+
+/**
+ * Read Team state for HUD display.
+ * Scans .omd/state/team/ for active teams.
+ */
+export function readTeamStateForHud(directory: string): TeamStateForHud | null {
+  try {
+    const teamDir = join(directory, '.omd', 'state', 'team');
+
+    if (!existsSync(teamDir)) {
+      return null;
+    }
+
+    let files: string[];
+    try {
+      files = readdirSync(teamDir);
+    } catch {
+      return null;
+    }
+
+    // Only consider .json files at the top level (not subdirectories)
+    const teamFiles = files.filter((f) => f.endsWith('.json'));
+
+    for (const file of teamFiles) {
+      const filePath = join(teamDir, file);
+
+      // Skip stale files and directories
+      try {
+        const stat = statSync(filePath);
+        if (!stat.isFile()) continue;
+      } catch {
+        continue;
+      }
+      if (isStateFileStale(filePath)) continue;
+
+      try {
+        const content = readFileSync(filePath, 'utf-8');
+        const team = JSON.parse(content) as TeamStateFile;
+
+        if (team.status !== 'active') continue;
+
+        // Found an active team — read orchestrator state
+        const teamName = file.slice(0, -5); // strip .json
+        const orcPath = join(teamDir, teamName, 'orchestrator.json');
+        let phase = 'coordinate';
+        if (existsSync(orcPath)) {
+          try {
+            const orcContent = readFileSync(orcPath, 'utf-8');
+            const orc = JSON.parse(orcContent) as OrchestratorStateFile;
+            phase = orc.phase;
+          } catch { /* use default */ }
+        }
+
+        const members = team.members || [];
+        const running = members.filter((m) => m.status === 'running' || m.status === 'idle').length;
+        const completed = members.filter((m) => m.status === 'completed').length;
+        const failed = members.filter((m) => m.status === 'failed').length;
+
+        return {
+          active: true,
+          teamName,
+          phase,
+          totalMembers: members.length,
+          running,
+          completed,
+          failed,
+        };
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
+  } catch {
+    // Any unexpected error — return null silently to keep HUD stable
+    return null;
+  }
 }
 
 // Re-export for convenience
 export type { AutopilotStateForHud } from './elements/autopilot.js';
+export type { TeamStateForHud } from './elements/team.js';

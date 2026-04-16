@@ -14,6 +14,7 @@ import {
   readUltraworkStateForHud,
   readPrdStateForHud,
   readAutopilotStateForHud,
+  readTeamStateForHud,
 } from './omd-state.js';
 import { getUsage } from './usage-api.js';
 import { render } from './render.js';
@@ -293,6 +294,7 @@ async function main(): Promise<void> {
     const ultrawork = readUltraworkStateForHud(cwd);
     const prd = readPrdStateForHud(cwd);
     const autopilot = readAutopilotStateForHud(cwd);
+    const team = readTeamStateForHud(cwd);
 
     // Read HUD state for background tasks
     const hudState = readHudState(cwd);
@@ -311,6 +313,7 @@ async function main(): Promise<void> {
       ultrawork,
       prd,
       autopilot,
+      team,
       activeAgents: transcriptData.agents.filter((a) => a.status === 'running'),
       todos: transcriptData.todos,
       backgroundTasks: getRunningTasks(hudState),

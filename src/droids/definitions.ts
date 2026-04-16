@@ -313,6 +313,18 @@ export const codeReviewerLowAgent: AgentConfig = {
   defaultModel: 'haiku'
 };
 
+/**
+ * Team-Orchestrator Agent - Team Coordination (Opus)
+ */
+export const teamOrchestratorAgent: AgentConfig = {
+  name: 'team-orchestrator',
+  description: 'Coordinates a team of agents with communication and shared context (Opus). Use for multi-agent collaborative tasks.',
+  prompt: loadAgentPrompt('team-orchestrator'),
+  tools: ['Agent', 'Bash', 'Read', 'Glob', 'Grep'],
+  model: 'opus',
+  defaultModel: 'opus'
+};
+
 // ============================================================
 // AGENT REGISTRY
 // ============================================================
@@ -362,7 +374,9 @@ export function getAgentDefinitions(overrides?: Partial<Record<string, Partial<A
     'tdd-guide': tddGuideAgent,
     'tdd-guide-low': tddGuideLowAgent,
     'code-reviewer': codeReviewerAgent,
-    'code-reviewer-low': codeReviewerLowAgent
+    'code-reviewer-low': codeReviewerLowAgent,
+    // Team orchestrator
+    'team-orchestrator': teamOrchestratorAgent
   };
 
   const result: Record<string, { description: string; prompt: string; tools: string[]; model?: ModelType; defaultModel?: ModelType }> = {};
