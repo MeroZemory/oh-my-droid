@@ -337,13 +337,33 @@ function removeTriggerWords(prompt: string, triggers: string[]): string {
 }
 
 /**
+ * Team Enhancement - Coordinate named agents as a team
+ */
+const teamEnhancement: MagicKeyword = {
+  triggers: ['team', 'collaborate', 'together'],
+  action: (prompt: string) => {
+    return `<team-mode>
+
+Invoke the /team skill to coordinate this task with a team of specialist agents.
+Analyze the task, determine required roles (architect, executor, qa-tester, etc.),
+assign work with file ownership, and coordinate through shared context and mailbox.
+
+</team-mode>
+
+${removeTriggerWords(prompt, ['team', 'collaborate', 'together'])}`;
+  },
+  description: 'Coordinate named agents as a team with inter-agent communication'
+};
+
+/**
  * All built-in magic keyword definitions
  */
 export const builtInMagicKeywords: MagicKeyword[] = [
   ultraworkEnhancement,
   searchEnhancement,
   analyzeEnhancement,
-  ultrathinkEnhancement
+  ultrathinkEnhancement,
+  teamEnhancement
 ];
 
 /**
