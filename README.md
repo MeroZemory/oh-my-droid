@@ -89,6 +89,7 @@ Optional shortcuts for power users. Natural language works fine without them.
 | `eco`       | Token-efficient execution    | `eco: migrate database`       |
 | `plan`      | Planning interview           | `plan the API`                |
 | `ralplan`   | Iterative planning consensus | `ralplan this feature`        |
+| `team`      | Coordinated agent team       | `team build the API`          |
 
 **ralph includes ultrawork:** When you activate ralph mode, it automatically includes ultrawork's parallel execution. No need to combine keywords.
 

@@ -72,6 +72,7 @@ When you detect these patterns, you MUST invoke the corresponding skill:
 | "fast", "parallel" (no explicit mode keyword) | Check `defaultExecutionMode` config |
 | "ultrapilot", "parallel build", "swarm build" | `ultrapilot` |
 | "swarm", "coordinated agents" | `swarm` |
+| "team", "collaborate", "together" | `team` |
 | "pipeline", "chain agents" | `pipeline` |
 | "plan this", "plan the" | `plan` |
 | "ralplan" keyword | `ralplan` |
