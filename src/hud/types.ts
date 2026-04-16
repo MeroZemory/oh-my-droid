@@ -183,6 +183,9 @@ export interface HudRenderContext {
   /** Autopilot state */
   autopilot: AutopilotStateForHud | null;
 
+  /** Team state */
+  team: import('./elements/team.js').TeamStateForHud | null;
+
   /** Active subagents from transcript */
   activeAgents: ActiveAgent[];
 
@@ -253,6 +256,7 @@ export interface HudElementConfig {
   rateLimits: boolean;  // Show 5h and weekly rate limits
   ralph: boolean;
   autopilot: boolean;
+  team: boolean;
   prdStory: boolean;
   activeSkills: boolean;
   lastSkill: boolean;
@@ -299,6 +303,7 @@ export const DEFAULT_HUD_CONFIG: HudConfig = {
     rateLimits: true,  // Show rate limits by default
     ralph: true,
     autopilot: true,
+    team: true,
     prdStory: true,
     activeSkills: true,
     contextBar: true,
@@ -334,6 +339,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     rateLimits: true,
     ralph: true,
     autopilot: true,
+    team: true,
     prdStory: false,
     activeSkills: true,
     lastSkill: true,
@@ -384,6 +390,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     rateLimits: true,
     ralph: true,
     autopilot: true,
+    team: true,
     prdStory: true,
     activeSkills: true,
     lastSkill: true,
@@ -409,6 +416,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     rateLimits: true,
     ralph: true,
     autopilot: true,
+    team: true,
     prdStory: true,
     activeSkills: true,
     lastSkill: true,
@@ -434,6 +442,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     rateLimits: false,
     ralph: true,
     autopilot: true,
+    team: true,
     prdStory: false,
     activeSkills: true,
     lastSkill: true,
@@ -459,6 +468,7 @@ export const PRESET_CONFIGS: Record<HudPreset, Partial<HudElementConfig>> = {
     rateLimits: true,
     ralph: true,
     autopilot: true,
+    team: true,
     prdStory: true,
     activeSkills: true,
     lastSkill: true,

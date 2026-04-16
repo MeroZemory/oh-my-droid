@@ -284,5 +284,88 @@ export function getActiveSkills(directory: string): string[] {
   return skills;
 }
 
+// ============================================================================
+// Team State
+// ============================================================================
+
+import type { TeamStateForHud } from './elements/team.js';
+
+interface TeamStateFile {
+  name: string;
+  status: string;
+  members: Array<{
+    name: string;
+    status: string;
+  }>;
+}
+
+interface OrchestratorStateFile {
+  teamName: string;
+  phase: string;
+}
+
+/**
+ * Read Team state for HUD display.
+ * Scans .omd/state/team/ for active teams.
+ */
+export function readTeamStateForHud(directory: string): TeamStateForHud | null {
+  const teamDir = join(directory, '.omd', 'state', 'team');
+
+  if (!existsSync(teamDir)) {
+    return null;
+  }
+
+  try {
+    const files = require('fs').readdirSync(teamDir) as string[];
+    const teamFiles = files.filter((f: string) => f.endsWith('.json'));
+
+    for (const file of teamFiles) {
+      const filePath = join(teamDir, file);
+      if (isStateFileStale(filePath)) continue;
+
+      try {
+        const content = readFileSync(filePath, 'utf-8');
+        const team = JSON.parse(content) as TeamStateFile;
+
+        if (team.status !== 'active') continue;
+
+        // Found an active team — read orchestrator state
+        const teamName = file.slice(0, -5); // strip .json
+        const orcPath = join(teamDir, teamName, 'orchestrator.json');
+        let phase = 'coordinate';
+        if (existsSync(orcPath)) {
+          try {
+            const orcContent = readFileSync(orcPath, 'utf-8');
+            const orc = JSON.parse(orcContent) as OrchestratorStateFile;
+            phase = orc.phase;
+          } catch { /* use default */ }
+        }
+
+        const members = team.members || [];
+        const running = members.filter((m) => m.status === 'running' || m.status === 'idle').length;
+        const completed = members.filter((m) => m.status === 'completed').length;
+        const failed = members.filter((m) => m.status === 'failed').length;
+
+        return {
+          active: true,
+          teamName,
+          phase,
+          totalMembers: members.length,
+          running,
+          completed,
+          failed,
+        };
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 // Re-export for convenience
 export type { AutopilotStateForHud } from './elements/autopilot.js';
+export type { TeamStateForHud } from './elements/team.js';

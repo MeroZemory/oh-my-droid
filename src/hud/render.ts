@@ -19,6 +19,7 @@ import { renderPermission } from './elements/permission.js';
 import { renderThinking } from './elements/thinking.js';
 import { renderSession } from './elements/session.js';
 import { renderAutopilot } from './elements/autopilot.js';
+import { renderTeam } from './elements/team.js';
 import { renderCwd } from './elements/cwd.js';
 import {
   getAnalyticsDisplay,
@@ -185,6 +186,12 @@ export async function render(context: HudRenderContext, config: HudConfig): Prom
   if (enabledElements.autopilot && context.autopilot) {
     const autopilot = renderAutopilot(context.autopilot, config.thresholds);
     if (autopilot) elements.push(autopilot);
+  }
+
+  // Team state
+  if (enabledElements.team && context.team) {
+    const team = renderTeam(context.team);
+    if (team) elements.push(team);
   }
 
   // PRD story
