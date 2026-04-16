@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Deep Interview Skill** - Socratic clarification workflow with 6-dimension ambiguity scoring (scope, technical, success, constraints, risks, timeline). Includes challenge modes: Devil's Advocate, Scope Creep Detector, Hidden Dependency Probe, Failure Mode Analysis. Designed as a requirements firewall before planning.
+- **AI Slop Cleaner Skill** - Detect and clean AI-generated slop patterns (comment pollution, verbose conditionals, redundant types, over-abstraction, filler phrases). Hallucinated API detection delegated to type checker (`tsc --noEmit`) instead of LLM judgment. Auto-fix behavior split by invocation context (direct vs chained).
+- **Plan → Deep Interview Delegation** - `/plan` now suggests delegating to `/deep-interview` when ambiguity is high across 3+ dimensions.
+- **Team CMUX Module** - TypeScript module (`src/team/`) for parallel worker management with CMUX/tmux support, atomic task claiming with TOCTOU guard, and safe JSON parsing.
+- **Vanilla Mode** - `droid` runs without OMD hooks (opt-in via `OMD_ENABLED=1`), `omd` wrapper enables full orchestration. Emergency override via `DISABLE_OMD=1`.
+
+### Changed
+
+- **AI Slop Cleaner**: Chained invocations (from ralph, code-review, autopilot) default to scan-only mode. Explicit `--apply` flag required to make changes.
+
+### Security
+
+- Updated `@modelcontextprotocol/sdk` to ^1.26.0
+- Fixed hardcoded path in `vitest.config.ts`
+
+---
+
 ## [3.8.17] - 2026-02-01
 
 ### Fixed

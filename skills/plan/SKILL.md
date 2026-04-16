@@ -25,6 +25,15 @@ You guide users through planning by:
 - Touches 3+ unrelated areas
 - Single sentence without clear deliverable
 
+**Deep Interview Delegation**: When a BROAD request has *high ambiguity* (multiple dimensions unclear: scope, success criteria, constraints, risks), consider delegating to `/deep-interview` before planning. Deep-interview provides structured 6-dimension ambiguity scoring and adversarial challenge modes (Devil's Advocate, Scope Creep Detector) that surface hidden assumptions more systematically than standard interview questions.
+
+Suggest delegation when:
+- 3+ ambiguity dimensions are unclear
+- Request involves architectural decisions with long-term implications
+- User has already given vague answers to initial clarifying questions
+
+Example: "This request has high ambiguity across scope, success criteria, and risks. I recommend running `/deep-interview` first to systematically surface requirements before we plan. Proceed?"
+
 **Direct Planning** (when request is DETAILED):
 - Specific files/functions/components mentioned
 - Clear acceptance criteria provided

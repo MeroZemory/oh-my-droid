@@ -64,7 +64,7 @@ That's it. Everything else is automatic.
 
 ### Intelligent Orchestration
 
-- **32 specialized droids** for architecture, research, design, testing, data science
+- **34 specialized droids** for architecture, research, design, testing, data science
 - **Smart model routing** - Haiku for simple tasks, Opus for complex reasoning
 - **Automatic delegation** - Right droid for the job, every time
 
@@ -89,6 +89,8 @@ Optional shortcuts for power users. Natural language works fine without them.
 | `eco`       | Token-efficient execution    | `eco: migrate database`       |
 | `plan`      | Planning interview           | `plan the API`                |
 | `ralplan`   | Iterative planning consensus | `ralplan this feature`        |
+| `deep-interview` | Socratic requirements clarification | `deep-interview this requirement` |
+| `slop` | Detect and clean AI slop patterns | `slop src/` |
 
 **ralph includes ultrawork:** When you activate ralph mode, it automatically includes ultrawork's parallel execution. No need to combine keywords.
 
