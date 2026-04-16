@@ -83,6 +83,19 @@ export function getHomeEnvVar(): string {
 }
 
 /**
+ * Build a hook command string with the correct path for the current platform.
+ * On Windows, uses resolved absolute path (Factory Droid runs hooks via bash,
+ * which does not expand %USERPROFILE%). On Unix, uses $HOME.
+ */
+function hookCommand(scriptName: string): string {
+  if (isWindows()) {
+    const homePath = homedir().replace(/\\/g, '/');
+    return `node ${homePath}/.factory/hooks/${scriptName}`;
+  }
+  return `node "$HOME/.factory/hooks/${scriptName}"`;
+}
+
+/**
  * Ultrawork message - injected when ultrawork/ulw keyword detected
  * Ported from oh-my-opencode's keyword-detector/constants.ts
  */
@@ -306,11 +319,7 @@ export const HOOKS_SETTINGS_CONFIG_NODE = {
         hooks: [
           {
             type: "command" as const,
-            // Note: On Windows, %USERPROFILE% is expanded by cmd.exe
-            // On Unix with node hooks, $HOME is expanded by the shell
-            command: isWindows()
-              ? 'node "%USERPROFILE%\\.factory\\hooks\\keyword-detector.mjs"'
-              : 'node "$HOME/.factory/hooks/keyword-detector.mjs"'
+            command: hookCommand('keyword-detector.mjs')
           }
         ]
       }
@@ -320,9 +329,7 @@ export const HOOKS_SETTINGS_CONFIG_NODE = {
         hooks: [
           {
             type: "command" as const,
-            command: isWindows()
-              ? 'node "%USERPROFILE%\\.factory\\hooks\\session-start.mjs"'
-              : 'node "$HOME/.factory/hooks/session-start.mjs"'
+            command: hookCommand('session-start.mjs')
           }
         ]
       }
@@ -332,9 +339,7 @@ export const HOOKS_SETTINGS_CONFIG_NODE = {
         hooks: [
           {
             type: "command" as const,
-            command: isWindows()
-              ? 'node "%USERPROFILE%\\.factory\\hooks\\pre-tool-use.mjs"'
-              : 'node "$HOME/.factory/hooks/pre-tool-use.mjs"'
+            command: hookCommand('pre-tool-use.mjs')
           }
         ]
       }
@@ -344,9 +349,7 @@ export const HOOKS_SETTINGS_CONFIG_NODE = {
         hooks: [
           {
             type: "command" as const,
-            command: isWindows()
-              ? 'node "%USERPROFILE%\\.factory\\hooks\\post-tool-use.mjs"'
-              : 'node "$HOME/.factory/hooks/post-tool-use.mjs"'
+            command: hookCommand('post-tool-use.mjs')
           }
         ]
       }
@@ -356,9 +359,7 @@ export const HOOKS_SETTINGS_CONFIG_NODE = {
         hooks: [
           {
             type: "command" as const,
-            command: isWindows()
-              ? 'node "%USERPROFILE%\\.factory\\hooks\\persistent-mode.mjs"'
-              : 'node "$HOME/.factory/hooks/persistent-mode.mjs"'
+            command: hookCommand('persistent-mode.mjs')
           }
         ]
       }
