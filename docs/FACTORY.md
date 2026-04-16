@@ -72,7 +72,7 @@ When you detect these patterns, you MUST invoke the corresponding skill:
 | "fast", "parallel" (no explicit mode keyword) | Check `defaultExecutionMode` config |
 | "ultrapilot", "parallel build", "swarm build" | `ultrapilot` |
 | "swarm", "coordinated agents" | `swarm` |
-| "team", "collaborate", "together" | `team` |
+| "team", "collaborate", "together", multi-domain task needing parallel specialists | `team` |
 | "pipeline", "chain agents" | `pipeline` |
 | "plan this", "plan the" | `plan` |
 | "ralplan" keyword | `ralplan` |
@@ -209,6 +209,7 @@ User says "stop", "cancel", "abort" -> Invoke unified `cancel` skill (automatica
 | `ralph-init` | Initialize PRD for structured ralph | - | `/omd-ralph-init` |
 | `release` | Automated release workflow | - | `/omd-release` |
 | `ultrapilot` | Parallel autopilot (3-5x faster) | "ultrapilot", "parallel build", "swarm build" | `/omd-ultrapilot` |
+| `team` | Coordinated agent team with messaging and shared context | "team", "collaborate", "together", multi-domain parallel work | `/omd-team` |
 | `swarm` | N coordinated agents with task claiming | "swarm N agents" | `/omd-swarm` |
 | `pipeline` | Sequential agent chaining | "pipeline", "chain" | `/omd-pipeline` |
 | `cancel` | Unified cancellation for all modes | "stop", "cancel" | `/omd-cancel` |
