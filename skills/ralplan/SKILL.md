@@ -28,7 +28,7 @@ Invokes the plan skill with --consensus mode, which:
 When this skill is invoked, immediately invoke the plan skill with consensus mode:
 
 ```
-Invoke Skill: plan --consensus {{ARGUMENTS}}
+Invoke Skill: plan --consensus $ARGUMENTS
 ```
 
 Pass all arguments to the plan skill. The plan skill handles all consensus logic, state management, and iteration.
