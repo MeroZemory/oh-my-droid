@@ -11,7 +11,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'fs';
-import { join, basename } from 'path';
+import { join, relative } from 'path';
 import { homedir } from 'os';
 import { createRequire } from 'module';
 
@@ -36,6 +36,7 @@ const PROJECT_SKILLS_SUBDIR = join('.agents', 'skills', 'droid-learned');
 const LEGACY_PROJECT_SKILLS_SUBDIR = join('.omd', 'skills');
 const SKILL_EXTENSION = '.md';
 const MAX_SKILLS_PER_SESSION = 5;
+const MAX_RECURSION_DEPTH = 10;
 
 // =============================================================================
 // Fallback Implementation (used when bridge bundle not available)
@@ -70,45 +71,77 @@ function parseSkillFrontmatterFallback(content) {
   return { name, triggers, content: body };
 }
 
-// Find all skill files (fallback - NON-RECURSIVE for backward compat)
+// Resolve symlinks safely with fallback.
+function safeRealpathSyncFallback(filePath) {
+  try {
+    return realpathSync(filePath);
+  } catch {
+    return filePath;
+  }
+}
+
+// Check if a resolved path is within a boundary directory.
+function isWithinBoundaryFallback(realPath, boundary) {
+  const boundaryReal = safeRealpathSyncFallback(boundary);
+  const normalizedReal = realPath.replace(/\\/g, '/').replace(/\/+/g, '/');
+  const normalizedBoundary = boundaryReal.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return normalizedReal === normalizedBoundary ||
+         normalizedReal.startsWith(normalizedBoundary + '/');
+}
+
+// Recursively find all skill files in a directory (fallback).
+function findSkillFilesRecursiveFallback(dir, results, depth = 0) {
+  if (!existsSync(dir)) return;
+  if (depth > MAX_RECURSION_DEPTH) return;
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        findSkillFilesRecursiveFallback(fullPath, results, depth + 1);
+      } else if (entry.isFile() && entry.name.endsWith(SKILL_EXTENSION)) {
+        results.push(fullPath);
+      }
+    }
+  } catch {
+    // Permission denied or other errors - silently skip
+  }
+}
+
+// Find all skill files (fallback - recursive, boundary-aware)
 function findSkillFilesFallback(directory) {
   const candidates = [];
-  const seenPaths = new Set();
+  const seenRealPaths = new Set();
 
-  // Scan a dir; per-scope basename dedup (dirs ordered new-first so the migrated
-  // ~/.agents copy wins over a stale duplicate in a legacy dir).
-  const scanDir = (dir, scope, seenBasenames) => {
-    if (!existsSync(dir)) return;
-    try {
-      const files = readdirSync(dir, { withFileTypes: true });
-      for (const file of files) {
-        if (!file.isFile() || !file.name.endsWith(SKILL_EXTENSION)) continue;
-        if (seenBasenames.has(file.name)) continue;
-        const fullPath = join(dir, file.name);
-        try {
-          const realPath = realpathSync(fullPath);
-          if (seenPaths.has(realPath)) continue;
-          seenPaths.add(realPath);
-          seenBasenames.add(file.name);
-          candidates.push({ path: fullPath, scope });
-        } catch {
-          // Ignore symlink resolution errors
-        }
+  // Scan dirs ordered new-first; per-scope relative-path dedup keeps the
+  // migrated (~/.agents) copy and skips a stale duplicate in a legacy dir,
+  // while distinct nested SKILL.md files remain loadable.
+  const scanDirs = (dirs, scope) => {
+    const seenIdentities = new Set();
+    for (const dir of dirs) {
+      const files = [];
+      findSkillFilesRecursiveFallback(dir, files);
+      for (const filePath of files) {
+        const realPath = safeRealpathSyncFallback(filePath);
+        if (seenRealPaths.has(realPath)) continue;
+        if (!isWithinBoundaryFallback(realPath, dir)) continue;
+        const identity = relative(dir, filePath).replace(/\\/g, '/');
+        if (seenIdentities.has(identity)) continue;
+        seenIdentities.add(identity);
+        seenRealPaths.add(realPath);
+        candidates.push({ path: filePath, scope });
       }
-    } catch {
-      // Ignore directory read errors
     }
   };
 
   // Project-level skills: new then legacy
-  const projectBasenames = new Set();
-  scanDir(join(directory, PROJECT_SKILLS_SUBDIR), 'project', projectBasenames);
-  scanDir(join(directory, LEGACY_PROJECT_SKILLS_SUBDIR), 'project', projectBasenames);
+  scanDirs([
+    join(directory, PROJECT_SKILLS_SUBDIR),
+    join(directory, LEGACY_PROJECT_SKILLS_SUBDIR),
+  ], 'project');
 
   // User-level skills: new then legacy dirs
-  const userBasenames = new Set();
-  scanDir(USER_SKILLS_DIR, 'user', userBasenames);
-  for (const d of LEGACY_USER_SKILLS_DIRS) scanDir(d, 'user', userBasenames);
+  scanDirs([USER_SKILLS_DIR, ...LEGACY_USER_SKILLS_DIRS], 'user');
 
   return candidates;
 }

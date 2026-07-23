@@ -147,4 +147,66 @@ describe('Skill Finder', () => {
     expect(dups).toHaveLength(1);
     expect(dups[0].sourceDir).toBe(newDir);
   });
+
+  it('should keep distinct nested SKILL.md files in the same source dir', () => {
+    const newDir = join(projectRoot, '.agents', 'skills', 'droid-learned');
+    mkdirSync(join(newDir, 'alpha'), { recursive: true });
+    mkdirSync(join(newDir, 'beta'), { recursive: true });
+
+    writeFileSync(join(newDir, 'alpha', 'SKILL.md'), '# Alpha Skill');
+    writeFileSync(join(newDir, 'beta', 'SKILL.md'), '# Beta Skill');
+
+    const candidates = findSkillFiles(projectRoot, { scope: 'project' });
+    const paths = candidates.map((c) => c.path);
+
+    expect(paths).toContain(join(newDir, 'alpha', 'SKILL.md'));
+    expect(paths).toContain(join(newDir, 'beta', 'SKILL.md'));
+  });
+
+  it('should not suppress a legacy skill with a different relative path', () => {
+    const newDir = join(projectRoot, '.agents', 'skills', 'droid-learned');
+    const legacyDir = join(projectRoot, '.omd', 'skills');
+    mkdirSync(join(newDir, 'alpha'), { recursive: true });
+    mkdirSync(join(legacyDir, 'beta'), { recursive: true });
+
+    writeFileSync(join(newDir, 'alpha', 'SKILL.md'), '# Alpha Skill');
+    writeFileSync(join(legacyDir, 'beta', 'SKILL.md'), '# Beta Skill');
+
+    const candidates = findSkillFiles(projectRoot, { scope: 'project' });
+    const paths = candidates.map((c) => c.path);
+
+    expect(paths).toContain(join(newDir, 'alpha', 'SKILL.md'));
+    expect(paths).toContain(join(legacyDir, 'beta', 'SKILL.md'));
+  });
+
+  it('should dedupe canonical and legacy copies with the same nested relative path', () => {
+    const newDir = join(projectRoot, '.agents', 'skills', 'droid-learned');
+    const legacyDir = join(projectRoot, '.omd', 'skills');
+    mkdirSync(join(newDir, 'alpha'), { recursive: true });
+    mkdirSync(join(legacyDir, 'alpha'), { recursive: true });
+
+    writeFileSync(join(newDir, 'alpha', 'SKILL.md'), '# Canonical Alpha');
+    writeFileSync(join(legacyDir, 'alpha', 'SKILL.md'), '# Legacy Alpha');
+
+    const candidates = findSkillFiles(projectRoot, { scope: 'project' });
+    const alphas = candidates.filter((c) => c.path.endsWith('alpha/SKILL.md'));
+
+    expect(alphas).toHaveLength(1);
+    expect(alphas[0].sourceDir).toBe(newDir);
+  });
+
+  it('should keep project and user skills with the same relative path (scope-local identity)', () => {
+    const newProjectDir = join(projectRoot, '.agents', 'skills', 'droid-learned');
+    mkdirSync(join(newProjectDir, 'shared'), { recursive: true });
+    writeFileSync(join(newProjectDir, 'shared', 'SKILL.md'), '# Project Shared');
+
+    const candidates = findSkillFiles(projectRoot);
+    const projectShared = candidates.find(
+      (c) => c.scope === 'project' && c.path.endsWith('shared/SKILL.md')
+    );
+
+    // Project skill should be present even if a user skill with the same
+    // relative identity exists (identities are per-scope).
+    expect(projectShared).toBeDefined();
+  });
 });

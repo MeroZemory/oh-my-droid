@@ -11,8 +11,8 @@ This skill provides a guided wizard for setting up and managing your local learn
 ## Why Local Skills?
 
 Local skills allow you to capture hard-won insights and solutions that are specific to your codebase or workflow:
-- **Project-level skills** (.omd/skills/) - Version-controlled with your repo
-- **User-level skills** (~/.factory/skills/omc-learned/) - Portable across all your projects
+- **Project-level skills** (.agents/skills/droid-learned/) - Version-controlled with your repo
+- **User-level skills** (~/.agents/skills/droid-learned/) - Portable across all your projects
 
 When you solve a tricky bug or discover a non-obvious workaround, you can extract it as a skill. The agent will automatically detect and apply these skills in future conversations when it sees matching triggers.
 
@@ -24,7 +24,7 @@ First, check if skill directories exist and create them if needed:
 
 ```bash
 # Check and create user-level skills directory
-USER_SKILLS_DIR="$HOME/.factory/skills/omc-learned"
+USER_SKILLS_DIR="$HOME/.agents/skills/droid-learned"
 if [ -d "$USER_SKILLS_DIR" ]; then
   echo "User skills directory exists: $USER_SKILLS_DIR"
 else
@@ -33,7 +33,7 @@ else
 fi
 
 # Check and create project-level skills directory
-PROJECT_SKILLS_DIR=".omd/skills"
+PROJECT_SKILLS_DIR=".agents/skills/droid-learned"
 if [ -d "$PROJECT_SKILLS_DIR" ]; then
   echo "Project skills directory exists: $PROJECT_SKILLS_DIR"
 else
@@ -48,15 +48,15 @@ Scan both directories and show a comprehensive inventory:
 
 ```bash
 # Scan user-level skills
-echo "=== USER-LEVEL SKILLS (~/.factory/skills/omc-learned/) ==="
-if [ -d "$HOME/.factory/skills/omc-learned" ]; then
-  USER_COUNT=$(find "$HOME/.factory/skills/omc-learned" -name "*.md" 2>/dev/null | wc -l)
+echo "=== USER-LEVEL SKILLS (~/.agents/skills/droid-learned/) ==="
+if [ -d "$HOME/.agents/skills/droid-learned" ]; then
+  USER_COUNT=$(find "$HOME/.agents/skills/droid-learned" -name "*.md" 2>/dev/null | wc -l)
   echo "Total skills: $USER_COUNT"
 
   if [ $USER_COUNT -gt 0 ]; then
     echo ""
     echo "Skills found:"
-    find "$HOME/.factory/skills/omc-learned" -name "*.md" -type f -exec sh -c '
+    find "$HOME/.agents/skills/droid-learned" -name "*.md" -type f -exec sh -c '
       FILE="$1"
       NAME=$(grep -m1 "^name:" "$FILE" 2>/dev/null | sed "s/name: //")
       DESC=$(grep -m1 "^description:" "$FILE" 2>/dev/null | sed "s/description: //")
@@ -72,15 +72,15 @@ else
 fi
 
 echo ""
-echo "=== PROJECT-LEVEL SKILLS (.omd/skills/) ==="
-if [ -d ".omd/skills" ]; then
-  PROJECT_COUNT=$(find ".omd/skills" -name "*.md" 2>/dev/null | wc -l)
+echo "=== PROJECT-LEVEL SKILLS (.agents/skills/droid-learned/) ==="
+if [ -d ".agents/skills/droid-learned" ]; then
+  PROJECT_COUNT=$(find ".agents/skills/droid-learned" -name "*.md" 2>/dev/null | wc -l)
   echo "Total skills: $PROJECT_COUNT"
 
   if [ $PROJECT_COUNT -gt 0 ]; then
     echo ""
     echo "Skills found:"
-    find ".omd/skills" -name "*.md" -type f -exec sh -c '
+    find ".agents/skills/droid-learned" -name "*.md" -type f -exec sh -c '
       FILE="$1"
       NAME=$(grep -m1 "^name:" "$FILE" 2>/dev/null | sed "s/name: //")
       DESC=$(grep -m1 "^description:" "$FILE" 2>/dev/null | sed "s/description: //")
@@ -162,15 +162,15 @@ show_skill_details() {
 export -f show_skill_details
 
 # Show user-level skills
-if [ -d "$HOME/.factory/skills/omc-learned" ]; then
+if [ -d "$HOME/.agents/skills/droid-learned" ]; then
   echo "USER-LEVEL SKILLS:"
-  find "$HOME/.factory/skills/omc-learned" -name "*.md" -type f -exec bash -c 'show_skill_details "$0" "user-level"' {} \;
+  find "$HOME/.agents/skills/droid-learned" -name "*.md" -type f -exec bash -c 'show_skill_details "$0" "user-level"' {} \;
 fi
 
 # Show project-level skills
-if [ -d ".omd/skills" ]; then
+if [ -d ".agents/skills/droid-learned" ]; then
   echo "PROJECT-LEVEL SKILLS:"
-  find ".omd/skills" -name "*.md" -type f -exec bash -c 'show_skill_details "$0" "project-level"' {} \;
+  find ".agents/skills/droid-learned" -name "*.md" -type f -exec bash -c 'show_skill_details "$0" "project-level"' {} \;
 fi
 ```
 
@@ -191,8 +191,8 @@ Ask user to provide either:
 - **Paste content**: Paste skill markdown content directly
 
 Then ask for scope:
-- **User-level** (~/.factory/skills/omc-learned/) - Available across all projects
-- **Project-level** (.omd/skills/) - Only for this project
+- **User-level** (~/.agents/skills/droid-learned/) - Available across all projects
+- **Project-level** (.agents/skills/droid-learned/) - Only for this project
 
 Validate the skill format and save to the chosen location.
 
@@ -398,7 +398,7 @@ When introducing the skill system, explain these benefits:
 
 **Automatic Application**: The agent detects triggers and applies skills automatically - no need to remember or search for solutions.
 
-**Version Control**: Project-level skills (.omd/skills/) are committed with your code, so the whole team benefits.
+**Version Control**: Project-level skills (.agents/skills/droid-learned/) are committed with your code, so the whole team benefits.
 
 **Evolving Knowledge**: Skills improve over time as you discover better approaches and refine triggers.
 
@@ -420,8 +420,8 @@ Show users what a typical session looks like:
 > /local-skills-setup
 
 Checking skill directories...
-✓ User skills directory exists: ~/.factory/skills/omc-learned/
-✓ Project skills directory exists: .omd/skills/
+✓ User skills directory exists: ~/.agents/skills/droid-learned/
+✓ Project skills directory exists: .agents/skills/droid-learned/
 
 Scanning for skills...
 

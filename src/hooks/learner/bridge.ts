@@ -9,7 +9,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, realpathSync } from 'fs';
-import { join, dirname, basename } from 'path';
+import { join, dirname, basename, relative } from 'path';
 import { homedir } from 'os';
 
 // ponytail: path constants duplicated from learner/constants.ts so this module
@@ -228,10 +228,11 @@ export function findSkillFiles(
   const seenRealPaths = new Set<string>();
   const scope = options?.scope ?? 'all';
 
-  // Scan dirs ordered new-first; per-scope basename dedup keeps the migrated
-  // (~/.agents) copy and skips a stale duplicate in a legacy dir.
+  // Scan dirs ordered new-first; per-scope relative-path dedup keeps the
+  // migrated (~/.agents) copy and skips a stale duplicate in a legacy dir,
+  // while distinct nested SKILL.md files remain loadable.
   const scanDirs = (dirs: string[], scopeType: 'project' | 'user') => {
-    const seenBasenames = new Set<string>();
+    const seenIdentities = new Set<string>();
     for (const dir of dirs) {
       const files: string[] = [];
       findSkillFilesRecursive(dir, files);
@@ -240,9 +241,9 @@ export function findSkillFiles(
         const realPath = safeRealpathSync(filePath);
         if (seenRealPaths.has(realPath)) continue;
         if (!isWithinBoundary(realPath, dir)) continue;
-        const base = basename(filePath);
-        if (seenBasenames.has(base)) continue;
-        seenBasenames.add(base);
+        const identity = relative(dir, filePath).replace(/\\/g, '/');
+        if (seenIdentities.has(identity)) continue;
+        seenIdentities.add(identity);
         seenRealPaths.add(realPath);
 
         candidates.push({

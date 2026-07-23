@@ -6,7 +6,7 @@
  */
 
 import { existsSync, readdirSync, realpathSync, mkdirSync } from 'fs';
-import { join, normalize, sep, basename } from 'path';
+import { join, normalize, sep, relative } from 'path';
 import { USER_SKILLS_DIR, PROJECT_SKILLS_SUBDIR, LEGACY_USER_SKILLS_DIRS, LEGACY_PROJECT_SKILLS_SUBDIR, SKILL_EXTENSION, DEBUG_ENABLED, MAX_RECURSION_DEPTH } from './constants.js';
 import type { SkillFileCandidate } from './types.js';
 
@@ -72,10 +72,12 @@ export function findSkillFiles(
   const scope = options?.scope ?? 'all';
 
   // Scan a list of dirs for a given scope. Dirs are ordered new-first so the
-  // per-scope basename dedup keeps the migrated (~/.agents) copy and skips a
-  // stale duplicate in a legacy dir. seenRealPaths still guards symlink loops.
+  // per-scope relative-path dedup keeps the migrated (~/.agents) copy and
+  // skips a stale duplicate in a legacy dir, while distinct nested SKILL.md
+  // files (e.g. alpha/SKILL.md vs beta/SKILL.md) remain loadable.
+  // seenRealPaths still guards symlink loops globally.
   const scanDirs = (dirs: string[], scopeType: 'project' | 'user') => {
-    const seenBasenames = new Set<string>();
+    const seenIdentities = new Set<string>();
     for (const dir of dirs) {
       const files: string[] = [];
       findSkillFilesRecursive(dir, files);
@@ -89,9 +91,9 @@ export function findSkillFiles(
           }
           continue;
         }
-        const base = basename(filePath);
-        if (seenBasenames.has(base)) continue;
-        seenBasenames.add(base);
+        const identity = relative(dir, filePath).replace(/\\/g, '/');
+        if (seenIdentities.has(identity)) continue;
+        seenIdentities.add(identity);
         seenRealPaths.add(realPath);
 
         candidates.push({
