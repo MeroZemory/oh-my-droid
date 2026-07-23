@@ -12,10 +12,17 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, realpa
 import { join, dirname, basename } from 'path';
 import { homedir } from 'os';
 
-// Re-export constants
-export const USER_SKILLS_DIR = join(homedir(), '.factory', 'skills', 'droid-learned');
-export const GLOBAL_SKILLS_DIR = join(homedir(), '.omd', 'skills');
-export const PROJECT_SKILLS_SUBDIR = join('.omd', 'skills');
+// ponytail: path constants duplicated from learner/constants.ts so this module
+// bundles standalone as dist/hooks/skill-bridge.cjs. Keep in sync if paths change.
+export const AGENTS_SKILLS_DIR = join(homedir(), '.agents', 'skills');
+export const USER_SKILLS_DIR = join(AGENTS_SKILLS_DIR, 'droid-learned');
+export const PROJECT_SKILLS_SUBDIR = join('.agents', 'skills', 'droid-learned');
+export const LEGACY_USER_SKILLS_DIRS = [
+  join(homedir(), '.factory', 'skills', 'droid-learned'),
+  join(homedir(), '.factory', 'skills', 'omc-learned'),
+  join(homedir(), '.omd', 'skills'),
+];
+export const LEGACY_PROJECT_SKILLS_SUBDIR = join('.omd', 'skills');
 export const SKILL_EXTENSION = '.md';
 
 /** Session TTL: 1 hour */
@@ -221,48 +228,47 @@ export function findSkillFiles(
   const seenRealPaths = new Set<string>();
   const scope = options?.scope ?? 'all';
 
-  // 1. Search project-level skills (higher priority)
-  if (scope === 'project' || scope === 'all') {
-    const projectSkillsDir = join(projectRoot, PROJECT_SKILLS_SUBDIR);
-    const projectFiles: string[] = [];
-    findSkillFilesRecursive(projectSkillsDir, projectFiles);
+  // Scan dirs ordered new-first; per-scope basename dedup keeps the migrated
+  // (~/.agents) copy and skips a stale duplicate in a legacy dir.
+  const scanDirs = (dirs: string[], scopeType: 'project' | 'user') => {
+    const seenBasenames = new Set<string>();
+    for (const dir of dirs) {
+      const files: string[] = [];
+      findSkillFilesRecursive(dir, files);
 
-    for (const filePath of projectFiles) {
-      const realPath = safeRealpathSync(filePath);
-      if (seenRealPaths.has(realPath)) continue;
-      if (!isWithinBoundary(realPath, projectSkillsDir)) continue;
-      seenRealPaths.add(realPath);
-
-      candidates.push({
-        path: filePath,
-        realPath,
-        scope: 'project',
-        sourceDir: projectSkillsDir,
-      });
-    }
-  }
-
-  // 2. Search user-level skills from both directories (lower priority)
-  if (scope === 'user' || scope === 'all') {
-    const userDirs = [GLOBAL_SKILLS_DIR, USER_SKILLS_DIR];
-    for (const userDir of userDirs) {
-      const userFiles: string[] = [];
-      findSkillFilesRecursive(userDir, userFiles);
-
-      for (const filePath of userFiles) {
+      for (const filePath of files) {
         const realPath = safeRealpathSync(filePath);
         if (seenRealPaths.has(realPath)) continue;
-        if (!isWithinBoundary(realPath, userDir)) continue;
+        if (!isWithinBoundary(realPath, dir)) continue;
+        const base = basename(filePath);
+        if (seenBasenames.has(base)) continue;
+        seenBasenames.add(base);
         seenRealPaths.add(realPath);
 
         candidates.push({
           path: filePath,
           realPath,
-          scope: 'user',
-          sourceDir: userDir,
+          scope: scopeType,
+          sourceDir: dir,
         });
       }
     }
+  };
+
+  // 1. Project-level skills: new (.agents/skills/droid-learned) then legacy (.omd/skills)
+  if (scope === 'project' || scope === 'all') {
+    scanDirs(
+      [
+        join(projectRoot, PROJECT_SKILLS_SUBDIR),
+        join(projectRoot, LEGACY_PROJECT_SKILLS_SUBDIR),
+      ],
+      'project'
+    );
+  }
+
+  // 2. User-level skills: new (~/.agents/skills/droid-learned) then legacy dirs
+  if (scope === 'user' || scope === 'all') {
+    scanDirs([USER_SKILLS_DIR, ...LEGACY_USER_SKILLS_DIRS], 'user');
   }
 
   return candidates;

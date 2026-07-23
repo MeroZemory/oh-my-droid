@@ -24,10 +24,16 @@ try {
   // Bridge not available - use fallback (first run before build, or dist/ missing)
 }
 
-// Constants (used by fallback)
-const USER_SKILLS_DIR = join(homedir(), '.factory', 'skills', 'omc-learned');
-const GLOBAL_SKILLS_DIR = join(homedir(), '.omd', 'skills');
-const PROJECT_SKILLS_SUBDIR = join('.omd', 'skills');
+// Constants (used by fallback). Canonical paths mirror learner/constants.ts.
+const AGENTS_SKILLS_DIR = join(homedir(), '.agents', 'skills');
+const USER_SKILLS_DIR = join(AGENTS_SKILLS_DIR, 'droid-learned');
+const LEGACY_USER_SKILLS_DIRS = [
+  join(homedir(), '.factory', 'skills', 'droid-learned'),
+  join(homedir(), '.factory', 'skills', 'omc-learned'),
+  join(homedir(), '.omd', 'skills'),
+];
+const PROJECT_SKILLS_SUBDIR = join('.agents', 'skills', 'droid-learned');
+const LEGACY_PROJECT_SKILLS_SUBDIR = join('.omd', 'skills');
 const SKILL_EXTENSION = '.md';
 const MAX_SKILLS_PER_SESSION = 5;
 
@@ -69,55 +75,40 @@ function findSkillFilesFallback(directory) {
   const candidates = [];
   const seenPaths = new Set();
 
-  // Project-level skills (higher priority)
-  const projectDir = join(directory, PROJECT_SKILLS_SUBDIR);
-  if (existsSync(projectDir)) {
+  // Scan a dir; per-scope basename dedup (dirs ordered new-first so the migrated
+  // ~/.agents copy wins over a stale duplicate in a legacy dir).
+  const scanDir = (dir, scope, seenBasenames) => {
+    if (!existsSync(dir)) return;
     try {
-      const files = readdirSync(projectDir, { withFileTypes: true });
+      const files = readdirSync(dir, { withFileTypes: true });
       for (const file of files) {
-        if (file.isFile() && file.name.endsWith(SKILL_EXTENSION)) {
-          const fullPath = join(projectDir, file.name);
-          try {
-            const realPath = realpathSync(fullPath);
-            if (!seenPaths.has(realPath)) {
-              seenPaths.add(realPath);
-              candidates.push({ path: fullPath, scope: 'project' });
-            }
-          } catch {
-            // Ignore symlink resolution errors
-          }
+        if (!file.isFile() || !file.name.endsWith(SKILL_EXTENSION)) continue;
+        if (seenBasenames.has(file.name)) continue;
+        const fullPath = join(dir, file.name);
+        try {
+          const realPath = realpathSync(fullPath);
+          if (seenPaths.has(realPath)) continue;
+          seenPaths.add(realPath);
+          seenBasenames.add(file.name);
+          candidates.push({ path: fullPath, scope });
+        } catch {
+          // Ignore symlink resolution errors
         }
       }
     } catch {
       // Ignore directory read errors
     }
-  }
+  };
 
-  // User-level skills (search both global and legacy directories)
-  const userDirs = [GLOBAL_SKILLS_DIR, USER_SKILLS_DIR];
-  for (const userDir of userDirs) {
-    if (existsSync(userDir)) {
-      try {
-        const files = readdirSync(userDir, { withFileTypes: true });
-        for (const file of files) {
-          if (file.isFile() && file.name.endsWith(SKILL_EXTENSION)) {
-            const fullPath = join(userDir, file.name);
-            try {
-              const realPath = realpathSync(fullPath);
-              if (!seenPaths.has(realPath)) {
-                seenPaths.add(realPath);
-                candidates.push({ path: fullPath, scope: 'user' });
-              }
-            } catch {
-              // Ignore symlink resolution errors
-            }
-          }
-        }
-      } catch {
-        // Ignore directory read errors
-      }
-    }
-  }
+  // Project-level skills: new then legacy
+  const projectBasenames = new Set();
+  scanDir(join(directory, PROJECT_SKILLS_SUBDIR), 'project', projectBasenames);
+  scanDir(join(directory, LEGACY_PROJECT_SKILLS_SUBDIR), 'project', projectBasenames);
+
+  // User-level skills: new then legacy dirs
+  const userBasenames = new Set();
+  scanDir(USER_SKILLS_DIR, 'user', userBasenames);
+  for (const d of LEGACY_USER_SKILLS_DIRS) scanDir(d, 'user', userBasenames);
 
   return candidates;
 }

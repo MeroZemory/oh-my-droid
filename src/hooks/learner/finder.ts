@@ -6,8 +6,8 @@
  */
 
 import { existsSync, readdirSync, realpathSync, mkdirSync } from 'fs';
-import { join, normalize, sep } from 'path';
-import { USER_SKILLS_DIR, PROJECT_SKILLS_SUBDIR, SKILL_EXTENSION, DEBUG_ENABLED, GLOBAL_SKILLS_DIR, MAX_RECURSION_DEPTH } from './constants.js';
+import { join, normalize, sep, basename } from 'path';
+import { USER_SKILLS_DIR, PROJECT_SKILLS_SUBDIR, LEGACY_USER_SKILLS_DIRS, LEGACY_PROJECT_SKILLS_SUBDIR, SKILL_EXTENSION, DEBUG_ENABLED, MAX_RECURSION_DEPTH } from './constants.js';
 import type { SkillFileCandidate } from './types.js';
 
 /**
@@ -71,61 +71,53 @@ export function findSkillFiles(
   const seenRealPaths = new Set<string>();
   const scope = options?.scope ?? 'all';
 
-  // 1. Search project-level skills (if scope allows)
-  if (projectRoot && (scope === 'project' || scope === 'all')) {
-    const projectSkillsDir = join(projectRoot, PROJECT_SKILLS_SUBDIR);
-    const projectFiles: string[] = [];
-    findSkillFilesRecursive(projectSkillsDir, projectFiles);
+  // Scan a list of dirs for a given scope. Dirs are ordered new-first so the
+  // per-scope basename dedup keeps the migrated (~/.agents) copy and skips a
+  // stale duplicate in a legacy dir. seenRealPaths still guards symlink loops.
+  const scanDirs = (dirs: string[], scopeType: 'project' | 'user') => {
+    const seenBasenames = new Set<string>();
+    for (const dir of dirs) {
+      const files: string[] = [];
+      findSkillFilesRecursive(dir, files);
 
-    for (const filePath of projectFiles) {
-      const realPath = safeRealpathSync(filePath);
-      if (seenRealPaths.has(realPath)) continue;
-      // Symlink boundary check
-      if (!isWithinBoundary(realPath, projectSkillsDir)) {
-        if (DEBUG_ENABLED) {
-          console.warn('[learner] Symlink escape blocked:', filePath);
-        }
-        continue;
-      }
-      seenRealPaths.add(realPath);
-
-      candidates.push({
-        path: filePath,
-        realPath,
-        scope: 'project',
-        sourceDir: projectSkillsDir,
-      });
-    }
-  }
-
-  // 2. Search user-level skills from both directories (if scope allows)
-  if (scope === 'user' || scope === 'all') {
-    const userDirs = [GLOBAL_SKILLS_DIR, USER_SKILLS_DIR];
-
-    for (const userDir of userDirs) {
-      const userFiles: string[] = [];
-      findSkillFilesRecursive(userDir, userFiles);
-
-      for (const filePath of userFiles) {
+      for (const filePath of files) {
         const realPath = safeRealpathSync(filePath);
         if (seenRealPaths.has(realPath)) continue;
-        // Symlink boundary check
-        if (!isWithinBoundary(realPath, userDir)) {
+        if (!isWithinBoundary(realPath, dir)) {
           if (DEBUG_ENABLED) {
             console.warn('[learner] Symlink escape blocked:', filePath);
           }
           continue;
         }
+        const base = basename(filePath);
+        if (seenBasenames.has(base)) continue;
+        seenBasenames.add(base);
         seenRealPaths.add(realPath);
 
         candidates.push({
           path: filePath,
           realPath,
-          scope: 'user',
-          sourceDir: userDir,
+          scope: scopeType,
+          sourceDir: dir,
         });
       }
     }
+  };
+
+  // 1. Project-level skills: new (.agents/skills/droid-learned) then legacy (.omd/skills)
+  if (projectRoot && (scope === 'project' || scope === 'all')) {
+    scanDirs(
+      [
+        join(projectRoot, PROJECT_SKILLS_SUBDIR),
+        join(projectRoot, LEGACY_PROJECT_SKILLS_SUBDIR),
+      ],
+      'project'
+    );
+  }
+
+  // 2. User-level skills: new (~/.agents/skills/droid-learned) then legacy dirs
+  if (scope === 'user' || scope === 'all') {
+    scanDirs([USER_SKILLS_DIR, ...LEGACY_USER_SKILLS_DIRS], 'user');
   }
 
   return candidates;

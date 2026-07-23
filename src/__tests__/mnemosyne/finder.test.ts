@@ -56,13 +56,13 @@ describe('Skill Finder', () => {
 
   it('should get skills directory for user scope', () => {
     const userDir = getSkillsDir('user');
-    expect(userDir).toContain('.factory');
+    expect(userDir).toContain('.agents');
     expect(userDir).toContain('droid-learned');
   });
 
   it('should get skills directory for project scope', () => {
     const projectDir = getSkillsDir('project', projectRoot);
-    expect(projectDir).toContain('.omd');
+    expect(projectDir).toContain('.agents');
     expect(projectDir).toContain('skills');
   });
 
@@ -129,6 +129,22 @@ describe('Skill Finder', () => {
   });
 
   it('should construct PROJECT_SKILLS_SUBDIR with path.join', () => {
-    expect(PROJECT_SKILLS_SUBDIR).toBe(join('.omd', 'skills'));
+    expect(PROJECT_SKILLS_SUBDIR).toBe(join('.agents', 'skills', 'droid-learned'));
+  });
+
+  it('should dedupe a skill present in both new and legacy project dirs (prefer new)', () => {
+    const newDir = join(projectRoot, '.agents', 'skills', 'droid-learned');
+    const legacyDir = join(projectRoot, '.omd', 'skills');
+    mkdirSync(newDir, { recursive: true });
+    mkdirSync(legacyDir, { recursive: true });
+
+    writeFileSync(join(newDir, 'dup-skill.md'), '# New Dup Skill');
+    writeFileSync(join(legacyDir, 'dup-skill.md'), '# Legacy Dup Skill');
+
+    const candidates = findSkillFiles(projectRoot, { scope: 'project' });
+    const dups = candidates.filter((c) => c.path.endsWith('dup-skill.md'));
+
+    expect(dups).toHaveLength(1);
+    expect(dups[0].sourceDir).toBe(newDir);
   });
 });
