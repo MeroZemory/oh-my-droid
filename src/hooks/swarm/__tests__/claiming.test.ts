@@ -75,7 +75,7 @@ describe('Swarm Claiming', () => {
 
       expect(result.success).toBe(false);
       expect(result.taskId).toBeNull();
-      expect(result.reason).toBe('No pending tasks available');
+      expect(result.reason).toBe('no_pending_tasks');
     });
 
     it('should update heartbeat when claiming a task', () => {
