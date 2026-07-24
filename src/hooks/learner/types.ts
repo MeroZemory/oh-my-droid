@@ -39,7 +39,7 @@ export interface LearnedSkill {
   path: string;
   /** Path relative to skills directory */
   relativePath: string;
-  /** Whether from user directories (~/.omd/skills or ~/.factory/skills/omc-learned) or project (.omd/skills) */
+  /** Whether from user dir (~/.agents/skills/droid-learned, with legacy ~/.factory/skills/{droid,omc}-learned and ~/.omd/skills fallback) or project (.agents/skills/droid-learned, with legacy .omd/skills) */
   scope: 'user' | 'project';
   /** Parsed frontmatter metadata */
   metadata: SkillMetadata;

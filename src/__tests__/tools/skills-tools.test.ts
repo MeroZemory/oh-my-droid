@@ -6,6 +6,8 @@ describe('skills-tools', () => {
     it('should have correct name and description', () => {
       expect(loadLocalTool.name).toBe('load_omc_skills_local');
       expect(loadLocalTool.description).toContain('project-local');
+      expect(loadLocalTool.description).toContain('.agents/skills/droid-learned');
+      expect(loadLocalTool.description).toContain('.omd/skills');
     });
 
     it('should return content array from handler', async () => {
@@ -38,6 +40,8 @@ describe('skills-tools', () => {
     it('should have correct name and description', () => {
       expect(loadGlobalTool.name).toBe('load_omc_skills_global');
       expect(loadGlobalTool.description).toContain('global');
+      expect(loadGlobalTool.description).toContain('~/.agents/skills/droid-learned');
+      expect(loadGlobalTool.description).toContain('~/.factory/skills/{droid,omc}-learned');
     });
 
     it('should return content array from handler', async () => {

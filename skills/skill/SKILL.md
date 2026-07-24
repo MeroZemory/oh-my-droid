@@ -15,19 +15,26 @@ Meta-skill for managing oh-my-droid skills via CLI-like commands.
 Show all local skills organized by scope.
 
 **Behavior:**
-1. Scan user skills at `~/.factory/skills/omc-learned/`
-2. Scan project skills at `.omd/skills/`
-3. Parse YAML frontmatter for metadata
-4. Display in organized table format:
+1. Scan user skills in canonical-first order:
+   - `~/.agents/skills/droid-learned/`
+   - `~/.factory/skills/droid-learned/`
+   - `~/.factory/skills/omc-learned/`
+   - `~/.omd/skills/`
+2. Scan project skills in canonical-first order:
+   - `.agents/skills/droid-learned/`
+   - `.omd/skills/`
+3. Deduplicate within each scope by normalized relative path, preserving the canonical copy
+4. Parse YAML frontmatter for metadata
+5. Display in organized table format:
 
 ```
-USER SKILLS (~/.factory/skills/omc-learned/):
+USER SKILLS (~/.agents/skills/droid-learned/):
 | Name              | Triggers           | Quality | Usage | Scope |
 |-------------------|--------------------|---------|-------|-------|
 | error-handler     | fix, error         | 95%     | 42    | user  |
 | api-builder       | api, endpoint      | 88%     | 23    | user  |
 
-PROJECT SKILLS (.omd/skills/):
+PROJECT SKILLS (.agents/skills/droid-learned/):
 | Name              | Triggers           | Quality | Usage | Scope   |
 |-------------------|--------------------|---------|-------|---------|
 | test-runner       | test, run          | 92%     | 15    | project |
@@ -51,8 +58,8 @@ Interactive wizard for creating a new skill.
 4. **Ask for argument hint** (optional)
    - Example: "<file> [options]"
 5. **Ask for scope:**
-   - `user` → `~/.factory/skills/omc-learned/<name>/SKILL.md`
-   - `project` → `.omd/skills/<name>/SKILL.md`
+   - `user` → `~/.agents/skills/droid-learned/<name>/SKILL.md`
+   - `project` → `.agents/skills/droid-learned/<name>/SKILL.md`
 6. **Create skill file** with template:
 
 ```yaml
@@ -105,7 +112,7 @@ Triggers (comma-separated): log, logger, logging
 Argument hint (optional): <level> [message]
 Scope (user/project): user
 
-✓ Created skill at ~/.factory/skills/omc-learned/custom-logger/SKILL.md
+✓ Created skill at ~/.agents/skills/droid-learned/custom-logger/SKILL.md
 → Edit with: /skill edit custom-logger
 ```
 
@@ -117,13 +124,14 @@ Remove a skill by name.
 
 **Behavior:**
 1. **Search for skill** in both scopes:
-   - `~/.factory/skills/omc-learned/<name>/SKILL.md`
-   - `.omd/skills/<name>/SKILL.md`
+   - `~/.agents/skills/droid-learned/<name>/SKILL.md`
+   - `.agents/skills/droid-learned/<name>/SKILL.md`
+   - Then the legacy user and project directories listed under `/skill list`
 2. **If found:**
    - Display skill info (name, description, scope)
    - **Ask for confirmation:** "Delete '<name>' skill from <scope>? (yes/no)"
 3. **If confirmed:**
-   - Delete entire skill directory (e.g., `~/.factory/skills/omc-learned/<name>/`)
+   - Delete entire skill directory (e.g., `~/.agents/skills/droid-learned/<name>/`)
    - Report: "✓ Removed skill '<name>' from <scope>"
 4. **If not found:**
    - Report: "✗ Skill '<name>' not found in user or project scope"
@@ -135,7 +143,7 @@ Remove a skill by name.
 User: /skill remove old-logger
 Assistant: Found skill 'old-logger' in user scope:
   Description: Legacy logging utility
-  Scope: user (~/.factory/skills/omc-learned/)
+  Scope: user (~/.agents/skills/droid-learned/)
 
 Delete 'old-logger' skill? (yes/no)
 
@@ -150,7 +158,7 @@ Assistant: ✓ Removed skill 'old-logger' from user scope
 Edit an existing skill interactively.
 
 **Behavior:**
-1. **Find skill** by name (search both scopes)
+1. **Find skill** by name (search canonical then legacy directories in both scopes)
 2. **Read current content** via Read tool
 3. **Display current values:**
    ```
@@ -198,7 +206,7 @@ New triggers (comma-separated): log, logger, logging, trace
 Search skills by content, triggers, name, or description.
 
 **Behavior:**
-1. **Scan all skills** in both scopes
+1. **Scan all skills** in canonical and legacy directories for both scopes
 2. **Match query** (case-insensitive) against:
    - Skill name
    - Description
@@ -245,19 +253,19 @@ Assistant: Found 2 skills matching "api endpoint":
 Show detailed information about a skill.
 
 **Behavior:**
-1. **Find skill** by name (search both scopes)
+1. **Find skill** by name (search canonical then legacy directories in both scopes)
 2. **Parse YAML frontmatter** and content
 3. **Display complete details:**
 
 ```
 Skill: custom-logger
-Scope: user (~/.factory/skills/omc-learned/custom-logger/)
+Scope: user (~/.agents/skills/droid-learned/custom-logger/)
 Description: Enhanced logging with structured output
 Triggers: log, logger, logging
 Argument Hint: <level> [message]
 Quality: 95% (if available)
 Usage Count: 42 times (if available)
-File Path: /home/user/.factory/skills/omc-learned/custom-logger/SKILL.md
+File Path: /home/user/.agents/skills/droid-learned/custom-logger/SKILL.md
 
 --- FULL CONTENT ---
 [entire markdown content]
@@ -272,7 +280,7 @@ Assistant: Skill: custom-logger
 Scope: user
 Description: Enhanced logging with structured output
 Triggers: log, logger, logging
-File: ~/.factory/skills/omc-learned/custom-logger/SKILL.md
+File: ~/.agents/skills/droid-learned/custom-logger/SKILL.md
 
 --- CONTENT ---
 # Custom Logger Skill
@@ -290,8 +298,9 @@ Sync skills between user and project scopes.
 
 **Behavior:**
 1. **Scan both scopes:**
-   - User skills: `~/.factory/skills/omc-learned/`
-   - Project skills: `.omd/skills/`
+   - User skills: canonical `~/.agents/skills/droid-learned/`, then legacy user directories
+   - Project skills: canonical `.agents/skills/droid-learned/`, then `.omd/skills/`
+   - Deduplicate by normalized relative path, preserving canonical copies
 2. **Compare and categorize:**
    - User-only skills (not in project)
    - Project-only skills (not in user)
@@ -339,7 +348,7 @@ Assistant: Found 5 user-only skills and 2 project-only skills.
 
 Copy 'error-handler' from user to project? (yes/no/skip)
 User: yes
-Assistant: ✓ Copied 'error-handler' to .omd/skills/
+Assistant: ✓ Copied 'error-handler' to .agents/skills/droid-learned/
 
 Copy 'api-builder' from user to project? (yes/no/skip)
 User: skip

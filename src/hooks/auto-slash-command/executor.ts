@@ -167,7 +167,12 @@ function discoverSkillsFromDir(skillsDir: string, scope: CommandScope): CommandI
 export function discoverAllCommands(): CommandInfo[] {
   const userCommandsDir = join(FACTORY_CONFIG_DIR, 'commands');
   const projectCommandsDir = join(process.cwd(), '.factory', 'commands');
-  const skillsDir = join(FACTORY_CONFIG_DIR, 'skills');
+
+  // Factory migrated installed skills from ~/.factory/skills to ~/.agents/skills
+  // (leaving compatibility symlinks). Read the new location first, fall back to
+  // the old one, and dedupe by name (symlinks resolve to the same skill).
+  const agentsSkillsDir = join(homedir(), '.agents', 'skills');
+  const legacySkillsDir = join(FACTORY_CONFIG_DIR, 'skills');
 
   // When running as a Factory plugin, commands/skills live under DROID_PLUGIN_ROOT.
   // This is critical for clean installs where ~/.factory/skills may not be populated.
@@ -185,10 +190,28 @@ export function discoverAllCommands(): CommandInfo[] {
     ? discoverSkillsFromDir(pluginSkillsDir, 'plugin')
     : [];
 
-  const userSkills = discoverSkillsFromDir(skillsDir, 'skill');
+  const userSkills = dedupeByName([
+    ...discoverSkillsFromDir(agentsSkillsDir, 'skill'),
+    ...discoverSkillsFromDir(legacySkillsDir, 'skill'),
+  ]);
 
   // Priority: project > user > plugin > skills
   return [...projectCommands, ...userCommands, ...pluginCommands, ...pluginSkills, ...userSkills];
+}
+
+/**
+ * Dedupe commands by name, keeping the first occurrence (new/preferred dir first).
+ */
+function dedupeByName(commands: CommandInfo[]): CommandInfo[] {
+  const seen = new Set<string>();
+  const out: CommandInfo[] = [];
+  for (const cmd of commands) {
+    const key = cmd.name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cmd);
+  }
+  return out;
 }
 
 /**
@@ -261,7 +284,7 @@ export function executeSlashCommand(parsed: ParsedSlashCommand): ExecuteResult {
       success: false,
       error:
         `Command "/${parsed.command}" not found. Available commands are in ` +
-        `~/.factory/commands/, .factory/commands/, ~/.factory/skills/, or $DROID_PLUGIN_ROOT/{commands,skills}.`,
+        `~/.factory/commands/, .factory/commands/, ~/.agents/skills/, or $DROID_PLUGIN_ROOT/{commands,skills}.`,
     };
   }
 
