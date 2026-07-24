@@ -25,9 +25,17 @@ import {
  * Check if an error is a SQLite busy error (errcode 5).
  * KTD10: classify lock contention as retryable.
  */
-function isBusyError(error: unknown): boolean {
+/** Exported for direct testing; not part of the swarm public surface. */
+export function isBusyError(error: unknown): boolean {
   if (error && typeof error === 'object' && 'errcode' in error) {
-    return (error as { errcode: number }).errcode === 5;
+    const errcode = (error as { errcode: number }).errcode;
+    if (typeof errcode !== 'number') {
+      return false;
+    }
+    // SQLite reports extended result codes in the high bits (e.g.
+    // SQLITE_BUSY_SNAPSHOT = 261 under WAL). The primary code lives in the low
+    // byte, so mask before comparing against SQLITE_BUSY (5).
+    return (errcode & 0xff) === 5;
   }
   return false;
 }

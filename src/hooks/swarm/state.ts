@@ -7,7 +7,7 @@
  */
 
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
   SwarmTask,
@@ -62,6 +62,11 @@ export function poisonDb(): void {
  * The executor parameter accepts any object with an exec(sql) method,
  * enabling deterministic testing with a fake database.
  */
+function isNoActiveTransactionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes('no transaction is active');
+}
+
 export function runImmediateTransaction<T>(
   executor: { exec(sql: string): void },
   fn: () => T,
@@ -97,11 +102,17 @@ export function runImmediateTransaction<T>(
       try {
         executor.exec('ROLLBACK');
       } catch (rollbackError) {
-        onPoison();
-        throw new AggregateError(
-          [commitError, rollbackError],
-          'Transaction commit failed and rollback also failed'
-        );
+        // A failed COMMIT usually leaves SQLite with the transaction already
+        // rolled back, so the explicit ROLLBACK reports that none is active.
+        // That is the expected path, not a poisoned handle — rethrow the
+        // original commit error and keep the connection usable.
+        if (!isNoActiveTransactionError(rollbackError)) {
+          onPoison();
+          throw new AggregateError(
+            [commitError, rollbackError],
+            'Transaction commit failed and rollback also failed'
+          );
+        }
       }
       throw commitError;
     }
@@ -113,10 +124,37 @@ export function runImmediateTransaction<T>(
 }
 
 /**
+ * Normalize a project directory into a stable identity key.
+ *
+ * `path.resolve` leaves the drive letter as typed on Windows, so `C:\proj` and
+ * `c:\proj` would otherwise be treated as two different projects and cause
+ * pointless reconnect churn. Case-fold the drive letter there; POSIX paths are
+ * returned unchanged since they are case-sensitive.
+ */
+export function normalizeProjectCwd(cwd: string): string {
+  const resolved = resolve(cwd);
+  if (process.platform !== 'win32') {
+    return resolved;
+  }
+  return resolved.replace(/^([a-z]):/, (_match, drive: string) => `${drive.toUpperCase()}:`);
+}
+
+/**
  * Get the database file path
  */
 function getDbPath(cwd: string): string {
   return join(cwd, '.omd', 'state', 'swarm.db');
+}
+
+/**
+ * Report whether a swarm database already exists for a project, without
+ * creating the file or its parent directories.
+ *
+ * Read-only callers use this to avoid materializing an empty `.omd/state`
+ * tree in projects that never started a swarm.
+ */
+export function swarmDbExists(cwd: string): boolean {
+  return existsSync(getDbPath(normalizeProjectCwd(cwd)));
 }
 
 /**

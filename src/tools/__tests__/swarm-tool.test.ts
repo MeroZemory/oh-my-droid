@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { swarmTool } from '../swarm-tool.js';
@@ -88,6 +88,34 @@ describe('swarm MCP tool', () => {
 
     const stopResult = await callTool({ action: 'stop', cwd: testDir });
     expect(stopResult.stopped).toBe(true);
+  });
+
+  it('should not create a database when querying status for a project without a swarm', async () => {
+    const result = await callTool({ action: 'status', cwd: secondTestDir });
+
+    expect(result.state).toBeNull();
+    expect(result.stats).toBeNull();
+    expect(existsSync(join(secondTestDir, '.omd', 'state', 'swarm.db'))).toBe(false);
+    expect(existsSync(join(secondTestDir, '.omd'))).toBe(false);
+  });
+
+  it('should not create a database when connecting to a project without a swarm', async () => {
+    const result = await callTool({ action: 'connect', cwd: secondTestDir });
+
+    expect(result.connected).toBe(false);
+    expect(existsSync(join(secondTestDir, '.omd'))).toBe(false);
+  });
+
+  it('should report a started swarm through connect and status', async () => {
+    await callTool({
+      action: 'start',
+      cwd: testDir,
+      agentCount: 1,
+      tasks: ['task'],
+    });
+
+    expect((await callTool({ action: 'connect', cwd: testDir })).connected).toBe(true);
+    expect((await callTool({ action: 'status', cwd: testDir })).state).toMatchObject({ active: true });
   });
 
   it('should switch databases when actions target a different cwd', async () => {
