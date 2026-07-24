@@ -297,7 +297,7 @@ JavaScript, TypeScript, TSX, Python, Ruby, Go, Rust, Java, Kotlin, Swift, C, C++
 | `@ast-grep/napi` | AST-based code search/replace |
 | `vscode-languageserver-protocol` | LSP types |
 | `zod` | Runtime schema validation |
-| `better-sqlite3` | Swarm task coordination |
+| `node:sqlite` | Swarm task coordination |
 | `chalk` | Terminal styling |
 | `commander` | CLI parsing |
 

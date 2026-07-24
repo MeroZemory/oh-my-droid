@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { initDb, closeDb, initSession, addTasks, getHeartbeats, clearAllData } from '../state.js';
-import { claimTask, cleanupStaleClaims, heartbeat } from '../claiming.js';
+import { DatabaseSync } from 'node:sqlite';
+import { initDb, closeDb, initSession, addTasks, getHeartbeats, getDb } from '../state.js';
+import { claimTask, cleanupStaleClaims, failTask, heartbeat, reclaimFailedTask } from '../claiming.js';
 
 describe('Swarm Claiming', () => {
   let testDir: string;
@@ -75,7 +76,7 @@ describe('Swarm Claiming', () => {
 
       expect(result.success).toBe(false);
       expect(result.taskId).toBeNull();
-      expect(result.reason).toBe('No pending tasks available');
+      expect(result.reason).toBe('no_pending_tasks');
     });
 
     it('should update heartbeat when claiming a task', () => {
@@ -91,6 +92,32 @@ describe('Swarm Claiming', () => {
       expect(heartbeats[0].agentId).toBe('agent-1');
       expect(heartbeats[0].currentTaskId).toBe('task-1');
       expect(heartbeats[0].lastHeartbeat).toBeGreaterThan(Date.now() - 1000);
+    });
+  });
+
+  describe('reclaimFailedTask', () => {
+    it('should classify database lock contention as retryable', () => {
+      initSession('test-session', 1);
+      addTasks([{ id: 'task-1', description: 'First task' }]);
+      claimTask('agent-1');
+      failTask('agent-1', 'task-1', 'test failure');
+
+      getDb()?.exec('PRAGMA busy_timeout = 0');
+      const lockDb = new DatabaseSync(join(testDir, '.omd', 'state', 'swarm.db'));
+      lockDb.exec('BEGIN IMMEDIATE');
+
+      try {
+        const result = reclaimFailedTask('agent-2', 'task-1');
+        expect(result).toMatchObject({
+          success: false,
+          taskId: null,
+          reason: 'database_busy',
+          retryable: true,
+        });
+      } finally {
+        lockDb.exec('ROLLBACK');
+        lockDb.close();
+      }
     });
   });
 

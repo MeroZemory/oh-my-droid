@@ -100,7 +100,7 @@ export const executorHighAgent: AgentConfig = {
   name: 'executor-high',
   description: 'Complex task executor for multi-file changes (Opus). Use for tasks requiring deep reasoning.',
   prompt: loadAgentPrompt('executor-high'),
-  tools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash', 'TodoWrite', 'lsp_diagnostics', 'lsp_diagnostics_directory', 'ast_grep_search', 'ast_grep_replace'],
+  tools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash', 'TodoWrite', 'lsp_diagnostics', 'lsp_diagnostics_directory', 'ast_grep_search', 'ast_grep_replace', 'mcp__t__swarm'],
   model: 'opus',
   defaultModel: 'opus'
 };
@@ -112,7 +112,7 @@ export const executorLowAgent: AgentConfig = {
   name: 'executor-low',
   description: 'Simple single-file task executor (Haiku). Use for trivial tasks.',
   prompt: loadAgentPrompt('executor-low'),
-  tools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash', 'TodoWrite', 'lsp_diagnostics'],
+  tools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash', 'TodoWrite', 'lsp_diagnostics', 'mcp__t__swarm'],
   model: 'haiku',
   defaultModel: 'haiku'
 };

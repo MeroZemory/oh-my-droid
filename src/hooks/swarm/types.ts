@@ -58,6 +58,8 @@ export interface ClaimResult {
   description?: string;
   /** Reason for failure if claim was unsuccessful */
   reason?: string;
+  /** Whether the caller should retry after a transient failure (e.g. lock contention) */
+  retryable?: boolean;
 }
 
 /**

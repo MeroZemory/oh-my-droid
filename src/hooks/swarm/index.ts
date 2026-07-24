@@ -33,7 +33,7 @@
 
 import { randomUUID } from 'crypto';
 import { existsSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import type {
   SwarmConfig,
   SwarmState,
@@ -82,22 +82,33 @@ let currentCwd: string | null = null;
 // Cleanup interval handle
 let cleanupIntervalHandle: ReturnType<typeof setInterval> | null = null;
 
+function stopCleanupTimer(): void {
+  if (cleanupIntervalHandle) {
+    clearInterval(cleanupIntervalHandle);
+    cleanupIntervalHandle = null;
+  }
+}
+
+function startCleanupTimer(leaseTimeout: number = DEFAULT_SWARM_CONFIG.leaseTimeout): void {
+  stopCleanupTimer();
+  cleanupIntervalHandle = setInterval(() => {
+    cleanupStaleClaimsInternal(leaseTimeout);
+  }, 60 * 1000);
+}
+
 /**
  * Clean up resources on initialization failure
  * Called when startSwarm fails after partial initialization
  */
 function cleanupOnFailure(cwd: string): void {
-  // Stop cleanup timer if started
-  if (cleanupIntervalHandle) {
-    clearInterval(cleanupIntervalHandle);
-    cleanupIntervalHandle = null;
-  }
+  stopCleanupTimer();
   // Close database
   closeDb();
   // Remove marker file
   removeModeMarker('swarm', cwd);
   // Reset state
   currentCwd = null;
+  setSwarmCwd(null);
 }
 
 /**
@@ -116,6 +127,7 @@ export async function startSwarm(config: SwarmConfig): Promise<boolean> {
     cwd = process.cwd(),
     leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout
   } = config;
+  const resolvedCwd = resolve(cwd);
 
   if (tasks.length === 0) {
     console.error('Cannot start swarm with no tasks');
@@ -128,29 +140,33 @@ export async function startSwarm(config: SwarmConfig): Promise<boolean> {
   }
 
   // Mutual exclusion check via mode-registry
-  const canStart = canStartMode('swarm', cwd);
+  const canStart = canStartMode('swarm', resolvedCwd);
   if (!canStart.allowed) {
     console.error(canStart.message);
     return false;
   }
 
   // Initialize database
-  const dbInitialized = await initDb(cwd);
+  if (isDbInitialized()) {
+    disconnectFromSwarm();
+  }
+
+  const dbInitialized = await initDb(resolvedCwd);
   if (!dbInitialized) {
     console.error('Failed to initialize swarm database');
     return false;
   }
 
   // Create marker file to indicate swarm is active
-  createModeMarker('swarm', cwd, {
+  createModeMarker('swarm', resolvedCwd, {
     agentCount,
     taskCount: tasks.length
   });
 
-  currentCwd = cwd;
+  currentCwd = resolvedCwd;
 
   // Set cwd in claiming module for summary writes
-  setSwarmCwd(cwd);
+  setSwarmCwd(resolvedCwd);
 
   // Clear any existing data
   clearAllData();
@@ -159,7 +175,7 @@ export async function startSwarm(config: SwarmConfig): Promise<boolean> {
   const sessionId = randomUUID();
   if (!initSession(sessionId, agentCount)) {
     console.error('Failed to initialize swarm session');
-    cleanupOnFailure(cwd);
+    cleanupOnFailure(resolvedCwd);
     return false;
   }
 
@@ -171,17 +187,15 @@ export async function startSwarm(config: SwarmConfig): Promise<boolean> {
 
   if (!addTasks(taskRecords)) {
     console.error('Failed to add tasks to pool');
-    cleanupOnFailure(cwd);
+    cleanupOnFailure(resolvedCwd);
     return false;
   }
 
   // Start cleanup timer (runs every minute)
-  cleanupIntervalHandle = setInterval(() => {
-    cleanupStaleClaimsInternal(leaseTimeout);
-  }, 60 * 1000);
+  startCleanupTimer(leaseTimeout);
 
   // Write initial summary
-  writeSwarmSummary(cwd);
+  writeSwarmSummary(resolvedCwd);
 
   return true;
 }
@@ -196,10 +210,7 @@ export async function startSwarm(config: SwarmConfig): Promise<boolean> {
  */
 export function stopSwarm(deleteDatabase: boolean = false): boolean {
   // Stop cleanup timer
-  if (cleanupIntervalHandle) {
-    clearInterval(cleanupIntervalHandle);
-    cleanupIntervalHandle = null;
-  }
+  stopCleanupTimer();
 
   // Mark session as inactive
   saveState({ active: false, completedAt: Date.now() });
@@ -223,6 +234,7 @@ export function stopSwarm(deleteDatabase: boolean = false): boolean {
   }
 
   currentCwd = null;
+  setSwarmCwd(null);
   return true;
 }
 
@@ -424,14 +436,21 @@ export function isSwarmReady(): boolean {
  * @returns true if database was initialized
  */
 export async function connectToSwarm(cwd: string): Promise<boolean> {
+  const resolvedCwd = resolve(cwd);
+
   if (isDbInitialized()) {
-    return true;
+    if (currentCwd === resolvedCwd) {
+      return true;
+    }
+    disconnectFromSwarm();
   }
 
-  const success = await initDb(cwd);
+  const success = await initDb(resolvedCwd);
   if (success) {
-    currentCwd = cwd;
-    setSwarmCwd(cwd);
+    currentCwd = resolvedCwd;
+    setSwarmCwd(resolvedCwd);
+    cleanupStaleClaims(DEFAULT_SWARM_CONFIG.leaseTimeout);
+    startCleanupTimer();
   }
   return success;
 }
@@ -442,8 +461,10 @@ export async function connectToSwarm(cwd: string): Promise<boolean> {
  * @returns true if disconnected successfully
  */
 export function disconnectFromSwarm(): boolean {
+  stopCleanupTimer();
   closeDb();
   currentCwd = null;
+  setSwarmCwd(null);
   return true;
 }
 
@@ -457,14 +478,16 @@ export function disconnectFromSwarm(): boolean {
  * @returns true if swarm is active
  */
 export function isSwarmActive(cwd: string): boolean {
+  const resolvedCwd = resolve(cwd);
+
   // If database is already connected, check state directly
-  if (isDbInitialized()) {
+  if (isDbInitialized() && currentCwd === resolvedCwd) {
     const state = loadState();
     return state !== null && state.active === true;
   }
 
   // Otherwise, check if database file exists and is non-empty
-  const dbPath = join(cwd, '.omd', 'state', 'swarm.db');
+  const dbPath = join(resolvedCwd, '.omd', 'state', 'swarm.db');
   if (!existsSync(dbPath)) {
     return false;
   }
@@ -490,15 +513,12 @@ export async function cancelSwarm(cwd: string): Promise<{
   message: string;
   stats?: SwarmStats | null;
 }> {
-  // Connect if not already connected
-  if (!isDbInitialized()) {
-    const connected = await connectToSwarm(cwd);
-    if (!connected) {
-      return {
-        success: false,
-        message: 'Failed to connect to swarm database'
-      };
-    }
+  const connected = await connectToSwarm(cwd);
+  if (!connected) {
+    return {
+      success: false,
+      message: 'Failed to connect to swarm database'
+    };
   }
 
   const state = getSwarmStatus();

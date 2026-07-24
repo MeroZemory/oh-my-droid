@@ -2252,8 +2252,8 @@ var require_resolve = __commonJS({
     }
     exports2.getFullPath = getFullPath;
     function _getFullPath(resolver, p) {
-      const serialized = resolver.serialize(p);
-      return serialized.split("#")[0] + "#";
+      const serialized2 = resolver.serialize(p);
+      return serialized2.split("#")[0] + "#";
     }
     exports2._getFullPath = _getFullPath;
     var TRAILING_SLASH_HASH = /#\/?$/;
@@ -2993,7 +2993,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve4.call(this, root, ref);
+      let _sch = resolve5.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3020,7 +3020,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve4(root, ref) {
+    function resolve5(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3595,7 +3595,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve4(baseURI, relativeURI, options) {
+    function resolve5(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse5(baseURI, schemelessOptions), parse5(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
@@ -3822,7 +3822,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve4,
+      resolve: resolve5,
       resolveComponent,
       equal,
       serialize,
@@ -4738,6 +4738,7 @@ var require_pattern = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     var code_1 = require_code2();
+    var util_1 = require_util();
     var codegen_1 = require_codegen();
     var error2 = {
       message: ({ schemaCode }) => (0, codegen_1.str)`must match pattern "${schemaCode}"`,
@@ -4750,10 +4751,18 @@ var require_pattern = __commonJS({
       $data: true,
       error: error2,
       code(cxt) {
-        const { data, $data, schema, schemaCode, it } = cxt;
+        const { gen, data, $data, schema, schemaCode, it } = cxt;
         const u = it.opts.unicodeRegExp ? "u" : "";
-        const regExp = $data ? (0, codegen_1._)`(new RegExp(${schemaCode}, ${u}))` : (0, code_1.usePattern)(cxt, schema);
-        cxt.fail$data((0, codegen_1._)`!${regExp}.test(${data})`);
+        if ($data) {
+          const { regExp } = it.opts.code;
+          const regExpCode = regExp.code === "new RegExp" ? (0, codegen_1._)`new RegExp` : (0, util_1.useFunc)(gen, regExp);
+          const valid = gen.let("valid");
+          gen.try(() => gen.assign(valid, (0, codegen_1._)`${regExpCode}(${schemaCode}, ${u}).test(${data})`), () => gen.assign(valid, false));
+          cxt.fail$data((0, codegen_1._)`!${valid}`);
+        } else {
+          const regExp = (0, code_1.usePattern)(cxt, schema);
+          cxt.fail$data((0, codegen_1._)`!${regExp}.test(${data})`);
+        }
       }
     };
     exports2.default = def;
@@ -14645,10 +14654,9 @@ var ProgressTokenSchema = union([string2(), number2().int()]);
 var CursorSchema = string2();
 var TaskCreationParamsSchema = looseObject({
   /**
-   * Time in milliseconds to keep task results available after completion.
-   * If null, the task has unlimited lifetime until manually cleaned up.
+   * Requested duration in milliseconds to retain task from creation.
    */
-  ttl: union([number2(), _null3()]).optional(),
+  ttl: number2().optional(),
   /**
    * Time in milliseconds to wait between task status requests.
    */
@@ -14948,7 +14956,11 @@ var ClientCapabilitiesSchema = object2({
   /**
    * Present if the client supports task creation.
    */
-  tasks: ClientTasksCapabilitySchema.optional()
+  tasks: ClientTasksCapabilitySchema.optional(),
+  /**
+   * Extensions that the client supports. Keys are extension identifiers (vendor-prefix/extension-name).
+   */
+  extensions: record(string2(), AssertObjectSchema).optional()
 });
 var InitializeRequestParamsSchema = BaseRequestParamsSchema.extend({
   /**
@@ -15009,7 +15021,11 @@ var ServerCapabilitiesSchema = object2({
   /**
    * Present if the server supports task creation.
    */
-  tasks: ServerTasksCapabilitySchema.optional()
+  tasks: ServerTasksCapabilitySchema.optional(),
+  /**
+   * Extensions that the server supports. Keys are extension identifiers (vendor-prefix/extension-name).
+   */
+  extensions: record(string2(), AssertObjectSchema).optional()
 });
 var InitializeResultSchema = ResultSchema.extend({
   /**
@@ -15201,6 +15217,12 @@ var ResourceSchema = object2({
    * The MIME type of this resource, if known.
    */
   mimeType: optional(string2()),
+  /**
+   * The size of the raw resource content, in bytes (i.e., before base64 encoding or any tokenization), if known.
+   *
+   * This can be used by Hosts to display file sizes and estimate context window usage.
+   */
+  size: optional(number2()),
   /**
    * Optional annotations for the client.
    */
@@ -16347,6 +16369,9 @@ var Protocol = class {
    * The Protocol object assumes ownership of the Transport, replacing any callbacks that have already been set, and expects that it is the only user of the Transport instance going forward.
    */
   async connect(transport) {
+    if (this._transport) {
+      throw new Error("Already connected to a transport. Call close() before connecting to a new transport, or use a separate Protocol instance per connection.");
+    }
     this._transport = transport;
     const _onclose = this.transport?.onclose;
     this._transport.onclose = () => {
@@ -16379,6 +16404,14 @@ var Protocol = class {
     this._progressHandlers.clear();
     this._taskProgressTokens.clear();
     this._pendingDebouncedNotifications.clear();
+    for (const info of this._timeoutInfo.values()) {
+      clearTimeout(info.timeoutId);
+    }
+    this._timeoutInfo.clear();
+    for (const controller of this._requestHandlerAbortControllers.values()) {
+      controller.abort();
+    }
+    this._requestHandlerAbortControllers.clear();
     const error2 = McpError.fromError(ErrorCode.ConnectionClosed, "Connection closed");
     this._transport = void 0;
     this.onclose?.();
@@ -16429,6 +16462,8 @@ var Protocol = class {
       sessionId: capturedTransport?.sessionId,
       _meta: request.params?._meta,
       sendNotification: async (notification) => {
+        if (abortController.signal.aborted)
+          return;
         const notificationOptions = { relatedRequestId: request.id };
         if (relatedTaskId) {
           notificationOptions.relatedTask = { taskId: relatedTaskId };
@@ -16436,6 +16471,9 @@ var Protocol = class {
         await this.notification(notification, notificationOptions);
       },
       sendRequest: async (r, resultSchema, options) => {
+        if (abortController.signal.aborted) {
+          throw new McpError(ErrorCode.ConnectionClosed, "Request was cancelled");
+        }
         const requestOptions = { ...options, relatedRequestId: request.id };
         if (relatedTaskId && !requestOptions.relatedTask) {
           requestOptions.relatedTask = { taskId: relatedTaskId };
@@ -16500,7 +16538,9 @@ var Protocol = class {
         await capturedTransport?.send(errorResponse);
       }
     }).catch((error2) => this._onerror(new Error(`Failed to send response: ${error2}`))).finally(() => {
-      this._requestHandlerAbortControllers.delete(request.id);
+      if (this._requestHandlerAbortControllers.get(request.id) === abortController) {
+        this._requestHandlerAbortControllers.delete(request.id);
+      }
     });
   }
   _onprogress(notification) {
@@ -16652,7 +16692,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
+        await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -16669,7 +16709,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -16747,7 +16787,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve4(parseResult.data);
+            resolve5(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -17008,12 +17048,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve4, interval);
+      const timeoutId = setTimeout(resolve5, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -17195,6 +17235,147 @@ var ExperimentalServerTasks = class {
    */
   requestStream(request, resultSchema, options) {
     return this._server.requestStream(request, resultSchema, options);
+  }
+  /**
+   * Sends a sampling request and returns an AsyncGenerator that yields response messages.
+   * The generator is guaranteed to end with either a 'result' or 'error' message.
+   *
+   * For task-augmented requests, yields 'taskCreated' and 'taskStatus' messages
+   * before the final result.
+   *
+   * @example
+   * ```typescript
+   * const stream = server.experimental.tasks.createMessageStream({
+   *     messages: [{ role: 'user', content: { type: 'text', text: 'Hello' } }],
+   *     maxTokens: 100
+   * }, {
+   *     onprogress: (progress) => {
+   *         // Handle streaming tokens via progress notifications
+   *         console.log('Progress:', progress.message);
+   *     }
+   * });
+   *
+   * for await (const message of stream) {
+   *     switch (message.type) {
+   *         case 'taskCreated':
+   *             console.log('Task created:', message.task.taskId);
+   *             break;
+   *         case 'taskStatus':
+   *             console.log('Task status:', message.task.status);
+   *             break;
+   *         case 'result':
+   *             console.log('Final result:', message.result);
+   *             break;
+   *         case 'error':
+   *             console.error('Error:', message.error);
+   *             break;
+   *     }
+   * }
+   * ```
+   *
+   * @param params - The sampling request parameters
+   * @param options - Optional request options (timeout, signal, task creation params, onprogress, etc.)
+   * @returns AsyncGenerator that yields ResponseMessage objects
+   *
+   * @experimental
+   */
+  createMessageStream(params, options) {
+    const clientCapabilities = this._server.getClientCapabilities();
+    if ((params.tools || params.toolChoice) && !clientCapabilities?.sampling?.tools) {
+      throw new Error("Client does not support sampling tools capability.");
+    }
+    if (params.messages.length > 0) {
+      const lastMessage = params.messages[params.messages.length - 1];
+      const lastContent = Array.isArray(lastMessage.content) ? lastMessage.content : [lastMessage.content];
+      const hasToolResults = lastContent.some((c) => c.type === "tool_result");
+      const previousMessage = params.messages.length > 1 ? params.messages[params.messages.length - 2] : void 0;
+      const previousContent = previousMessage ? Array.isArray(previousMessage.content) ? previousMessage.content : [previousMessage.content] : [];
+      const hasPreviousToolUse = previousContent.some((c) => c.type === "tool_use");
+      if (hasToolResults) {
+        if (lastContent.some((c) => c.type !== "tool_result")) {
+          throw new Error("The last message must contain only tool_result content if any is present");
+        }
+        if (!hasPreviousToolUse) {
+          throw new Error("tool_result blocks are not matching any tool_use from the previous message");
+        }
+      }
+      if (hasPreviousToolUse) {
+        const toolUseIds = new Set(previousContent.filter((c) => c.type === "tool_use").map((c) => c.id));
+        const toolResultIds = new Set(lastContent.filter((c) => c.type === "tool_result").map((c) => c.toolUseId));
+        if (toolUseIds.size !== toolResultIds.size || ![...toolUseIds].every((id) => toolResultIds.has(id))) {
+          throw new Error("ids of tool_result blocks and tool_use blocks from previous message do not match");
+        }
+      }
+    }
+    return this.requestStream({
+      method: "sampling/createMessage",
+      params
+    }, CreateMessageResultSchema, options);
+  }
+  /**
+   * Sends an elicitation request and returns an AsyncGenerator that yields response messages.
+   * The generator is guaranteed to end with either a 'result' or 'error' message.
+   *
+   * For task-augmented requests (especially URL-based elicitation), yields 'taskCreated'
+   * and 'taskStatus' messages before the final result.
+   *
+   * @example
+   * ```typescript
+   * const stream = server.experimental.tasks.elicitInputStream({
+   *     mode: 'url',
+   *     message: 'Please authenticate',
+   *     elicitationId: 'auth-123',
+   *     url: 'https://example.com/auth'
+   * }, {
+   *     task: { ttl: 300000 } // Task-augmented for long-running auth flow
+   * });
+   *
+   * for await (const message of stream) {
+   *     switch (message.type) {
+   *         case 'taskCreated':
+   *             console.log('Task created:', message.task.taskId);
+   *             break;
+   *         case 'taskStatus':
+   *             console.log('Task status:', message.task.status);
+   *             break;
+   *         case 'result':
+   *             console.log('User action:', message.result.action);
+   *             break;
+   *         case 'error':
+   *             console.error('Error:', message.error);
+   *             break;
+   *     }
+   * }
+   * ```
+   *
+   * @param params - The elicitation request parameters
+   * @param options - Optional request options (timeout, signal, task creation params, etc.)
+   * @returns AsyncGenerator that yields ResponseMessage objects
+   *
+   * @experimental
+   */
+  elicitInputStream(params, options) {
+    const clientCapabilities = this._server.getClientCapabilities();
+    const mode = params.mode ?? "form";
+    switch (mode) {
+      case "url": {
+        if (!clientCapabilities?.elicitation?.url) {
+          throw new Error("Client does not support url elicitation.");
+        }
+        break;
+      }
+      case "form": {
+        if (!clientCapabilities?.elicitation?.form) {
+          throw new Error("Client does not support form elicitation.");
+        }
+        break;
+      }
+    }
+    const normalizedParams = mode === "form" && params.mode === void 0 ? { ...params, mode: "form" } : params;
+    return this.requestStream({
+      method: "elicitation/create",
+      params: normalizedParams
+    }, ElicitResultSchema, options);
   }
   /**
    * Gets the current status of a task.
@@ -17742,12 +17923,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve4) => {
+    return new Promise((resolve5) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve4();
+        resolve5();
       } else {
-        this._stdout.once("drain", resolve4);
+        this._stdout.once("drain", resolve5);
       }
     });
   }
@@ -17928,7 +18109,7 @@ var LspClient = class {
 Install with: ${this.serverConfig.installHint}`
       );
     }
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       this.process = (0, import_child_process2.spawn)(this.serverConfig.command, this.serverConfig.args, {
         cwd: this.workspaceRoot,
         stdio: ["pipe", "pipe", "pipe"]
@@ -17951,7 +18132,7 @@ Install with: ${this.serverConfig.installHint}`
       });
       this.initialize().then(() => {
         this.initialized = true;
-        resolve4();
+        resolve5();
       }).catch(reject);
     });
   }
@@ -18047,13 +18228,13 @@ Install with: ${this.serverConfig.installHint}`
     const message = `Content-Length: ${Buffer.byteLength(content)}\r
 \r
 ${content}`;
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       const timeoutHandle = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`LSP request '${method}' timed out after ${timeout}ms`));
       }, timeout);
       this.pendingRequests.set(id, {
-        resolve: resolve4,
+        resolve: resolve5,
         reject,
         timeout: timeoutHandle
       });
@@ -18122,7 +18303,7 @@ ${content}`;
       }
     });
     this.openDocuments.add(uri);
-    await new Promise((resolve4) => setTimeout(resolve4, 100));
+    await new Promise((resolve5) => setTimeout(resolve5, 100));
   }
   /**
    * Close a document
@@ -18617,7 +18798,7 @@ async function runLspAggregatedDiagnostics(directory, extensions = [".ts", ".tsx
         continue;
       }
       await client.openDocument(file);
-      await new Promise((resolve4) => setTimeout(resolve4, LSP_DIAGNOSTICS_WAIT_MS));
+      await new Promise((resolve5) => setTimeout(resolve5, LSP_DIAGNOSTICS_WAIT_MS));
       const diagnostics = client.getDiagnostics(file);
       for (const diagnostic of diagnostics) {
         allDiagnostics.push({
@@ -18867,7 +19048,7 @@ var lspDiagnosticsTool = {
     const { file, severity } = args;
     return withLspClient(file, "diagnostics", async (client) => {
       await client.openDocument(file);
-      await new Promise((resolve4) => setTimeout(resolve4, LSP_DIAGNOSTICS_WAIT_MS));
+      await new Promise((resolve5) => setTimeout(resolve5, LSP_DIAGNOSTICS_WAIT_MS));
       let diagnostics = client.getDiagnostics(file);
       if (severity) {
         const severityMap = {
@@ -20077,7 +20258,7 @@ var SessionLock = class {
   }
 };
 function sleep(ms) {
-  return new Promise((resolve4) => setTimeout(resolve4, ms));
+  return new Promise((resolve5) => setTimeout(resolve5, ms));
 }
 
 // src/tools/python-repl/socket-client.ts
@@ -20107,7 +20288,7 @@ var JsonRpcError = class extends Error {
   }
 };
 async function sendSocketRequest(socketPath, method, params, timeout = 6e4) {
-  return new Promise((resolve4, reject) => {
+  return new Promise((resolve5, reject) => {
     const id = (0, import_crypto.randomUUID)();
     const request = {
       jsonrpc: "2.0",
@@ -20171,7 +20352,7 @@ async function sendSocketRequest(socketPath, method, params, timeout = 6e4) {
             ));
             return;
           }
-          resolve4(response.result);
+          resolve5(response.result);
         } catch (e) {
           reject(new Error(
             `Failed to parse JSON-RPC response: ${e.message}`
@@ -20489,7 +20670,7 @@ async function deleteBridgeMeta(sessionId) {
   }
 }
 function sleep2(ms) {
-  return new Promise((resolve4) => setTimeout(resolve4, ms));
+  return new Promise((resolve5) => setTimeout(resolve5, ms));
 }
 
 // src/tools/python-repl/tool.ts
@@ -20924,11 +21105,1102 @@ var pythonReplTool = {
   }
 };
 
+// src/hooks/swarm/index.ts
+var import_crypto2 = require("crypto");
+var import_fs8 = require("fs");
+var import_path9 = require("path");
+
+// src/hooks/swarm/types.ts
+var DEFAULT_SWARM_CONFIG = {
+  agentCount: 3,
+  tasks: [],
+  agentType: "executor",
+  leaseTimeout: 5 * 60 * 1e3,
+  // 5 minutes
+  heartbeatInterval: 60 * 1e3
+  // 60 seconds
+};
+var DB_SCHEMA_VERSION = 1;
+
+// src/hooks/swarm/state.ts
+var import_fs6 = require("fs");
+var import_path7 = require("path");
+var import_node_sqlite = require("node:sqlite");
+var db = null;
+var inTransaction = false;
+function poisonDb() {
+  try {
+    db?.close();
+  } catch {
+  }
+  db = null;
+}
+function runImmediateTransaction(executor, fn, onPoison) {
+  if (inTransaction) {
+    throw new Error("Nested transactions are not supported");
+  }
+  inTransaction = true;
+  try {
+    executor.exec("BEGIN IMMEDIATE");
+    let result;
+    try {
+      result = fn();
+    } catch (callbackError) {
+      try {
+        executor.exec("ROLLBACK");
+      } catch (rollbackError) {
+        onPoison();
+        throw new AggregateError(
+          [callbackError, rollbackError],
+          "Transaction callback failed and rollback also failed"
+        );
+      }
+      throw callbackError;
+    }
+    try {
+      executor.exec("COMMIT");
+    } catch (commitError) {
+      try {
+        executor.exec("ROLLBACK");
+      } catch (rollbackError) {
+        onPoison();
+        throw new AggregateError(
+          [commitError, rollbackError],
+          "Transaction commit failed and rollback also failed"
+        );
+      }
+      throw commitError;
+    }
+    return result;
+  } finally {
+    inTransaction = false;
+  }
+}
+function getDbPath(cwd) {
+  return (0, import_path7.join)(cwd, ".omd", "state", "swarm.db");
+}
+function ensureStateDir(cwd) {
+  const stateDir = (0, import_path7.join)(cwd, ".omd", "state");
+  if (!(0, import_fs6.existsSync)(stateDir)) {
+    (0, import_fs6.mkdirSync)(stateDir, { recursive: true });
+  }
+}
+async function initDb(cwd) {
+  try {
+    ensureStateDir(cwd);
+    const dbPath = getDbPath(cwd);
+    db = new import_node_sqlite.DatabaseSync(dbPath);
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA busy_timeout = 5000");
+    db.exec(`
+      -- Schema version tracking
+      CREATE TABLE IF NOT EXISTS schema_info (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+
+      -- Swarm session state
+      CREATE TABLE IF NOT EXISTS swarm_session (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        session_id TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        agent_count INTEGER NOT NULL,
+        started_at INTEGER NOT NULL,
+        completed_at INTEGER
+      );
+
+      -- Task pool
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        description TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'claimed', 'done', 'failed')),
+        claimed_by TEXT,
+        claimed_at INTEGER,
+        completed_at INTEGER,
+        error TEXT,
+        result TEXT
+      );
+
+      -- Agent heartbeats
+      CREATE TABLE IF NOT EXISTS heartbeats (
+        agent_id TEXT PRIMARY KEY,
+        last_heartbeat INTEGER NOT NULL,
+        current_task_id TEXT
+      );
+
+      -- Indexes for performance
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_claimed_by ON tasks(claimed_by);
+      CREATE INDEX IF NOT EXISTS idx_heartbeats_last ON heartbeats(last_heartbeat);
+    `);
+    const setVersion = db.prepare(
+      "INSERT OR REPLACE INTO schema_info (key, value) VALUES (?, ?)"
+    );
+    setVersion.run("version", String(DB_SCHEMA_VERSION));
+    return true;
+  } catch (error2) {
+    console.error("Failed to initialize swarm database:", error2);
+    return false;
+  }
+}
+function closeDb() {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}
+function deleteDb(cwd) {
+  try {
+    closeDb();
+    const dbPath = getDbPath(cwd);
+    if ((0, import_fs6.existsSync)(dbPath)) {
+      (0, import_fs6.unlinkSync)(dbPath);
+    }
+    const walPath = dbPath + "-wal";
+    const shmPath = dbPath + "-shm";
+    if ((0, import_fs6.existsSync)(walPath)) (0, import_fs6.unlinkSync)(walPath);
+    if ((0, import_fs6.existsSync)(shmPath)) (0, import_fs6.unlinkSync)(shmPath);
+    return true;
+  } catch (error2) {
+    console.error("Failed to delete swarm database:", error2);
+    return false;
+  }
+}
+function isDbInitialized() {
+  return db !== null;
+}
+function initSession(sessionId, agentCount) {
+  if (!db) return false;
+  try {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO swarm_session (id, session_id, active, agent_count, started_at, completed_at)
+      VALUES (1, ?, 1, ?, ?, NULL)
+    `);
+    stmt.run(sessionId, agentCount, Date.now());
+    return true;
+  } catch (error2) {
+    console.error("Failed to initialize session:", error2);
+    return false;
+  }
+}
+function loadState() {
+  if (!db) return null;
+  try {
+    const sessionStmt = db.prepare("SELECT * FROM swarm_session WHERE id = 1");
+    const session = sessionStmt.get();
+    if (!session) return null;
+    const tasksStmt = db.prepare("SELECT * FROM tasks ORDER BY id");
+    const taskRows = tasksStmt.all();
+    const tasks = taskRows.map((row) => ({
+      id: row.id,
+      description: row.description,
+      status: row.status,
+      claimedBy: row.claimed_by,
+      claimedAt: row.claimed_at,
+      completedAt: row.completed_at,
+      error: row.error ?? void 0,
+      result: row.result ?? void 0
+    }));
+    return {
+      active: session.active === 1,
+      sessionId: session.session_id,
+      agentCount: session.agent_count,
+      tasks,
+      startedAt: session.started_at,
+      completedAt: session.completed_at
+    };
+  } catch (error2) {
+    console.error("Failed to load swarm state:", error2);
+    return null;
+  }
+}
+function saveState(state) {
+  if (!db) return false;
+  try {
+    if (state.active !== void 0 || state.completedAt !== void 0) {
+      const updates = [];
+      const values = [];
+      if (state.active !== void 0) {
+        updates.push("active = ?");
+        values.push(state.active ? 1 : 0);
+      }
+      if (state.completedAt !== void 0) {
+        updates.push("completed_at = ?");
+        values.push(state.completedAt);
+      }
+      if (updates.length > 0) {
+        const stmt = db.prepare(`UPDATE swarm_session SET ${updates.join(", ")} WHERE id = 1`);
+        stmt.run(...values);
+      }
+    }
+    return true;
+  } catch (error2) {
+    console.error("Failed to save swarm state:", error2);
+    return false;
+  }
+}
+function addTasks(tasks) {
+  if (!db) return false;
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO tasks (id, description, status, claimed_by, claimed_at, completed_at, error, result)
+      VALUES (?, ?, 'pending', NULL, NULL, NULL, NULL, NULL)
+    `);
+    runImmediateTransaction(
+      db,
+      () => {
+        for (const task of tasks) {
+          stmt.run(task.id, task.description);
+        }
+      },
+      poisonDb
+    );
+    return true;
+  } catch (error2) {
+    console.error("Failed to add tasks:", error2);
+    return false;
+  }
+}
+function getStats() {
+  if (!db) return null;
+  try {
+    const countStmt = db.prepare(`
+      SELECT status, COUNT(*) as count FROM tasks GROUP BY status
+    `);
+    const counts = countStmt.all();
+    const statusCounts = {
+      pending: 0,
+      claimed: 0,
+      done: 0,
+      failed: 0
+    };
+    for (const row of counts) {
+      statusCounts[row.status] = row.count;
+    }
+    const agentStmt = db.prepare(`
+      SELECT COUNT(*) as count FROM heartbeats
+      WHERE last_heartbeat > ?
+    `);
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1e3;
+    const agentCount = agentStmt.get(fiveMinutesAgo).count;
+    const sessionStmt = db.prepare("SELECT started_at FROM swarm_session WHERE id = 1");
+    const session = sessionStmt.get();
+    const startedAt = session?.started_at ?? Date.now();
+    return {
+      totalTasks: statusCounts.pending + statusCounts.claimed + statusCounts.done + statusCounts.failed,
+      pendingTasks: statusCounts.pending,
+      claimedTasks: statusCounts.claimed,
+      doneTasks: statusCounts.done,
+      failedTasks: statusCounts.failed,
+      activeAgents: agentCount,
+      elapsedTime: Date.now() - startedAt
+    };
+  } catch (error2) {
+    console.error("Failed to get stats:", error2);
+    return null;
+  }
+}
+function recordHeartbeat(agentId, currentTaskId) {
+  if (!db) return false;
+  try {
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO heartbeats (agent_id, last_heartbeat, current_task_id)
+      VALUES (?, ?, ?)
+    `);
+    stmt.run(agentId, Date.now(), currentTaskId);
+    return true;
+  } catch (error2) {
+    console.error("Failed to record heartbeat:", error2);
+    return false;
+  }
+}
+function clearAllData() {
+  if (!db) return false;
+  try {
+    db.exec(`
+      DELETE FROM tasks;
+      DELETE FROM heartbeats;
+      DELETE FROM swarm_session;
+    `);
+    return true;
+  } catch (error2) {
+    console.error("Failed to clear data:", error2);
+    return false;
+  }
+}
+function getDb() {
+  return db;
+}
+function writeSwarmSummary(cwd) {
+  if (!db) return false;
+  try {
+    const state = loadState();
+    const stats = getStats();
+    if (!state || !stats) return false;
+    const summary = {
+      session_id: state.sessionId,
+      started_at: new Date(state.startedAt).toISOString(),
+      updated_at: (/* @__PURE__ */ new Date()).toISOString(),
+      task_count: stats.totalTasks,
+      tasks_pending: stats.pendingTasks,
+      tasks_claimed: stats.claimedTasks,
+      tasks_done: stats.doneTasks,
+      active: state.active
+    };
+    const stateDir = (0, import_path7.join)(cwd, ".omd", "state");
+    (0, import_fs6.mkdirSync)(stateDir, { recursive: true });
+    const summaryPath = (0, import_path7.join)(stateDir, "swarm-summary.json");
+    (0, import_fs6.writeFileSync)(summaryPath, JSON.stringify(summary, null, 2), "utf-8");
+    return true;
+  } catch (error2) {
+    console.error("Failed to write swarm summary:", error2);
+    return false;
+  }
+}
+
+// src/hooks/swarm/claiming.ts
+function isBusyError(error2) {
+  if (error2 && typeof error2 === "object" && "errcode" in error2) {
+    return error2.errcode === 5;
+  }
+  return false;
+}
+var currentCwd = null;
+function setSwarmCwd(cwd) {
+  currentCwd = cwd;
+}
+function claimTask(agentId) {
+  const db2 = getDb();
+  if (!db2) {
+    return {
+      success: false,
+      taskId: null,
+      reason: "Database not initialized"
+    };
+  }
+  try {
+    const result = runImmediateTransaction(
+      db2,
+      () => {
+        const findStmt = db2.prepare(`
+          SELECT id, description FROM tasks
+          WHERE status = 'pending'
+          ORDER BY id
+          LIMIT 1
+        `);
+        const task = findStmt.get();
+        if (!task) {
+          return {
+            success: false,
+            taskId: null,
+            reason: "no_pending_tasks"
+          };
+        }
+        const claimStmt = db2.prepare(`
+          UPDATE tasks
+          SET status = 'claimed', claimed_by = ?, claimed_at = ?
+          WHERE id = ? AND status = 'pending'
+        `);
+        const claimResult = claimStmt.run(agentId, Date.now(), task.id);
+        if (claimResult.changes === 0) {
+          return {
+            success: false,
+            taskId: null,
+            reason: "Task was claimed by another agent"
+          };
+        }
+        const heartbeatStmt = db2.prepare(`
+          INSERT OR REPLACE INTO heartbeats (agent_id, last_heartbeat, current_task_id)
+          VALUES (?, ?, ?)
+        `);
+        heartbeatStmt.run(agentId, Date.now(), task.id);
+        return {
+          success: true,
+          taskId: task.id,
+          description: task.description
+        };
+      },
+      poisonDb
+    );
+    if (result.success && currentCwd) {
+      writeSwarmSummary(currentCwd);
+    }
+    return result;
+  } catch (error2) {
+    if (isBusyError(error2)) {
+      return {
+        success: false,
+        taskId: null,
+        reason: "database_busy",
+        retryable: true
+      };
+    }
+    return {
+      success: false,
+      taskId: null,
+      reason: `Claim failed: ${error2 instanceof Error ? error2.message : String(error2)}`
+    };
+  }
+}
+function releaseTask(agentId, taskId) {
+  const db2 = getDb();
+  if (!db2) return false;
+  try {
+    return runImmediateTransaction(
+      db2,
+      () => {
+        const verifyStmt = db2.prepare(`
+          SELECT claimed_by FROM tasks WHERE id = ?
+        `);
+        const task = verifyStmt.get(taskId);
+        if (!task || task.claimed_by !== agentId) {
+          return false;
+        }
+        const releaseStmt = db2.prepare(`
+          UPDATE tasks
+          SET status = 'pending', claimed_by = NULL, claimed_at = NULL
+          WHERE id = ? AND claimed_by = ?
+        `);
+        releaseStmt.run(taskId, agentId);
+        const heartbeatStmt = db2.prepare(`
+          UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
+        `);
+        heartbeatStmt.run(agentId);
+        return true;
+      },
+      poisonDb
+    );
+  } catch (error2) {
+    console.error("Failed to release task:", error2);
+    return false;
+  }
+}
+function completeTask(agentId, taskId, result) {
+  const db2 = getDb();
+  if (!db2) return false;
+  try {
+    const completed = runImmediateTransaction(
+      db2,
+      () => {
+        const verifyStmt = db2.prepare(`
+          SELECT claimed_by FROM tasks WHERE id = ?
+        `);
+        const task = verifyStmt.get(taskId);
+        if (!task || task.claimed_by !== agentId) {
+          return false;
+        }
+        const completeStmt = db2.prepare(`
+          UPDATE tasks
+          SET status = 'done', completed_at = ?, result = ?
+          WHERE id = ? AND claimed_by = ?
+        `);
+        completeStmt.run(Date.now(), result ?? null, taskId, agentId);
+        const heartbeatStmt = db2.prepare(`
+          UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
+        `);
+        heartbeatStmt.run(agentId);
+        return true;
+      },
+      poisonDb
+    );
+    if (completed && currentCwd) {
+      writeSwarmSummary(currentCwd);
+    }
+    return completed;
+  } catch (error2) {
+    console.error("Failed to complete task:", error2);
+    return false;
+  }
+}
+function failTask(agentId, taskId, error2) {
+  const db2 = getDb();
+  if (!db2) return false;
+  try {
+    return runImmediateTransaction(
+      db2,
+      () => {
+        const verifyStmt = db2.prepare(`
+          SELECT claimed_by FROM tasks WHERE id = ?
+        `);
+        const task = verifyStmt.get(taskId);
+        if (!task || task.claimed_by !== agentId) {
+          return false;
+        }
+        const failStmt = db2.prepare(`
+          UPDATE tasks
+          SET status = 'failed', completed_at = ?, error = ?
+          WHERE id = ? AND claimed_by = ?
+        `);
+        failStmt.run(Date.now(), error2, taskId, agentId);
+        const heartbeatStmt = db2.prepare(`
+          UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
+        `);
+        heartbeatStmt.run(agentId);
+        return true;
+      },
+      poisonDb
+    );
+  } catch (error3) {
+    console.error("Failed to fail task:", error3);
+    return false;
+  }
+}
+function heartbeat(agentId) {
+  const db2 = getDb();
+  if (!db2) return false;
+  try {
+    const taskStmt = db2.prepare(`
+      SELECT id FROM tasks WHERE claimed_by = ? AND status = 'claimed'
+    `);
+    const task = taskStmt.get(agentId);
+    return recordHeartbeat(agentId, task?.id ?? null);
+  } catch (error2) {
+    console.error("Failed to record heartbeat:", error2);
+    return false;
+  }
+}
+function cleanupStaleClaims(leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout) {
+  const db2 = getDb();
+  if (!db2) return 0;
+  try {
+    const cutoffTime = Date.now() - leaseTimeout;
+    return runImmediateTransaction(
+      db2,
+      () => {
+        const findStaleStmt = db2.prepare(`
+          SELECT t.id, t.claimed_by
+          FROM tasks t
+          LEFT JOIN heartbeats h ON t.claimed_by = h.agent_id
+          WHERE t.status = 'claimed'
+            AND t.claimed_at < ?
+            AND (h.last_heartbeat IS NULL OR h.last_heartbeat < ?)
+        `);
+        const staleTasks = findStaleStmt.all(cutoffTime, cutoffTime);
+        if (staleTasks.length === 0) {
+          return 0;
+        }
+        const releaseStmt = db2.prepare(`
+          UPDATE tasks
+          SET status = 'pending', claimed_by = NULL, claimed_at = NULL
+          WHERE id = ?
+        `);
+        const removeHeartbeatStmt = db2.prepare(`
+          DELETE FROM heartbeats WHERE agent_id = ?
+        `);
+        const staleAgents = /* @__PURE__ */ new Set();
+        for (const task of staleTasks) {
+          releaseStmt.run(task.id);
+          if (task.claimed_by) {
+            staleAgents.add(task.claimed_by);
+          }
+        }
+        for (const agentId of staleAgents) {
+          removeHeartbeatStmt.run(agentId);
+        }
+        return staleTasks.length;
+      },
+      poisonDb
+    );
+  } catch (error2) {
+    console.error("Failed to cleanup stale claims:", error2);
+    return 0;
+  }
+}
+function allTasksComplete() {
+  const db2 = getDb();
+  if (!db2) return false;
+  try {
+    const stmt = db2.prepare(`
+      SELECT COUNT(*) as count FROM tasks WHERE status IN ('pending', 'claimed')
+    `);
+    const result = stmt.get();
+    return result.count === 0;
+  } catch (error2) {
+    console.error("Failed to check if all tasks complete:", error2);
+    return false;
+  }
+}
+
+// src/hooks/mode-registry/index.ts
+var import_fs7 = require("fs");
+var import_path8 = require("path");
+var STALE_MARKER_THRESHOLD = 60 * 60 * 1e3;
+var MODE_CONFIGS = {
+  autopilot: {
+    name: "Autopilot",
+    stateFile: "autopilot-state.json",
+    activeProperty: "active"
+  },
+  ultrapilot: {
+    name: "Ultrapilot",
+    stateFile: "ultrapilot-state.json",
+    markerFile: "ultrapilot-ownership.json",
+    activeProperty: "active"
+  },
+  swarm: {
+    name: "Swarm",
+    stateFile: "swarm.db",
+    markerFile: "swarm-active.marker",
+    isSqlite: true
+  },
+  pipeline: {
+    name: "Pipeline",
+    stateFile: "pipeline-state.json",
+    activeProperty: "active"
+  },
+  ralph: {
+    name: "Ralph",
+    stateFile: "ralph-state.json",
+    markerFile: "ralph-verification.json",
+    activeProperty: "active",
+    hasGlobalState: false
+  },
+  ultrawork: {
+    name: "Ultrawork",
+    stateFile: "ultrawork-state.json",
+    activeProperty: "active",
+    hasGlobalState: false
+  },
+  ultraqa: {
+    name: "UltraQA",
+    stateFile: "ultraqa-state.json",
+    activeProperty: "active"
+  },
+  ecomode: {
+    name: "Ecomode",
+    stateFile: "ecomode-state.json",
+    activeProperty: "active",
+    hasGlobalState: false
+  }
+};
+var EXCLUSIVE_MODES = ["autopilot", "ultrapilot", "swarm", "pipeline"];
+function getStateDir(cwd) {
+  return (0, import_path8.join)(cwd, ".omd", "state");
+}
+function getStateFilePath(cwd, mode) {
+  const config2 = MODE_CONFIGS[mode];
+  return (0, import_path8.join)(getStateDir(cwd), config2.stateFile);
+}
+function getMarkerFilePath(cwd, mode) {
+  const config2 = MODE_CONFIGS[mode];
+  if (!config2.markerFile) return null;
+  return (0, import_path8.join)(getStateDir(cwd), config2.markerFile);
+}
+function isJsonModeActive(cwd, mode) {
+  const config2 = MODE_CONFIGS[mode];
+  const stateFile = getStateFilePath(cwd, mode);
+  if (!(0, import_fs7.existsSync)(stateFile)) {
+    return false;
+  }
+  try {
+    const content = (0, import_fs7.readFileSync)(stateFile, "utf-8");
+    const state = JSON.parse(content);
+    if (config2.activeProperty) {
+      return state[config2.activeProperty] === true;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+function isSqliteModeActive(cwd, mode) {
+  const markerPath = getMarkerFilePath(cwd, mode);
+  if (markerPath && (0, import_fs7.existsSync)(markerPath)) {
+    try {
+      const content = (0, import_fs7.readFileSync)(markerPath, "utf-8");
+      const marker = JSON.parse(content);
+      if (marker.startedAt) {
+        const startTime = new Date(marker.startedAt).getTime();
+        const age = Date.now() - startTime;
+        if (age > STALE_MARKER_THRESHOLD) {
+          console.warn(`Stale ${mode} marker detected (${Math.round(age / 6e4)} min old). Auto-removing.`);
+          (0, import_fs7.unlinkSync)(markerPath);
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const dbPath = getStateFilePath(cwd, mode);
+  return (0, import_fs7.existsSync)(dbPath);
+}
+function isModeActive(mode, cwd) {
+  const config2 = MODE_CONFIGS[mode];
+  if (config2.isSqlite) {
+    return isSqliteModeActive(cwd, mode);
+  }
+  return isJsonModeActive(cwd, mode);
+}
+function canStartMode(mode, cwd) {
+  if (EXCLUSIVE_MODES.includes(mode)) {
+    for (const exclusiveMode of EXCLUSIVE_MODES) {
+      if (exclusiveMode !== mode && isModeActive(exclusiveMode, cwd)) {
+        const config2 = MODE_CONFIGS[exclusiveMode];
+        return {
+          allowed: false,
+          blockedBy: exclusiveMode,
+          message: `Cannot start ${MODE_CONFIGS[mode].name} while ${config2.name} is active. Cancel ${config2.name} first with /omd-cancel (or /cancel).`
+        };
+      }
+    }
+  }
+  return { allowed: true };
+}
+function createModeMarker(mode, cwd, metadata) {
+  const markerPath = getMarkerFilePath(cwd, mode);
+  if (!markerPath) {
+    console.error(`Mode ${mode} does not use a marker file`);
+    return false;
+  }
+  try {
+    const dir = (0, import_path8.dirname)(markerPath);
+    if (!(0, import_fs7.existsSync)(dir)) {
+      (0, import_fs7.mkdirSync)(dir, { recursive: true });
+    }
+    const content = JSON.stringify({
+      mode,
+      startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      ...metadata
+    }, null, 2);
+    (0, import_fs7.writeFileSync)(markerPath, content);
+    return true;
+  } catch (error2) {
+    console.error(`Failed to create marker file for ${mode}:`, error2);
+    return false;
+  }
+}
+function removeModeMarker(mode, cwd) {
+  const markerPath = getMarkerFilePath(cwd, mode);
+  if (!markerPath) {
+    return true;
+  }
+  try {
+    if ((0, import_fs7.existsSync)(markerPath)) {
+      (0, import_fs7.unlinkSync)(markerPath);
+    }
+    return true;
+  } catch (error2) {
+    console.error(`Failed to remove marker file for ${mode}:`, error2);
+    return false;
+  }
+}
+
+// src/hooks/swarm/index.ts
+var currentCwd2 = null;
+var cleanupIntervalHandle = null;
+function stopCleanupTimer() {
+  if (cleanupIntervalHandle) {
+    clearInterval(cleanupIntervalHandle);
+    cleanupIntervalHandle = null;
+  }
+}
+function startCleanupTimer(leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout) {
+  stopCleanupTimer();
+  cleanupIntervalHandle = setInterval(() => {
+    cleanupStaleClaims(leaseTimeout);
+  }, 60 * 1e3);
+}
+function cleanupOnFailure(cwd) {
+  stopCleanupTimer();
+  closeDb();
+  removeModeMarker("swarm", cwd);
+  currentCwd2 = null;
+  setSwarmCwd(null);
+}
+async function startSwarm(config2) {
+  const {
+    agentCount,
+    tasks,
+    cwd = process.cwd(),
+    leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout
+  } = config2;
+  const resolvedCwd = (0, import_path9.resolve)(cwd);
+  if (tasks.length === 0) {
+    console.error("Cannot start swarm with no tasks");
+    return false;
+  }
+  if (agentCount < 1) {
+    console.error("Agent count must be at least 1");
+    return false;
+  }
+  const canStart = canStartMode("swarm", resolvedCwd);
+  if (!canStart.allowed) {
+    console.error(canStart.message);
+    return false;
+  }
+  if (isDbInitialized()) {
+    disconnectFromSwarm();
+  }
+  const dbInitialized = await initDb(resolvedCwd);
+  if (!dbInitialized) {
+    console.error("Failed to initialize swarm database");
+    return false;
+  }
+  createModeMarker("swarm", resolvedCwd, {
+    agentCount,
+    taskCount: tasks.length
+  });
+  currentCwd2 = resolvedCwd;
+  setSwarmCwd(resolvedCwd);
+  clearAllData();
+  const sessionId = (0, import_crypto2.randomUUID)();
+  if (!initSession(sessionId, agentCount)) {
+    console.error("Failed to initialize swarm session");
+    cleanupOnFailure(resolvedCwd);
+    return false;
+  }
+  const taskRecords = tasks.map((description, index) => ({
+    id: `task-${index + 1}`,
+    description
+  }));
+  if (!addTasks(taskRecords)) {
+    console.error("Failed to add tasks to pool");
+    cleanupOnFailure(resolvedCwd);
+    return false;
+  }
+  startCleanupTimer(leaseTimeout);
+  writeSwarmSummary(resolvedCwd);
+  return true;
+}
+function stopSwarm(deleteDatabase = false) {
+  stopCleanupTimer();
+  saveState({ active: false, completedAt: Date.now() });
+  if (currentCwd2) {
+    writeSwarmSummary(currentCwd2);
+  }
+  closeDb();
+  if (deleteDatabase && currentCwd2) {
+    deleteDb(currentCwd2);
+  }
+  if (currentCwd2) {
+    removeModeMarker("swarm", currentCwd2);
+  }
+  currentCwd2 = null;
+  setSwarmCwd(null);
+  return true;
+}
+function getSwarmStatus() {
+  return loadState();
+}
+function getSwarmStats() {
+  return getStats();
+}
+function claimTask2(agentId) {
+  return claimTask(agentId);
+}
+function releaseTask2(agentId, taskId) {
+  return releaseTask(agentId, taskId);
+}
+function completeTask2(agentId, taskId, result) {
+  const success = completeTask(agentId, taskId, result);
+  if (success && allTasksComplete()) {
+    saveState({ completedAt: Date.now() });
+  }
+  return success;
+}
+function failTask2(agentId, taskId, error2) {
+  return failTask(agentId, taskId, error2);
+}
+function heartbeat2(agentId) {
+  return heartbeat(agentId);
+}
+function cleanupStaleClaims2(leaseTimeout) {
+  return cleanupStaleClaims(leaseTimeout);
+}
+async function connectToSwarm(cwd) {
+  const resolvedCwd = (0, import_path9.resolve)(cwd);
+  if (isDbInitialized()) {
+    if (currentCwd2 === resolvedCwd) {
+      return true;
+    }
+    disconnectFromSwarm();
+  }
+  const success = await initDb(resolvedCwd);
+  if (success) {
+    currentCwd2 = resolvedCwd;
+    setSwarmCwd(resolvedCwd);
+    cleanupStaleClaims2(DEFAULT_SWARM_CONFIG.leaseTimeout);
+    startCleanupTimer();
+  }
+  return success;
+}
+function disconnectFromSwarm() {
+  stopCleanupTimer();
+  closeDb();
+  currentCwd2 = null;
+  setSwarmCwd(null);
+  return true;
+}
+
+// src/tools/swarm-tool.ts
+var swarmSchema = {
+  action: external_exports.enum(["start", "connect", "status", "claim", "heartbeat", "complete", "fail", "release", "cleanup", "stop"]).describe("Swarm operation to perform"),
+  cwd: external_exports.string().optional().describe("Working directory for the swarm database"),
+  agentId: external_exports.string().optional().describe("Agent identifier (for claim, heartbeat, complete, fail, release)"),
+  taskId: external_exports.string().nullable().optional().describe("Task identifier"),
+  agentCount: external_exports.number().int().positive().optional().describe("Number of agents (for start)"),
+  tasks: external_exports.array(external_exports.string()).optional().describe("Task descriptions (for start)"),
+  result: external_exports.string().optional().describe("Task result output (for complete)"),
+  error: external_exports.string().optional().describe("Error message (for fail)"),
+  leaseTimeout: external_exports.number().int().positive().optional().describe("Lease timeout in ms (for cleanup)"),
+  deleteDatabase: external_exports.boolean().optional().describe("Whether to delete the database (for stop)")
+};
+var actionNames = [
+  "start",
+  "connect",
+  "status",
+  "claim",
+  "heartbeat",
+  "complete",
+  "fail",
+  "release",
+  "cleanup",
+  "stop"
+];
+var actionNameSet = new Set(actionNames);
+var actionSchema = external_exports.discriminatedUnion("action", [
+  external_exports.object({
+    action: external_exports.literal("start"),
+    cwd: external_exports.string(),
+    agentCount: external_exports.number().int().positive(),
+    tasks: external_exports.array(external_exports.string().min(1)).min(1)
+  }).strict(),
+  external_exports.object({ action: external_exports.literal("connect"), cwd: external_exports.string() }).strict(),
+  external_exports.object({ action: external_exports.literal("status"), cwd: external_exports.string() }).strict(),
+  external_exports.object({ action: external_exports.literal("claim"), cwd: external_exports.string(), agentId: external_exports.string().min(1) }).strict(),
+  external_exports.object({ action: external_exports.literal("heartbeat"), cwd: external_exports.string(), agentId: external_exports.string().min(1) }).strict(),
+  external_exports.object({
+    action: external_exports.literal("complete"),
+    cwd: external_exports.string(),
+    agentId: external_exports.string().min(1),
+    taskId: external_exports.string().min(1),
+    result: external_exports.string().optional()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("fail"),
+    cwd: external_exports.string(),
+    agentId: external_exports.string().min(1),
+    taskId: external_exports.string().min(1),
+    error: external_exports.string()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("release"),
+    cwd: external_exports.string(),
+    agentId: external_exports.string().min(1),
+    taskId: external_exports.string().min(1)
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("cleanup"),
+    cwd: external_exports.string(),
+    leaseTimeout: external_exports.number().int().positive().optional()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("stop"),
+    cwd: external_exports.string(),
+    deleteDatabase: external_exports.boolean().optional()
+  }).strict()
+]);
+var actionQueue = Promise.resolve();
+function serialized(fn) {
+  const next = actionQueue.then(fn, fn);
+  actionQueue = next.then(() => void 0, () => void 0);
+  return next;
+}
+async function handleSwarm(args) {
+  const raw = args && typeof args === "object" ? args : {};
+  const action = typeof raw.action === "string" ? raw.action : void 0;
+  if (!action || !actionNameSet.has(action)) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ error: `Unknown action: ${action ?? "undefined"}` }) }]
+    };
+  }
+  const parsed = actionSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ error: "Validation failed", details: parsed.error.issues }) }]
+    };
+  }
+  try {
+    const result = await serialized(() => executeAction(parsed.data));
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }]
+    };
+  } catch (error2) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ error: error2 instanceof Error ? error2.message : String(error2) }) }]
+    };
+  }
+}
+async function requireConnection(cwd) {
+  if (!await connectToSwarm(cwd)) {
+    throw new Error(`Failed to connect to swarm database at ${cwd}`);
+  }
+}
+async function executeAction(params) {
+  switch (params.action) {
+    case "start": {
+      const ok = await startSwarm({
+        cwd: params.cwd,
+        agentCount: params.agentCount,
+        tasks: params.tasks
+      });
+      return { started: ok };
+    }
+    case "connect": {
+      const ok = await connectToSwarm(params.cwd);
+      return { connected: ok };
+    }
+    case "status": {
+      await requireConnection(params.cwd);
+      const state = getSwarmStatus();
+      const stats = getSwarmStats();
+      return { state, stats };
+    }
+    case "claim": {
+      await requireConnection(params.cwd);
+      return claimTask2(params.agentId);
+    }
+    case "heartbeat": {
+      await requireConnection(params.cwd);
+      return { ok: heartbeat2(params.agentId) };
+    }
+    case "complete": {
+      await requireConnection(params.cwd);
+      return { ok: completeTask2(params.agentId, params.taskId, params.result) };
+    }
+    case "fail": {
+      await requireConnection(params.cwd);
+      return { ok: failTask2(params.agentId, params.taskId, params.error) };
+    }
+    case "release": {
+      await requireConnection(params.cwd);
+      return { ok: releaseTask2(params.agentId, params.taskId) };
+    }
+    case "cleanup": {
+      await requireConnection(params.cwd);
+      return { released: cleanupStaleClaims2(params.leaseTimeout) };
+    }
+    case "stop": {
+      await requireConnection(params.cwd);
+      return { stopped: stopSwarm(params.deleteDatabase) };
+    }
+  }
+}
+var swarmTool = {
+  name: "swarm",
+  description: "Swarm coordination tool. Actions: start, connect, status, claim, heartbeat, complete, fail, release, cleanup, stop. Each action (except start) connects to the swarm database at cwd first.",
+  schema: swarmSchema,
+  handler: handleSwarm
+};
+
 // src/mcp/standalone-server.ts
 var allTools = [
   ...lspTools,
   ...astTools,
-  pythonReplTool
+  pythonReplTool,
+  swarmTool
 ];
 function zodToJsonSchema2(schema) {
   const rawShape = schema instanceof external_exports.ZodObject ? schema.shape : schema;
