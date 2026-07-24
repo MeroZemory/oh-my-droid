@@ -16,9 +16,21 @@ import {
   recordHeartbeat,
   getHeartbeats,
   removeHeartbeat,
-  runTransaction,
+  runImmediateTransaction,
+  poisonDb,
   writeSwarmSummary
 } from './state.js';
+
+/**
+ * Check if an error is a SQLite busy error (errcode 5).
+ * KTD10: classify lock contention as retryable.
+ */
+function isBusyError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'errcode' in error) {
+    return (error as { errcode: number }).errcode === 5;
+  }
+  return false;
+}
 
 // Store current working directory for summary writes
 let currentCwd: string | null = null;
@@ -27,7 +39,7 @@ let currentCwd: string | null = null;
  * Set the current working directory for summary writes
  * Called by the main swarm module when starting/connecting
  */
-export function setSwarmCwd(cwd: string): void {
+export function setSwarmCwd(cwd: string | null): void {
   currentCwd = cwd;
 }
 
@@ -58,57 +70,58 @@ export function claimTask(agentId: string): ClaimResult {
   }
 
   try {
-    // Use a transaction for atomic claim
-    const claimTransaction = db.transaction(() => {
-      // Find the first pending task
-      const findStmt = db.prepare(`
-        SELECT id, description FROM tasks
-        WHERE status = 'pending'
-        ORDER BY id
-        LIMIT 1
-      `);
-      const task = findStmt.get() as { id: string; description: string } | undefined;
+    const result = runImmediateTransaction(
+      db,
+      () => {
+        // Find the first pending task
+        const findStmt = db.prepare(`
+          SELECT id, description FROM tasks
+          WHERE status = 'pending'
+          ORDER BY id
+          LIMIT 1
+        `);
+        const task = findStmt.get() as { id: string; description: string } | undefined;
 
-      if (!task) {
+        if (!task) {
+          return {
+            success: false,
+            taskId: null,
+            reason: 'no_pending_tasks'
+          } as ClaimResult;
+        }
+
+        // Claim the task
+        const claimStmt = db.prepare(`
+          UPDATE tasks
+          SET status = 'claimed', claimed_by = ?, claimed_at = ?
+          WHERE id = ? AND status = 'pending'
+        `);
+        const claimResult = claimStmt.run(agentId, Date.now(), task.id);
+
+        if (claimResult.changes === 0) {
+          // Task was claimed by another agent between SELECT and UPDATE
+          return {
+            success: false,
+            taskId: null,
+            reason: 'Task was claimed by another agent'
+          } as ClaimResult;
+        }
+
+        // Update heartbeat
+        const heartbeatStmt = db.prepare(`
+          INSERT OR REPLACE INTO heartbeats (agent_id, last_heartbeat, current_task_id)
+          VALUES (?, ?, ?)
+        `);
+        heartbeatStmt.run(agentId, Date.now(), task.id);
+
         return {
-          success: false,
-          taskId: null,
-          reason: 'No pending tasks available'
+          success: true,
+          taskId: task.id,
+          description: task.description
         } as ClaimResult;
-      }
-
-      // Claim the task
-      const claimStmt = db.prepare(`
-        UPDATE tasks
-        SET status = 'claimed', claimed_by = ?, claimed_at = ?
-        WHERE id = ? AND status = 'pending'
-      `);
-      const result = claimStmt.run(agentId, Date.now(), task.id);
-
-      if (result.changes === 0) {
-        // Task was claimed by another agent between SELECT and UPDATE
-        return {
-          success: false,
-          taskId: null,
-          reason: 'Task was claimed by another agent'
-        } as ClaimResult;
-      }
-
-      // Update heartbeat
-      const heartbeatStmt = db.prepare(`
-        INSERT OR REPLACE INTO heartbeats (agent_id, last_heartbeat, current_task_id)
-        VALUES (?, ?, ?)
-      `);
-      heartbeatStmt.run(agentId, Date.now(), task.id);
-
-      return {
-        success: true,
-        taskId: task.id,
-        description: task.description
-      } as ClaimResult;
-    });
-
-    const result = claimTransaction.immediate();
+      },
+      poisonDb
+    );
 
     // Write summary after successful claim
     if (result.success && currentCwd) {
@@ -117,6 +130,15 @@ export function claimTask(agentId: string): ClaimResult {
 
     return result;
   } catch (error) {
+    // KTD10: classify lock contention as retryable
+    if (isBusyError(error)) {
+      return {
+        success: false,
+        taskId: null,
+        reason: 'database_busy',
+        retryable: true
+      };
+    }
     return {
       success: false,
       taskId: null,
@@ -139,35 +161,37 @@ export function releaseTask(agentId: string, taskId: string): boolean {
   if (!db) return false;
 
   try {
-    const releaseTransaction = db.transaction(() => {
-      // Verify the agent owns this task
-      const verifyStmt = db.prepare(`
-        SELECT claimed_by FROM tasks WHERE id = ?
-      `);
-      const task = verifyStmt.get(taskId) as { claimed_by: string | null } | undefined;
+    return runImmediateTransaction(
+      db,
+      () => {
+        // Verify the agent owns this task
+        const verifyStmt = db.prepare(`
+          SELECT claimed_by FROM tasks WHERE id = ?
+        `);
+        const task = verifyStmt.get(taskId) as { claimed_by: string | null } | undefined;
 
-      if (!task || task.claimed_by !== agentId) {
-        return false;
-      }
+        if (!task || task.claimed_by !== agentId) {
+          return false;
+        }
 
-      // Release the task
-      const releaseStmt = db.prepare(`
-        UPDATE tasks
-        SET status = 'pending', claimed_by = NULL, claimed_at = NULL
-        WHERE id = ? AND claimed_by = ?
-      `);
-      releaseStmt.run(taskId, agentId);
+        // Release the task
+        const releaseStmt = db.prepare(`
+          UPDATE tasks
+          SET status = 'pending', claimed_by = NULL, claimed_at = NULL
+          WHERE id = ? AND claimed_by = ?
+        `);
+        releaseStmt.run(taskId, agentId);
 
-      // Update heartbeat to show no current task
-      const heartbeatStmt = db.prepare(`
-        UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
-      `);
-      heartbeatStmt.run(agentId);
+        // Update heartbeat to show no current task
+        const heartbeatStmt = db.prepare(`
+          UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
+        `);
+        heartbeatStmt.run(agentId);
 
-      return true;
-    });
-
-    return releaseTransaction.immediate();
+        return true;
+      },
+      poisonDb
+    );
   } catch (error) {
     console.error('Failed to release task:', error);
     return false;
@@ -187,42 +211,44 @@ export function completeTask(agentId: string, taskId: string, result?: string): 
   if (!db) return false;
 
   try {
-    const completeTransaction = db.transaction(() => {
-      // Verify the agent owns this task
-      const verifyStmt = db.prepare(`
-        SELECT claimed_by FROM tasks WHERE id = ?
-      `);
-      const task = verifyStmt.get(taskId) as { claimed_by: string | null } | undefined;
+    const completed = runImmediateTransaction(
+      db,
+      () => {
+        // Verify the agent owns this task
+        const verifyStmt = db.prepare(`
+          SELECT claimed_by FROM tasks WHERE id = ?
+        `);
+        const task = verifyStmt.get(taskId) as { claimed_by: string | null } | undefined;
 
-      if (!task || task.claimed_by !== agentId) {
-        return false;
-      }
+        if (!task || task.claimed_by !== agentId) {
+          return false;
+        }
 
-      // Mark task as done
-      const completeStmt = db.prepare(`
-        UPDATE tasks
-        SET status = 'done', completed_at = ?, result = ?
-        WHERE id = ? AND claimed_by = ?
-      `);
-      completeStmt.run(Date.now(), result ?? null, taskId, agentId);
+        // Mark task as done
+        const completeStmt = db.prepare(`
+          UPDATE tasks
+          SET status = 'done', completed_at = ?, result = ?
+          WHERE id = ? AND claimed_by = ?
+        `);
+        completeStmt.run(Date.now(), result ?? null, taskId, agentId);
 
-      // Update heartbeat to show no current task
-      const heartbeatStmt = db.prepare(`
-        UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
-      `);
-      heartbeatStmt.run(agentId);
+        // Update heartbeat to show no current task
+        const heartbeatStmt = db.prepare(`
+          UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
+        `);
+        heartbeatStmt.run(agentId);
 
-      return true;
-    });
-
-    const result = completeTransaction.immediate();
+        return true;
+      },
+      poisonDb
+    );
 
     // Write summary after completion
-    if (result && currentCwd) {
+    if (completed && currentCwd) {
       writeSwarmSummary(currentCwd);
     }
 
-    return result;
+    return completed;
   } catch (error) {
     console.error('Failed to complete task:', error);
     return false;
@@ -242,35 +268,37 @@ export function failTask(agentId: string, taskId: string, error: string): boolea
   if (!db) return false;
 
   try {
-    const failTransaction = db.transaction(() => {
-      // Verify the agent owns this task
-      const verifyStmt = db.prepare(`
-        SELECT claimed_by FROM tasks WHERE id = ?
-      `);
-      const task = verifyStmt.get(taskId) as { claimed_by: string | null } | undefined;
+    return runImmediateTransaction(
+      db,
+      () => {
+        // Verify the agent owns this task
+        const verifyStmt = db.prepare(`
+          SELECT claimed_by FROM tasks WHERE id = ?
+        `);
+        const task = verifyStmt.get(taskId) as { claimed_by: string | null } | undefined;
 
-      if (!task || task.claimed_by !== agentId) {
-        return false;
-      }
+        if (!task || task.claimed_by !== agentId) {
+          return false;
+        }
 
-      // Mark task as failed
-      const failStmt = db.prepare(`
-        UPDATE tasks
-        SET status = 'failed', completed_at = ?, error = ?
-        WHERE id = ? AND claimed_by = ?
-      `);
-      failStmt.run(Date.now(), error, taskId, agentId);
+        // Mark task as failed
+        const failStmt = db.prepare(`
+          UPDATE tasks
+          SET status = 'failed', completed_at = ?, error = ?
+          WHERE id = ? AND claimed_by = ?
+        `);
+        failStmt.run(Date.now(), error, taskId, agentId);
 
-      // Update heartbeat to show no current task
-      const heartbeatStmt = db.prepare(`
-        UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
-      `);
-      heartbeatStmt.run(agentId);
+        // Update heartbeat to show no current task
+        const heartbeatStmt = db.prepare(`
+          UPDATE heartbeats SET current_task_id = NULL WHERE agent_id = ?
+        `);
+        heartbeatStmt.run(agentId);
 
-      return true;
-    });
-
-    return failTransaction.immediate();
+        return true;
+      },
+      poisonDb
+    );
   } catch (error) {
     console.error('Failed to fail task:', error);
     return false;
@@ -320,54 +348,56 @@ export function cleanupStaleClaims(leaseTimeout: number = DEFAULT_SWARM_CONFIG.l
   try {
     const cutoffTime = Date.now() - leaseTimeout;
 
-    const cleanupTransaction = db.transaction(() => {
-      // Find tasks claimed longer than the timeout
-      // Only release if the agent hasn't sent a heartbeat recently
-      const findStaleStmt = db.prepare(`
-        SELECT t.id, t.claimed_by
-        FROM tasks t
-        LEFT JOIN heartbeats h ON t.claimed_by = h.agent_id
-        WHERE t.status = 'claimed'
-          AND t.claimed_at < ?
-          AND (h.last_heartbeat IS NULL OR h.last_heartbeat < ?)
-      `);
-      const staleTasks = findStaleStmt.all(cutoffTime, cutoffTime) as Array<{
-        id: string;
-        claimed_by: string | null;
-      }>;
+    return runImmediateTransaction(
+      db,
+      () => {
+        // Find tasks claimed longer than the timeout
+        // Only release if the agent hasn't sent a heartbeat recently
+        const findStaleStmt = db.prepare(`
+          SELECT t.id, t.claimed_by
+          FROM tasks t
+          LEFT JOIN heartbeats h ON t.claimed_by = h.agent_id
+          WHERE t.status = 'claimed'
+            AND t.claimed_at < ?
+            AND (h.last_heartbeat IS NULL OR h.last_heartbeat < ?)
+        `);
+        const staleTasks = findStaleStmt.all(cutoffTime, cutoffTime) as Array<{
+          id: string;
+          claimed_by: string | null;
+        }>;
 
-      if (staleTasks.length === 0) {
-        return 0;
-      }
-
-      // Release stale tasks
-      const releaseStmt = db.prepare(`
-        UPDATE tasks
-        SET status = 'pending', claimed_by = NULL, claimed_at = NULL
-        WHERE id = ?
-      `);
-
-      // Remove stale heartbeats
-      const removeHeartbeatStmt = db.prepare(`
-        DELETE FROM heartbeats WHERE agent_id = ?
-      `);
-
-      const staleAgents = new Set<string>();
-      for (const task of staleTasks) {
-        releaseStmt.run(task.id);
-        if (task.claimed_by) {
-          staleAgents.add(task.claimed_by);
+        if (staleTasks.length === 0) {
+          return 0;
         }
-      }
 
-      for (const agentId of staleAgents) {
-        removeHeartbeatStmt.run(agentId);
-      }
+        // Release stale tasks
+        const releaseStmt = db.prepare(`
+          UPDATE tasks
+          SET status = 'pending', claimed_by = NULL, claimed_at = NULL
+          WHERE id = ?
+        `);
 
-      return staleTasks.length;
-    });
+        // Remove stale heartbeats
+        const removeHeartbeatStmt = db.prepare(`
+          DELETE FROM heartbeats WHERE agent_id = ?
+        `);
 
-    return cleanupTransaction.immediate();
+        const staleAgents = new Set<string>();
+        for (const task of staleTasks) {
+          releaseStmt.run(task.id);
+          if (task.claimed_by) {
+            staleAgents.add(task.claimed_by);
+          }
+        }
+
+        for (const agentId of staleAgents) {
+          removeHeartbeatStmt.run(agentId);
+        }
+
+        return staleTasks.length;
+      },
+      poisonDb
+    );
   } catch (error) {
     console.error('Failed to cleanup stale claims:', error);
     return 0;
@@ -498,53 +528,63 @@ export function reclaimFailedTask(agentId: string, taskId: string): ClaimResult 
   }
 
   try {
-    const reclaimTransaction = db.transaction(() => {
-      // Check if task is failed
-      const checkStmt = db.prepare(`
-        SELECT id, description, status FROM tasks WHERE id = ?
-      `);
-      const task = checkStmt.get(taskId) as { id: string; description: string; status: string } | undefined;
+    return runImmediateTransaction(
+      db,
+      () => {
+        // Check if task is failed
+        const checkStmt = db.prepare(`
+          SELECT id, description, status FROM tasks WHERE id = ?
+        `);
+        const task = checkStmt.get(taskId) as { id: string; description: string; status: string } | undefined;
 
-      if (!task) {
+        if (!task) {
+          return {
+            success: false,
+            taskId: null,
+            reason: 'Task not found'
+          } as ClaimResult;
+        }
+
+        if (task.status !== 'failed') {
+          return {
+            success: false,
+            taskId: null,
+            reason: `Task is ${task.status}, not failed`
+          } as ClaimResult;
+        }
+
+        // Reclaim the task
+        const reclaimStmt = db.prepare(`
+          UPDATE tasks
+          SET status = 'claimed', claimed_by = ?, claimed_at = ?, error = NULL
+          WHERE id = ?
+        `);
+        reclaimStmt.run(agentId, Date.now(), taskId);
+
+        // Update heartbeat
+        const heartbeatStmt = db.prepare(`
+          INSERT OR REPLACE INTO heartbeats (agent_id, last_heartbeat, current_task_id)
+          VALUES (?, ?, ?)
+        `);
+        heartbeatStmt.run(agentId, Date.now(), taskId);
+
         return {
-          success: false,
-          taskId: null,
-          reason: 'Task not found'
+          success: true,
+          taskId: task.id,
+          description: task.description
         } as ClaimResult;
-      }
-
-      if (task.status !== 'failed') {
-        return {
-          success: false,
-          taskId: null,
-          reason: `Task is ${task.status}, not failed`
-        } as ClaimResult;
-      }
-
-      // Reclaim the task
-      const reclaimStmt = db.prepare(`
-        UPDATE tasks
-        SET status = 'claimed', claimed_by = ?, claimed_at = ?, error = NULL
-        WHERE id = ?
-      `);
-      reclaimStmt.run(agentId, Date.now(), taskId);
-
-      // Update heartbeat
-      const heartbeatStmt = db.prepare(`
-        INSERT OR REPLACE INTO heartbeats (agent_id, last_heartbeat, current_task_id)
-        VALUES (?, ?, ?)
-      `);
-      heartbeatStmt.run(agentId, Date.now(), taskId);
-
-      return {
-        success: true,
-        taskId: task.id,
-        description: task.description
-      } as ClaimResult;
-    });
-
-    return reclaimTransaction.immediate();
+      },
+      poisonDb
+    );
   } catch (error) {
+    if (isBusyError(error)) {
+      return {
+        success: false,
+        taskId: null,
+        reason: 'database_busy',
+        retryable: true
+      };
+    }
     return {
       success: false,
       taskId: null,

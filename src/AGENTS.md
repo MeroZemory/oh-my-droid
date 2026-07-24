@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-01-28 | Updated: 2026-01-31 -->
+<!-- Generated: 2026-01-28 | Updated: 2026-07-24 -->
 
 # src
 
@@ -10,7 +10,7 @@ TypeScript source code for oh-my-droid - the core library that powers multi-agen
 This directory contains all TypeScript source code organized into modules:
 
 - **droids/** - 32 specialized AI agent definitions with tiered variants
-- **tools/** - 15 LSP/AST/REPL tools for IDE-like capabilities
+- **tools/** - 15 LSP/AST/REPL tools plus MCP swarm coordination
 - **hooks/** - 31 event-driven behaviors for execution modes
 - **features/** - Core features (model routing, state management, verification)
 - **config/** - Configuration loading and validation
@@ -29,7 +29,7 @@ This directory contains all TypeScript source code organized into modules:
 | Directory | Purpose |
 |-----------|---------|
 | `droids/` | 32 agent definitions with prompts and tools (see `droids/AGENTS.md`) |
-| `tools/` | 15 LSP, AST, and Python REPL tools (see `tools/AGENTS.md`) |
+| `tools/` | 15 LSP, AST, and Python REPL tools plus swarm MCP coordination (see `tools/AGENTS.md`) |
 | `hooks/` | 31 hooks for execution modes (see `hooks/AGENTS.md`) |
 | `features/` | Core features like model routing, state (see `features/AGENTS.md`) |
 | `config/` | Configuration loading (`loader.ts`) |
@@ -133,7 +133,7 @@ This directory contains all TypeScript source code organized into modules:
 
 ### External
 
-Key packages by module: `zod` (tools, features), `@ast-grep/napi` (tools/ast), `vscode-languageserver-protocol` (tools/lsp), `better-sqlite3` (hooks/swarm), `chalk` (cli, hud). See root AGENTS.md for full dependency list.
+Key packages by module: `zod` (tools, features), `@ast-grep/napi` (tools/ast), `vscode-languageserver-protocol` (tools/lsp), `node:sqlite` (hooks/swarm), `chalk` (cli, hud). See root AGENTS.md for full dependency list.
 
 ## Module Dependency Graph
 
@@ -151,7 +151,7 @@ index.ts
 │   ├── verification/
 │   └── ...
 ├── config/loader.ts
-└── mcp/servers.ts
+└── mcp/omc-tools-server.ts → tools/swarm-tool.ts
 ```
 
 <!-- MANUAL: -->

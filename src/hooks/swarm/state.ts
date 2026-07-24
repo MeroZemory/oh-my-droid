@@ -2,13 +2,13 @@
  * Swarm State Management
  *
  * SQLite-based persistent state for swarm coordination.
- * Uses better-sqlite3 for synchronous operations with transaction support.
+ * Uses node:sqlite (DatabaseSync) for synchronous operations with transaction support.
  * All state is stored in .omd/state/swarm.db
  */
 
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type BetterSqlite3 from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import type {
   SwarmTask,
   SwarmState,
@@ -31,12 +31,86 @@ export interface SwarmSummary {
   active: boolean;
 }
 
-// Type alias for the Database constructor
-type DatabaseConstructor = typeof BetterSqlite3;
+// Database handle (node:sqlite DatabaseSync, available in Node >= 22.13)
+let db: DatabaseSync | null = null;
 
-// Dynamic import for better-sqlite3 to handle environments where it's not installed
-let Database: DatabaseConstructor | null = null;
-let db: BetterSqlite3.Database | null = null;
+// Transaction nesting guard (KTD6: reject nested use)
+let inTransaction = false;
+
+/**
+ * Close and clear the database handle after a transaction rollback failure.
+ * KTD6 onPoison callback: the database may be in an inconsistent state.
+ */
+export function poisonDb(): void {
+  try {
+    db?.close();
+  } catch {
+    // Database is already in a bad state
+  }
+  db = null;
+}
+
+/**
+ * Run a function within an immediate transaction.
+ *
+ * KTD6: Shared immediate-transaction helper.
+ * - Begin failure: no rollback, rethrow
+ * - Callback or commit failure: attempt rollback, preserve original error
+ * - Rollback failure: invoke onPoison, throw aggregate with original error first
+ * - Nested use is rejected
+ *
+ * The executor parameter accepts any object with an exec(sql) method,
+ * enabling deterministic testing with a fake database.
+ */
+export function runImmediateTransaction<T>(
+  executor: { exec(sql: string): void },
+  fn: () => T,
+  onPoison: () => void
+): T {
+  if (inTransaction) {
+    throw new Error('Nested transactions are not supported');
+  }
+
+  inTransaction = true;
+  try {
+    executor.exec('BEGIN IMMEDIATE');
+
+    let result: T;
+    try {
+      result = fn();
+    } catch (callbackError) {
+      try {
+        executor.exec('ROLLBACK');
+      } catch (rollbackError) {
+        onPoison();
+        throw new AggregateError(
+          [callbackError, rollbackError],
+          'Transaction callback failed and rollback also failed'
+        );
+      }
+      throw callbackError;
+    }
+
+    try {
+      executor.exec('COMMIT');
+    } catch (commitError) {
+      try {
+        executor.exec('ROLLBACK');
+      } catch (rollbackError) {
+        onPoison();
+        throw new AggregateError(
+          [commitError, rollbackError],
+          'Transaction commit failed and rollback also failed'
+        );
+      }
+      throw commitError;
+    }
+
+    return result;
+  } finally {
+    inTransaction = false;
+  }
+}
 
 /**
  * Get the database file path
@@ -61,19 +135,16 @@ function ensureStateDir(cwd: string): void {
  */
 export async function initDb(cwd: string): Promise<boolean> {
   try {
-    // Dynamic import of better-sqlite3
-    if (!Database) {
-      const betterSqlite3 = await import('better-sqlite3');
-      Database = betterSqlite3.default;
-    }
-
     ensureStateDir(cwd);
     const dbPath = getDbPath(cwd);
 
-    db = new Database(dbPath);
+    db = new DatabaseSync(dbPath);
 
     // Enable WAL mode for better concurrency
-    db.pragma('journal_mode = WAL');
+    db.exec('PRAGMA journal_mode = WAL');
+
+    // KTD10: busy_timeout so lock contention waits rather than failing immediately
+    db.exec('PRAGMA busy_timeout = 5000');
 
     // Create tables
     db.exec(`
@@ -309,13 +380,15 @@ export function addTasks(tasks: Array<{ id: string; description: string }>): boo
       VALUES (?, ?, 'pending', NULL, NULL, NULL, NULL, NULL)
     `);
 
-    const insertMany = db.transaction((taskList: Array<{ id: string; description: string }>) => {
-      for (const task of taskList) {
-        stmt.run(task.id, task.description);
-      }
-    });
-
-    insertMany(tasks);
+    runImmediateTransaction(
+      db,
+      () => {
+        for (const task of tasks) {
+          stmt.run(task.id, task.description);
+        }
+      },
+      poisonDb
+    );
     return true;
   } catch (error) {
     console.error('Failed to add tasks:', error);
@@ -614,21 +687,10 @@ export function clearAllData(): boolean {
 /**
  * Run a function within a transaction
  */
-export function runTransaction<T>(fn: () => T): T | null {
-  if (!db) return null;
-
-  try {
-    return db.transaction(fn)();
-  } catch (error) {
-    console.error('Transaction failed:', error);
-    return null;
-  }
-}
-
 /**
  * Get the raw database instance (for advanced use)
  */
-export function getDb(): BetterSqlite3.Database | null {
+export function getDb(): DatabaseSync | null {
   return db;
 }
 

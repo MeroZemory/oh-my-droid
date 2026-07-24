@@ -20,6 +20,7 @@ import { astTools } from '../tools/ast-tools.js';
 // tool.js exports pythonReplTool with wrapped handler returning { content: [...] }
 // index.js exports pythonReplTool with raw handler returning string
 import { pythonReplTool } from '../tools/python-repl/tool.js';
+import { swarmTool } from '../tools/swarm-tool.js';
 import { z } from 'zod';
 
 // Tool interface matching our tool definitions
@@ -35,6 +36,7 @@ const allTools: ToolDef[] = [
   ...(lspTools as unknown as ToolDef[]),
   ...(astTools as unknown as ToolDef[]),
   pythonReplTool as unknown as ToolDef,
+  swarmTool as unknown as ToolDef,
 ];
 
 // Convert Zod schema to JSON Schema for MCP

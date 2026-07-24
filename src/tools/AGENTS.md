@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-01-28 | Updated: 2026-01-31 -->
+<!-- Generated: 2026-01-28 | Updated: 2026-07-24 -->
 
 # tools
 
@@ -11,6 +11,7 @@ This directory provides agents with powerful code intelligence tools:
 - **LSP Tools (12)**: Hover info, go-to-definition, find references, diagnostics, rename, code actions
 - **AST Tools (2)**: Structural code search and transformation via ast-grep
 - **Python REPL (1)**: Interactive Python execution for data analysis
+- **Swarm MCP Tool (1)**: Project-scoped swarm lifecycle and task coordination
 
 These tools enable agents to understand and manipulate code at a semantic level, far beyond text search.
 
@@ -21,6 +22,7 @@ These tools enable agents to understand and manipulate code at a semantic level,
 | `index.ts` | Tool registry - exports `allCustomTools`, `lspTools`, `astTools` |
 | `lsp-tools.ts` | 12 LSP tool definitions (hover, definition, references, etc.) |
 | `ast-tools.ts` | 2 AST tools for pattern search and replace |
+| `swarm-tool.ts` | MCP tool for swarm lifecycle and task coordination |
 
 ## Subdirectories
 
@@ -226,6 +228,12 @@ async function withLspClient(filePath, operation, fn) {
 | Tool | Purpose |
 |------|---------|
 | `python_repl` | Execute Python code for data analysis |
+
+### Swarm MCP Tool (1)
+
+| Tool | Purpose |
+|------|---------|
+| `swarm` | Manage project-scoped swarm sessions, tasks, heartbeats, and cleanup |
 
 ## Language Support
 
