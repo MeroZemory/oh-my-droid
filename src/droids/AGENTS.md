@@ -43,7 +43,7 @@ This directory defines all agents available in oh-my-droid:
 The main registry is in `definitions.ts`:
 
 ```typescript
-// Get all 32 agents
+// Get all 33 agents
 const agents = getAgentDefinitions();
 
 // Each agent has:

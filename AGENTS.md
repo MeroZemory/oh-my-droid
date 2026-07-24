@@ -13,7 +13,7 @@ Multi-agent orchestration system for Factory Droid CLI, providing intelligent de
 oh-my-droid enhances Factory Droid with:
 
 - **32 specialized agents** across multiple domains with 3-tier model routing (Haiku/Sonnet/Opus)
-- **37 skills** for workflow automation and specialized behaviors
+- **38 skills** for workflow automation and specialized behaviors
 - **31 hooks** for event-driven execution modes and enhancements
 - **15 custom tools** including 12 LSP, 2 AST, and Python REPL
 - **Execution modes**: autopilot, ultrawork, ralph, ultrapilot, swarm, pipeline, ecomode
@@ -36,7 +36,7 @@ oh-my-droid enhances Factory Droid with:
 | Directory | Purpose | Related AGENTS.md |
 |-----------|---------|-------------------|
 | `src/` | TypeScript source code - core library | `src/AGENTS.md` |
-| `droids/` | Markdown prompt templates for 32 agents (see `droids/templates/` for guidelines) | - |
+| `droids/` | Markdown prompt templates for 33 agents (see `droids/templates/` for guidelines) | - |
 | `skills/` | 37 skill definitions for workflows | `skills/AGENTS.md` |
 | `commands/` | 31 slash command definitions (mirrors skills) | - |
 | `scripts/` | Build scripts, utilities, and automation | - |
@@ -180,7 +180,7 @@ import { allCustomTools, lspTools, astTools } from './tools';
 │                  oh-my-droid (OMC)                     │
 │  ┌─────────────┬─────────────┬─────────────┬─────────────┐  │
 │  │   Skills    │   Agents    │    Tools    │   Hooks     │  │
-│  │ (37 skills) │ (32 agents) │(LSP/AST/REPL)│ (31 hooks)  │  │
+│  │ (38 skills) │ (33 agents) │(LSP/AST/REPL)│ (31 hooks)  │  │
 │  └─────────────┴─────────────┴─────────────┴─────────────┘  │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │              Features Layer                             ││
@@ -190,7 +190,7 @@ import { allCustomTools, lspTools, astTools } from './tools';
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Agent Summary (32 Total)
+## Agent Summary (33 Total)
 
 ### Base Agents (12)
 
@@ -226,6 +226,12 @@ import { allCustomTools, lspTools, astTools } from './tools';
 | **MEDIUM** (Sonnet) | `architect-medium`, `explore-medium` (2) |
 | **HIGH** (Opus) | `executor-high`, `designer-high`, `explore-high`, `qa-tester-high`, `scientist-high` (5) |
 
+### Coordination Agents (1)
+
+| Agent | Model | Purpose |
+|-------|-------|---------|
+| team-orchestrator | opus | Coordinates a team of agents with messaging and shared context |
+
 ## Execution Modes
 
 | Mode | Trigger | Purpose |
@@ -238,7 +244,7 @@ import { allCustomTools, lspTools, astTools } from './tools';
 | pipeline | "pipeline" | Sequential agent chaining with data passing |
 | ecomode | "eco", "efficient", "budget" | Token-efficient parallel execution |
 
-## Skills (37)
+## Skills (38)
 
 Key skills: `autopilot`, `ultrawork`, `ralph`, `ultrapilot`, `plan`, `ralplan`, `deepsearch`, `deepinit`, `frontend-ui-ux`, `git-master`, `tdd`, `security-review`, `code-review`, `research`, `analyze`, `swarm`, `pipeline`, `ecomode`, `cancel`, `learner`, `note`, `hud`, `doctor`, `omd-setup`, `mcp-setup`, `build-fix`, `ultraqa`
 

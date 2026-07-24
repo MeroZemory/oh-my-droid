@@ -64,6 +64,11 @@ export {
   codeReviewerLowAgent
 } from './definitions.js';
 
+// Team coordination agent
+export {
+  teamOrchestratorAgent
+} from './definitions.js';
+
 // Core exports (getAgentDefinitions and omcSystemPrompt)
 export {
   getAgentDefinitions,
