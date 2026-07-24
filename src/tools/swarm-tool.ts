@@ -45,34 +45,64 @@ const swarmSchema = {
 
 // -- Strict per-action validation (KTD11) -------------------------------------
 
-const startSchema = z.object({
-  cwd: z.string(),
-  agentCount: z.number().int().positive(),
-  tasks: z.array(z.string().min(1)).min(1),
-});
+const actionNames = [
+  'start',
+  'connect',
+  'status',
+  'claim',
+  'heartbeat',
+  'complete',
+  'fail',
+  'release',
+  'cleanup',
+  'stop',
+] as const;
+const actionNameSet = new Set<string>(actionNames);
 
-const connectSchema = z.object({ cwd: z.string() });
-const statusSchema = z.object({ cwd: z.string() });
-const claimSchema = z.object({ cwd: z.string(), agentId: z.string().min(1) });
-const heartbeatSchema = z.object({ cwd: z.string(), agentId: z.string().min(1), taskId: z.string().nullable() });
-const completeSchema = z.object({ cwd: z.string(), agentId: z.string().min(1), taskId: z.string().min(1), result: z.string() });
-const failSchema = z.object({ cwd: z.string(), agentId: z.string().min(1), taskId: z.string().min(1), error: z.string() });
-const releaseSchema = z.object({ cwd: z.string(), agentId: z.string().min(1), taskId: z.string().min(1) });
-const cleanupSchema = z.object({ cwd: z.string(), leaseTimeout: z.number().int().positive() });
-const stopSchema = z.object({ cwd: z.string(), deleteDatabase: z.boolean() });
+const actionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('start'),
+    cwd: z.string(),
+    agentCount: z.number().int().positive(),
+    tasks: z.array(z.string().min(1)).min(1),
+  }).strict(),
+  z.object({ action: z.literal('connect'), cwd: z.string() }).strict(),
+  z.object({ action: z.literal('status'), cwd: z.string() }).strict(),
+  z.object({ action: z.literal('claim'), cwd: z.string(), agentId: z.string().min(1) }).strict(),
+  z.object({ action: z.literal('heartbeat'), cwd: z.string(), agentId: z.string().min(1) }).strict(),
+  z.object({
+    action: z.literal('complete'),
+    cwd: z.string(),
+    agentId: z.string().min(1),
+    taskId: z.string().min(1),
+    result: z.string().optional(),
+  }).strict(),
+  z.object({
+    action: z.literal('fail'),
+    cwd: z.string(),
+    agentId: z.string().min(1),
+    taskId: z.string().min(1),
+    error: z.string(),
+  }).strict(),
+  z.object({
+    action: z.literal('release'),
+    cwd: z.string(),
+    agentId: z.string().min(1),
+    taskId: z.string().min(1),
+  }).strict(),
+  z.object({
+    action: z.literal('cleanup'),
+    cwd: z.string(),
+    leaseTimeout: z.number().int().positive().optional(),
+  }).strict(),
+  z.object({
+    action: z.literal('stop'),
+    cwd: z.string(),
+    deleteDatabase: z.boolean().optional(),
+  }).strict(),
+]);
 
-const actionSchemas: Record<string, z.ZodTypeAny> = {
-  start: startSchema,
-  connect: connectSchema,
-  status: statusSchema,
-  claim: claimSchema,
-  heartbeat: heartbeatSchema,
-  complete: completeSchema,
-  fail: failSchema,
-  release: releaseSchema,
-  cleanup: cleanupSchema,
-  stop: stopSchema,
-};
+type SwarmAction = z.infer<typeof actionSchema>;
 
 // -- Serialization queue (KTD13) ----------------------------------------------
 
@@ -87,17 +117,16 @@ function serialized<T>(fn: () => Promise<T>): Promise<T> {
 // -- Handler ------------------------------------------------------------------
 
 async function handleSwarm(args: unknown): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  const raw = args as Record<string, unknown>;
-  const action = raw.action as string | undefined;
+  const raw = args && typeof args === 'object' ? args as Record<string, unknown> : {};
+  const action = typeof raw.action === 'string' ? raw.action : undefined;
 
-  if (!action || !actionSchemas[action]) {
+  if (!action || !actionNameSet.has(action)) {
     return {
       content: [{ type: 'text', text: JSON.stringify({ error: `Unknown action: ${action ?? 'undefined'}` }) }],
     };
   }
 
-  const validator = actionSchemas[action];
-  const parsed = validator.safeParse(raw);
+  const parsed = actionSchema.safeParse(raw);
 
   if (!parsed.success) {
     return {
@@ -105,10 +134,8 @@ async function handleSwarm(args: unknown): Promise<{ content: Array<{ type: 'tex
     };
   }
 
-  const params = parsed.data as Record<string, unknown>;
-
   try {
-    const result = await serialized(() => executeAction(action, params));
+    const result = await serialized(() => executeAction(parsed.data));
     return {
       content: [{ type: 'text', text: JSON.stringify(result) }],
     };
@@ -119,56 +146,60 @@ async function handleSwarm(args: unknown): Promise<{ content: Array<{ type: 'tex
   }
 }
 
-async function executeAction(action: string, params: Record<string, unknown>): Promise<unknown> {
-  switch (action) {
+async function requireConnection(cwd: string): Promise<void> {
+  if (!await connectToSwarm(cwd)) {
+    throw new Error(`Failed to connect to swarm database at ${cwd}`);
+  }
+}
+
+async function executeAction(params: SwarmAction): Promise<unknown> {
+  switch (params.action) {
     case 'start': {
       const ok = await startSwarm({
-        cwd: params.cwd as string,
-        agentCount: params.agentCount as number,
-        tasks: params.tasks as string[],
+        cwd: params.cwd,
+        agentCount: params.agentCount,
+        tasks: params.tasks,
       });
       return { started: ok };
     }
     case 'connect': {
-      const ok = await connectToSwarm(params.cwd as string);
+      const ok = await connectToSwarm(params.cwd);
       return { connected: ok };
     }
     case 'status': {
-      await connectToSwarm(params.cwd as string);
+      await requireConnection(params.cwd);
       const state = getSwarmStatus();
       const stats = getSwarmStats();
       return { state, stats };
     }
     case 'claim': {
-      await connectToSwarm(params.cwd as string);
-      return claimTask(params.agentId as string);
+      await requireConnection(params.cwd);
+      return claimTask(params.agentId);
     }
     case 'heartbeat': {
-      await connectToSwarm(params.cwd as string);
-      return { ok: heartbeat(params.agentId as string) };
+      await requireConnection(params.cwd);
+      return { ok: heartbeat(params.agentId) };
     }
     case 'complete': {
-      await connectToSwarm(params.cwd as string);
-      return { ok: completeTask(params.agentId as string, params.taskId as string, params.result as string) };
+      await requireConnection(params.cwd);
+      return { ok: completeTask(params.agentId, params.taskId, params.result) };
     }
     case 'fail': {
-      await connectToSwarm(params.cwd as string);
-      return { ok: failTask(params.agentId as string, params.taskId as string, params.error as string) };
+      await requireConnection(params.cwd);
+      return { ok: failTask(params.agentId, params.taskId, params.error) };
     }
     case 'release': {
-      await connectToSwarm(params.cwd as string);
-      return { ok: releaseTask(params.agentId as string, params.taskId as string) };
+      await requireConnection(params.cwd);
+      return { ok: releaseTask(params.agentId, params.taskId) };
     }
     case 'cleanup': {
-      await connectToSwarm(params.cwd as string);
-      return { released: cleanupStaleClaims(params.leaseTimeout as number) };
+      await requireConnection(params.cwd);
+      return { released: cleanupStaleClaims(params.leaseTimeout) };
     }
     case 'stop': {
-      await connectToSwarm(params.cwd as string);
-      return { stopped: stopSwarm(params.deleteDatabase as boolean) };
+      await requireConnection(params.cwd);
+      return { stopped: stopSwarm(params.deleteDatabase) };
     }
-    default:
-      return { error: `Unimplemented action: ${action}` };
   }
 }
 

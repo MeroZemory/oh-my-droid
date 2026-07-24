@@ -107,15 +107,15 @@ Each agent follows this loop:
 
 ```
 LOOP:
-  1. Call claimTask(agentId)
+  1. Call mcp__t__swarm({ action: "claim", cwd, agentId })
   2. SQLite transaction:
      - Find first pending task
      - UPDATE status='claimed', claimed_by=agentId, claimed_at=now
      - INSERT/UPDATE heartbeat record
      - Atomically commit (only one agent succeeds)
   3. Execute task
-  4. Call completeTask(agentId, taskId, result) or failTask()
-  5. GOTO LOOP (until hasPendingWork() returns false)
+  4. Call mcp__t__swarm with action "complete" or "fail"
+  5. GOTO LOOP until claim reports no pending tasks
 ```
 
 **Atomic Claiming Details:**
@@ -124,24 +124,24 @@ LOOP:
 - Heartbeat automatically updated on claim
 - If claim fails (already claimed), agent retries with next task
 - Lease Timeout: 5 minutes per task
-- If timeout exceeded + no heartbeat, cleanupStaleClaims releases task back to pending
+- If timeout exceeded + no heartbeat, MCP cleanup releases the task back to pending
 
 ### 5. Heartbeat Protocol
-- Agents call `heartbeat(agentId)` every 60 seconds (or custom interval)
+- Agents call `mcp__t__swarm` with action `heartbeat` every 60 seconds
 - Heartbeat records: agent_id, last_heartbeat timestamp, current_task_id
-- Orchestrator runs cleanupStaleClaims every 60 seconds
+- The connected swarm context runs stale-claim cleanup every 60 seconds
 - If heartbeat is stale (>5 minutes old) and task claimed, task auto-releases
 
 ### 6. Progress Tracking
 - Orchestrator monitors via TaskOutput
 - Shows live progress: pending/claimed/done/failed counts
-- Active agent count via getActiveAgents()
-- Reports which agent is working on which task via getAgentTasks()
+- Active agent and task counts come from the `status` action
+- Per-agent task ownership comes from the returned task list
 - Detects idle agents (all tasks claimed by others)
 
 ### 7. Completion
 Exit when ANY of:
-- isSwarmComplete() returns true (all tasks done or failed)
+- `status` reports no pending or claimed tasks
 - All agents idle (no pending tasks, no claimed tasks)
 - User cancels via `/cancel`
 
@@ -196,126 +196,32 @@ CREATE TABLE swarm_session (
 
 ## Task Claiming Protocol (Detailed)
 
-### Atomic Claim Operation with SQLite
+The implementation uses `node:sqlite` `DatabaseSync` and a shared
+`runImmediateTransaction()` helper that issues `BEGIN IMMEDIATE`, `COMMIT`, and
+`ROLLBACK`. Workers never access the database directly. They use
+`mcp__t__swarm`, which serializes actions and returns `retryable: true` when
+SQLite lock contention should be retried.
 
-The core strength of the implementation is transactional atomicity:
-
-```typescript
-function claimTask(agentId: string): ClaimResult {
-  // Transaction ensures only ONE agent succeeds
-  const claimTransaction = db.transaction(() => {
-    // Step 1: Find first pending task
-    const task = db.prepare(
-      'SELECT id, description FROM tasks WHERE status = "pending" ORDER BY id LIMIT 1'
-    ).get();
-
-    if (!task) {
-      return { success: false, reason: 'No pending tasks' };
-    }
-
-    // Step 2: Attempt claim (will only succeed if status is still 'pending')
-    const result = db.prepare(
-      'UPDATE tasks SET status = "claimed", claimed_by = ?, claimed_at = ? WHERE id = ? AND status = "pending"'
-    ).run(agentId, Date.now(), task.id);
-
-    if (result.changes === 0) {
-      // Another agent claimed it between SELECT and UPDATE - try next
-      return { success: false, reason: 'Task was claimed by another agent' };
-    }
-
-    // Step 3: Update heartbeat to show we're alive and working
-    db.prepare(
-      'INSERT OR REPLACE INTO heartbeats (agent_id, last_heartbeat, current_task_id) VALUES (?, ?, ?)'
-    ).run(agentId, Date.now(), task.id);
-
-    return { success: true, taskId: task.id, description: task.description };
-  });
-
-  return claimTransaction();  // Atomic execution
-}
-```
-
-**Why SQLite Transactions Work:**
-- `db.transaction()` uses `IMMEDIATE` locking
-- Prevents other agents from modifying rows between SELECT and UPDATE
-- All-or-nothing atomicity: claim succeeds completely or fails completely
-- No race conditions, no lost updates
-
-### Lease Timeout & Auto-Release
-
-Tasks are automatically released if claimed too long without heartbeat:
-
-```typescript
-function cleanupStaleClaims(leaseTimeout: number = 5 * 60 * 1000) {
-  // Default 5-minute timeout
-  const cutoffTime = Date.now() - leaseTimeout;
-
-  const cleanupTransaction = db.transaction(() => {
-    // Find claimed tasks where:
-    // 1. Claimed longer than timeout, OR
-    // 2. Agent hasn't sent heartbeat in that time
-    const staleTasks = db.prepare(`
-      SELECT t.id
-      FROM tasks t
-      LEFT JOIN heartbeats h ON t.claimed_by = h.agent_id
-      WHERE t.status = 'claimed'
-        AND t.claimed_at < ?
-        AND (h.last_heartbeat IS NULL OR h.last_heartbeat < ?)
-    `).all(cutoffTime, cutoffTime);
-
-    // Release each stale task back to pending
-    for (const staleTask of staleTasks) {
-      db.prepare('UPDATE tasks SET status = "pending", claimed_by = NULL, claimed_at = NULL WHERE id = ?')
-        .run(staleTask.id);
-    }
-
-    return staleTasks.length;
-  });
-
-  return cleanupTransaction();
-}
-```
-
-**How Recovery Works:**
-1. Orchestrator calls cleanupStaleClaims() every 60 seconds
-2. If agent hasn't sent heartbeat in 5 minutes, task is auto-released
-3. Another agent picks up the orphaned task
-4. Original agent can continue working (it doesn't know it was released)
-5. When original agent tries to mark task as done, verification fails safely
+Stale claims are released by the connected project's cleanup timer and whenever
+a project is reconnected. Coordinators can also invoke the `cleanup` action
+explicitly.
 
 ## API Reference
 
-### Core API Functions
+Use `mcp__t__swarm` with one of these actions:
 
-#### `startSwarm(config: SwarmConfig): Promise<boolean>`
-Initialize the swarm with task pool and start cleanup timer.
-
-#### `stopSwarm(deleteDatabase?: boolean): boolean`
-Stop the swarm and optionally delete the database.
-
-#### `claimTask(agentId: string): ClaimResult`
-Claim the next pending task. Returns `{ success, taskId, description, reason }`.
-
-#### `completeTask(agentId: string, taskId: string, result?: string): boolean`
-Mark a task as done. Only succeeds if agent still owns the task.
-
-#### `failTask(agentId: string, taskId: string, error: string): boolean`
-Mark a task as failed with error details.
-
-#### `heartbeat(agentId: string): boolean`
-Send a heartbeat to indicate agent is alive. Call every 60 seconds during long-running tasks.
-
-#### `cleanupStaleClaims(leaseTimeout?: number): number`
-Manually trigger cleanup of expired claims. Called automatically every 60 seconds.
-
-#### `hasPendingWork(): boolean`
-Check if there are unclaimed tasks available.
-
-#### `isSwarmComplete(): boolean`
-Check if all tasks are done or failed.
-
-#### `getSwarmStats(): SwarmStats | null`
-Get task counts and timing info.
+| Action | Required fields | Purpose |
+|--------|-----------------|---------|
+| `start` | `cwd`, `agentCount`, `tasks` | Initialize a swarm |
+| `connect` | `cwd` | Connect to an existing swarm |
+| `status` | `cwd` | Read state, task counts, and task ownership |
+| `claim` | `cwd`, `agentId` | Atomically claim the next pending task |
+| `heartbeat` | `cwd`, `agentId` | Refresh the agent lease |
+| `complete` | `cwd`, `agentId`, `taskId` | Complete an owned task |
+| `fail` | `cwd`, `agentId`, `taskId`, `error` | Mark an owned task failed |
+| `release` | `cwd`, `agentId`, `taskId` | Return an owned task to pending |
+| `cleanup` | `cwd` | Release stale claims |
+| `stop` | `cwd` | Stop the swarm |
 
 ### Configuration (SwarmConfig)
 
@@ -368,10 +274,10 @@ interface SwarmStats {
 - **Lease Timeout:** 5 minutes (default, configurable)
   - Tasks claimed longer than this without heartbeat are auto-released
 - **Heartbeat Interval:** 60 seconds (recommended)
-  - Agents should call `heartbeat()` at least this often
+  - Agents should call the MCP `heartbeat` action at least this often
   - Prevents false timeout while working on long tasks
 - **Cleanup Interval:** 60 seconds
-  - Orchestrator automatically runs `cleanupStaleClaims()` to release orphaned tasks
+  - The connected swarm context releases orphaned tasks automatically
 - **Database:** SQLite (stored at `.omd/state/swarm.db`)
   - One database per swarm session
   - Survives agent crashes
@@ -381,29 +287,29 @@ interface SwarmStats {
 
 ### Agent Crash
 - Task is claimed but agent stops sending heartbeats
-- After 5 minutes of no heartbeat, cleanupStaleClaims() releases the task
+- After 5 minutes of no heartbeat, stale-claim cleanup releases the task
 - Task returns to 'pending' status for another agent to claim
 - Original agent's incomplete work is safely abandoned
 
 ### Task Completion Failure
-- Agent calls `completeTask()` but is no longer the owner (was released)
+- Agent calls the MCP `complete` action but is no longer the owner
 - The update silently fails (no agent matches in WHERE clause)
 - Agent can detect this by checking return value
 - Agent should log error and continue to next task
 
 ### Database Unavailable
-- `startSwarm()` returns false if database initialization fails
-- `claimTask()` returns `{ success: false, reason: 'Database not initialized' }`
-- Check `isSwarmReady()` before proceeding
+- The MCP `start` or `connect` action returns an error if initialization fails
+- The MCP `claim` action reports the database error without assigning a task
+- Retry only responses marked `retryable: true`
 
 ### All Agents Idle
-- Orchestrator detects via `getActiveAgents() === 0` or `hasPendingWork() === false`
+- Orchestrator detects this from `status` task and heartbeat counts
 - Triggers final cleanup and marks swarm as complete
 - Remaining failed tasks are preserved in database
 
 ### No Tasks Available
-- `claimTask()` returns success=false with reason 'No pending tasks available'
-- Agent should check `hasPendingWork()` before looping
+- The MCP `claim` action returns `success: false` with a reason
+- Agent should exit when the response is not retryable
 - Safe for agent to exit cleanly when no work remains
 
 ## Cancellation
@@ -463,7 +369,7 @@ Spawns 2 writers, each documenting different modules.
 - **Lease-Based:** Time-based expiration prevents indefinite hangs
 
 ### Developer Experience
-- **Simple API:** Just `claimTask()`, `completeTask()`, `heartbeat()`
+- **Simple API:** One `mcp__t__swarm` tool with action-specific inputs
 - **Full Visibility:** Query any task or agent status at any time
 - **Easy Debugging:** SQL queries show exact state without decoding JSON
 

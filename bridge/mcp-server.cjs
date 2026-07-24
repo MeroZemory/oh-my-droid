@@ -2993,7 +2993,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve4.call(this, root, ref);
+      let _sch = resolve5.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3020,7 +3020,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve4(root, ref) {
+    function resolve5(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3595,7 +3595,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve4(baseURI, relativeURI, options) {
+    function resolve5(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse5(baseURI, schemelessOptions), parse5(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
@@ -3822,7 +3822,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve4,
+      resolve: resolve5,
       resolveComponent,
       equal,
       serialize,
@@ -16692,7 +16692,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
+        await new Promise((resolve5) => setTimeout(resolve5, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -16709,7 +16709,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -16787,7 +16787,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve4(parseResult.data);
+            resolve5(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -17048,12 +17048,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve4, interval);
+      const timeoutId = setTimeout(resolve5, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -17923,12 +17923,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve4) => {
+    return new Promise((resolve5) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve4();
+        resolve5();
       } else {
-        this._stdout.once("drain", resolve4);
+        this._stdout.once("drain", resolve5);
       }
     });
   }
@@ -18109,7 +18109,7 @@ var LspClient = class {
 Install with: ${this.serverConfig.installHint}`
       );
     }
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       this.process = (0, import_child_process2.spawn)(this.serverConfig.command, this.serverConfig.args, {
         cwd: this.workspaceRoot,
         stdio: ["pipe", "pipe", "pipe"]
@@ -18132,7 +18132,7 @@ Install with: ${this.serverConfig.installHint}`
       });
       this.initialize().then(() => {
         this.initialized = true;
-        resolve4();
+        resolve5();
       }).catch(reject);
     });
   }
@@ -18228,13 +18228,13 @@ Install with: ${this.serverConfig.installHint}`
     const message = `Content-Length: ${Buffer.byteLength(content)}\r
 \r
 ${content}`;
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve5, reject) => {
       const timeoutHandle = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`LSP request '${method}' timed out after ${timeout}ms`));
       }, timeout);
       this.pendingRequests.set(id, {
-        resolve: resolve4,
+        resolve: resolve5,
         reject,
         timeout: timeoutHandle
       });
@@ -18303,7 +18303,7 @@ ${content}`;
       }
     });
     this.openDocuments.add(uri);
-    await new Promise((resolve4) => setTimeout(resolve4, 100));
+    await new Promise((resolve5) => setTimeout(resolve5, 100));
   }
   /**
    * Close a document
@@ -18798,7 +18798,7 @@ async function runLspAggregatedDiagnostics(directory, extensions = [".ts", ".tsx
         continue;
       }
       await client.openDocument(file);
-      await new Promise((resolve4) => setTimeout(resolve4, LSP_DIAGNOSTICS_WAIT_MS));
+      await new Promise((resolve5) => setTimeout(resolve5, LSP_DIAGNOSTICS_WAIT_MS));
       const diagnostics = client.getDiagnostics(file);
       for (const diagnostic of diagnostics) {
         allDiagnostics.push({
@@ -19048,7 +19048,7 @@ var lspDiagnosticsTool = {
     const { file, severity } = args;
     return withLspClient(file, "diagnostics", async (client) => {
       await client.openDocument(file);
-      await new Promise((resolve4) => setTimeout(resolve4, LSP_DIAGNOSTICS_WAIT_MS));
+      await new Promise((resolve5) => setTimeout(resolve5, LSP_DIAGNOSTICS_WAIT_MS));
       let diagnostics = client.getDiagnostics(file);
       if (severity) {
         const severityMap = {
@@ -20258,7 +20258,7 @@ var SessionLock = class {
   }
 };
 function sleep(ms) {
-  return new Promise((resolve4) => setTimeout(resolve4, ms));
+  return new Promise((resolve5) => setTimeout(resolve5, ms));
 }
 
 // src/tools/python-repl/socket-client.ts
@@ -20288,7 +20288,7 @@ var JsonRpcError = class extends Error {
   }
 };
 async function sendSocketRequest(socketPath, method, params, timeout = 6e4) {
-  return new Promise((resolve4, reject) => {
+  return new Promise((resolve5, reject) => {
     const id = (0, import_crypto.randomUUID)();
     const request = {
       jsonrpc: "2.0",
@@ -20352,7 +20352,7 @@ async function sendSocketRequest(socketPath, method, params, timeout = 6e4) {
             ));
             return;
           }
-          resolve4(response.result);
+          resolve5(response.result);
         } catch (e) {
           reject(new Error(
             `Failed to parse JSON-RPC response: ${e.message}`
@@ -20670,7 +20670,7 @@ async function deleteBridgeMeta(sessionId) {
   }
 }
 function sleep2(ms) {
-  return new Promise((resolve4) => setTimeout(resolve4, ms));
+  return new Promise((resolve5) => setTimeout(resolve5, ms));
 }
 
 // src/tools/python-repl/tool.ts
@@ -21890,14 +21890,24 @@ function removeModeMarker(mode, cwd) {
 // src/hooks/swarm/index.ts
 var currentCwd2 = null;
 var cleanupIntervalHandle = null;
-function cleanupOnFailure(cwd) {
+function stopCleanupTimer() {
   if (cleanupIntervalHandle) {
     clearInterval(cleanupIntervalHandle);
     cleanupIntervalHandle = null;
   }
+}
+function startCleanupTimer(leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout) {
+  stopCleanupTimer();
+  cleanupIntervalHandle = setInterval(() => {
+    cleanupStaleClaims(leaseTimeout);
+  }, 60 * 1e3);
+}
+function cleanupOnFailure(cwd) {
+  stopCleanupTimer();
   closeDb();
   removeModeMarker("swarm", cwd);
   currentCwd2 = null;
+  setSwarmCwd(null);
 }
 async function startSwarm(config2) {
   const {
@@ -21906,6 +21916,7 @@ async function startSwarm(config2) {
     cwd = process.cwd(),
     leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout
   } = config2;
+  const resolvedCwd = (0, import_path9.resolve)(cwd);
   if (tasks.length === 0) {
     console.error("Cannot start swarm with no tasks");
     return false;
@@ -21914,27 +21925,30 @@ async function startSwarm(config2) {
     console.error("Agent count must be at least 1");
     return false;
   }
-  const canStart = canStartMode("swarm", cwd);
+  const canStart = canStartMode("swarm", resolvedCwd);
   if (!canStart.allowed) {
     console.error(canStart.message);
     return false;
   }
-  const dbInitialized = await initDb(cwd);
+  if (isDbInitialized()) {
+    disconnectFromSwarm();
+  }
+  const dbInitialized = await initDb(resolvedCwd);
   if (!dbInitialized) {
     console.error("Failed to initialize swarm database");
     return false;
   }
-  createModeMarker("swarm", cwd, {
+  createModeMarker("swarm", resolvedCwd, {
     agentCount,
     taskCount: tasks.length
   });
-  currentCwd2 = cwd;
-  setSwarmCwd(cwd);
+  currentCwd2 = resolvedCwd;
+  setSwarmCwd(resolvedCwd);
   clearAllData();
   const sessionId = (0, import_crypto2.randomUUID)();
   if (!initSession(sessionId, agentCount)) {
     console.error("Failed to initialize swarm session");
-    cleanupOnFailure(cwd);
+    cleanupOnFailure(resolvedCwd);
     return false;
   }
   const taskRecords = tasks.map((description, index) => ({
@@ -21943,20 +21957,15 @@ async function startSwarm(config2) {
   }));
   if (!addTasks(taskRecords)) {
     console.error("Failed to add tasks to pool");
-    cleanupOnFailure(cwd);
+    cleanupOnFailure(resolvedCwd);
     return false;
   }
-  cleanupIntervalHandle = setInterval(() => {
-    cleanupStaleClaims(leaseTimeout);
-  }, 60 * 1e3);
-  writeSwarmSummary(cwd);
+  startCleanupTimer(leaseTimeout);
+  writeSwarmSummary(resolvedCwd);
   return true;
 }
 function stopSwarm(deleteDatabase = false) {
-  if (cleanupIntervalHandle) {
-    clearInterval(cleanupIntervalHandle);
-    cleanupIntervalHandle = null;
-  }
+  stopCleanupTimer();
   saveState({ active: false, completedAt: Date.now() });
   if (currentCwd2) {
     writeSwarmSummary(currentCwd2);
@@ -21969,6 +21978,7 @@ function stopSwarm(deleteDatabase = false) {
     removeModeMarker("swarm", currentCwd2);
   }
   currentCwd2 = null;
+  setSwarmCwd(null);
   return true;
 }
 function getSwarmStatus() {
@@ -22000,15 +22010,28 @@ function cleanupStaleClaims2(leaseTimeout) {
   return cleanupStaleClaims(leaseTimeout);
 }
 async function connectToSwarm(cwd) {
+  const resolvedCwd = (0, import_path9.resolve)(cwd);
   if (isDbInitialized()) {
-    return true;
+    if (currentCwd2 === resolvedCwd) {
+      return true;
+    }
+    disconnectFromSwarm();
   }
-  const success = await initDb(cwd);
+  const success = await initDb(resolvedCwd);
   if (success) {
-    currentCwd2 = cwd;
-    setSwarmCwd(cwd);
+    currentCwd2 = resolvedCwd;
+    setSwarmCwd(resolvedCwd);
+    cleanupStaleClaims2(DEFAULT_SWARM_CONFIG.leaseTimeout);
+    startCleanupTimer();
   }
   return success;
+}
+function disconnectFromSwarm() {
+  stopCleanupTimer();
+  closeDb();
+  currentCwd2 = null;
+  setSwarmCwd(null);
+  return true;
 }
 
 // src/tools/swarm-tool.ts
@@ -22024,32 +22047,61 @@ var swarmSchema = {
   leaseTimeout: external_exports.number().int().positive().optional().describe("Lease timeout in ms (for cleanup)"),
   deleteDatabase: external_exports.boolean().optional().describe("Whether to delete the database (for stop)")
 };
-var startSchema = external_exports.object({
-  cwd: external_exports.string(),
-  agentCount: external_exports.number().int().positive(),
-  tasks: external_exports.array(external_exports.string().min(1)).min(1)
-});
-var connectSchema = external_exports.object({ cwd: external_exports.string() });
-var statusSchema = external_exports.object({ cwd: external_exports.string() });
-var claimSchema = external_exports.object({ cwd: external_exports.string(), agentId: external_exports.string().min(1) });
-var heartbeatSchema = external_exports.object({ cwd: external_exports.string(), agentId: external_exports.string().min(1), taskId: external_exports.string().nullable() });
-var completeSchema = external_exports.object({ cwd: external_exports.string(), agentId: external_exports.string().min(1), taskId: external_exports.string().min(1), result: external_exports.string() });
-var failSchema = external_exports.object({ cwd: external_exports.string(), agentId: external_exports.string().min(1), taskId: external_exports.string().min(1), error: external_exports.string() });
-var releaseSchema = external_exports.object({ cwd: external_exports.string(), agentId: external_exports.string().min(1), taskId: external_exports.string().min(1) });
-var cleanupSchema = external_exports.object({ cwd: external_exports.string(), leaseTimeout: external_exports.number().int().positive() });
-var stopSchema = external_exports.object({ cwd: external_exports.string(), deleteDatabase: external_exports.boolean() });
-var actionSchemas = {
-  start: startSchema,
-  connect: connectSchema,
-  status: statusSchema,
-  claim: claimSchema,
-  heartbeat: heartbeatSchema,
-  complete: completeSchema,
-  fail: failSchema,
-  release: releaseSchema,
-  cleanup: cleanupSchema,
-  stop: stopSchema
-};
+var actionNames = [
+  "start",
+  "connect",
+  "status",
+  "claim",
+  "heartbeat",
+  "complete",
+  "fail",
+  "release",
+  "cleanup",
+  "stop"
+];
+var actionNameSet = new Set(actionNames);
+var actionSchema = external_exports.discriminatedUnion("action", [
+  external_exports.object({
+    action: external_exports.literal("start"),
+    cwd: external_exports.string(),
+    agentCount: external_exports.number().int().positive(),
+    tasks: external_exports.array(external_exports.string().min(1)).min(1)
+  }).strict(),
+  external_exports.object({ action: external_exports.literal("connect"), cwd: external_exports.string() }).strict(),
+  external_exports.object({ action: external_exports.literal("status"), cwd: external_exports.string() }).strict(),
+  external_exports.object({ action: external_exports.literal("claim"), cwd: external_exports.string(), agentId: external_exports.string().min(1) }).strict(),
+  external_exports.object({ action: external_exports.literal("heartbeat"), cwd: external_exports.string(), agentId: external_exports.string().min(1) }).strict(),
+  external_exports.object({
+    action: external_exports.literal("complete"),
+    cwd: external_exports.string(),
+    agentId: external_exports.string().min(1),
+    taskId: external_exports.string().min(1),
+    result: external_exports.string().optional()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("fail"),
+    cwd: external_exports.string(),
+    agentId: external_exports.string().min(1),
+    taskId: external_exports.string().min(1),
+    error: external_exports.string()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("release"),
+    cwd: external_exports.string(),
+    agentId: external_exports.string().min(1),
+    taskId: external_exports.string().min(1)
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("cleanup"),
+    cwd: external_exports.string(),
+    leaseTimeout: external_exports.number().int().positive().optional()
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("stop"),
+    cwd: external_exports.string(),
+    deleteDatabase: external_exports.boolean().optional()
+  }).strict()
+]);
 var actionQueue = Promise.resolve();
 function serialized(fn) {
   const next = actionQueue.then(fn, fn);
@@ -22057,23 +22109,21 @@ function serialized(fn) {
   return next;
 }
 async function handleSwarm(args) {
-  const raw = args;
-  const action = raw.action;
-  if (!action || !actionSchemas[action]) {
+  const raw = args && typeof args === "object" ? args : {};
+  const action = typeof raw.action === "string" ? raw.action : void 0;
+  if (!action || !actionNameSet.has(action)) {
     return {
       content: [{ type: "text", text: JSON.stringify({ error: `Unknown action: ${action ?? "undefined"}` }) }]
     };
   }
-  const validator = actionSchemas[action];
-  const parsed = validator.safeParse(raw);
+  const parsed = actionSchema.safeParse(raw);
   if (!parsed.success) {
     return {
       content: [{ type: "text", text: JSON.stringify({ error: "Validation failed", details: parsed.error.issues }) }]
     };
   }
-  const params = parsed.data;
   try {
-    const result = await serialized(() => executeAction(action, params));
+    const result = await serialized(() => executeAction(parsed.data));
     return {
       content: [{ type: "text", text: JSON.stringify(result) }]
     };
@@ -22083,8 +22133,13 @@ async function handleSwarm(args) {
     };
   }
 }
-async function executeAction(action, params) {
-  switch (action) {
+async function requireConnection(cwd) {
+  if (!await connectToSwarm(cwd)) {
+    throw new Error(`Failed to connect to swarm database at ${cwd}`);
+  }
+}
+async function executeAction(params) {
+  switch (params.action) {
     case "start": {
       const ok = await startSwarm({
         cwd: params.cwd,
@@ -22098,41 +22153,39 @@ async function executeAction(action, params) {
       return { connected: ok };
     }
     case "status": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       const state = getSwarmStatus();
       const stats = getSwarmStats();
       return { state, stats };
     }
     case "claim": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       return claimTask2(params.agentId);
     }
     case "heartbeat": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       return { ok: heartbeat2(params.agentId) };
     }
     case "complete": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       return { ok: completeTask2(params.agentId, params.taskId, params.result) };
     }
     case "fail": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       return { ok: failTask2(params.agentId, params.taskId, params.error) };
     }
     case "release": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       return { ok: releaseTask2(params.agentId, params.taskId) };
     }
     case "cleanup": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       return { released: cleanupStaleClaims2(params.leaseTimeout) };
     }
     case "stop": {
-      await connectToSwarm(params.cwd);
+      await requireConnection(params.cwd);
       return { stopped: stopSwarm(params.deleteDatabase) };
     }
-    default:
-      return { error: `Unimplemented action: ${action}` };
   }
 }
 var swarmTool = {

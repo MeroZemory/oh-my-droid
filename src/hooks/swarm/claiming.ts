@@ -39,7 +39,7 @@ let currentCwd: string | null = null;
  * Set the current working directory for summary writes
  * Called by the main swarm module when starting/connecting
  */
-export function setSwarmCwd(cwd: string): void {
+export function setSwarmCwd(cwd: string | null): void {
   currentCwd = cwd;
 }
 
@@ -577,6 +577,14 @@ export function reclaimFailedTask(agentId: string, taskId: string): ClaimResult 
       poisonDb
     );
   } catch (error) {
+    if (isBusyError(error)) {
+      return {
+        success: false,
+        taskId: null,
+        reason: 'database_busy',
+        retryable: true
+      };
+    }
     return {
       success: false,
       taskId: null,

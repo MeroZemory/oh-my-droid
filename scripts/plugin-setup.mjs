@@ -40,7 +40,39 @@ import { pathToFileURL } from "node:url";
 async function main() {
   const home = homedir();
 
-  // 1. Development paths (preferred for local development)
+  // 1. Resolve the active plugin install from Factory metadata
+  const pluginRegistries = [
+    {
+      path: join(process.cwd(), ".factory/plugins/installed_plugins.json"),
+      scope: "project",
+    },
+    {
+      path: join(home, ".factory/plugins/installed_plugins.json"),
+      scope: "user",
+    },
+  ];
+  let activeInstallPath = null;
+  for (const registry of pluginRegistries) {
+    if (!existsSync(registry.path)) continue;
+    try {
+      const pluginsData = JSON.parse(readFileSync(registry.path, "utf-8"));
+      const installs = pluginsData.plugins?.["oh-my-droid@oh-my-droid"] ?? [];
+      const install = installs.find((item) => item.scope === registry.scope) ?? installs[0];
+      if (install?.installPath) {
+        activeInstallPath = install.installPath;
+        break;
+      }
+    } catch { /* continue */ }
+  }
+  if (activeInstallPath) {
+    const pluginPath = join(activeInstallPath, "dist/hud/index.js");
+    if (existsSync(pluginPath)) {
+      await import(pathToFileURL(pluginPath).href);
+      return;
+    }
+  }
+
+  // 2. Development paths
   const devPaths = [
     join(home, "Workspace/oh-my-droid/dist/hud/index.js"),
     join(home, "workspace/oh-my-droid/dist/hud/index.js"),
@@ -54,26 +86,6 @@ async function main() {
         return;
       } catch { /* continue */ }
     }
-  }
-
-  // 2. Plugin cache (for production installs) - resolve from Factory metadata (KTD14)
-  const installedPluginsPath = join(home, ".factory/plugins/installed_plugins.json");
-  if (existsSync(installedPluginsPath)) {
-    try {
-      const pluginsData = JSON.parse(readFileSync(installedPluginsPath, "utf-8"));
-      const entries = Object.entries(pluginsData.plugins || {})
-        .filter(([key]) => key.startsWith("oh-my-droid@"));
-      if (entries.length > 0) {
-        const installPath = entries[0][1][0]?.installPath;
-        if (installPath) {
-          const pluginPath = join(installPath, "dist/hud/index.js");
-          if (existsSync(pluginPath)) {
-            await import(pathToFileURL(pluginPath).href);
-            return;
-          }
-        }
-      }
-    } catch { /* continue */ }
   }
 
   // 3. npm package (global or local install)

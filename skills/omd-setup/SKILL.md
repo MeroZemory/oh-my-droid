@@ -506,25 +506,40 @@ cat > ".omd/state/setup-state.json" << EOF
 EOF
 ```
 
-## Step 3.5: Clear Stale Plugin Cache
+## Step 3.5: Resolve Active Plugin Install
 
-Clear old cached plugin versions to avoid conflicts:
+Use Factory's installation metadata rather than sorting cache directory names,
+which are content hashes rather than semantic versions:
 
 ```bash
-# Clear stale plugin cache versions
-CACHE_DIR="$HOME/.factory/plugins/cache/oh-my-droid/oh-my-droid"
-if [ -d "$CACHE_DIR" ]; then
-  LATEST=$(ls -1 "$CACHE_DIR" | sort -V | tail -1)
-  CLEARED=0
-  for dir in "$CACHE_DIR"/*; do
-    if [ "$(basename "$dir")" != "$LATEST" ]; then
-      rm -rf "$dir"
-      CLEARED=$((CLEARED + 1))
-    fi
-  done
-  [ $CLEARED -gt 0 ] && echo "Cleared $CLEARED stale cache version(s)" || echo "Cache is clean"
+PLUGIN_DIR=$(node --input-type=module - <<'NODE'
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+const registries = [
+  { path: join(process.cwd(), ".factory/plugins/installed_plugins.json"), scope: "project" },
+  { path: join(homedir(), ".factory/plugins/installed_plugins.json"), scope: "user" },
+];
+for (const registry of registries) {
+  try {
+    const metadata = JSON.parse(readFileSync(registry.path, "utf-8"));
+    const installs = metadata.plugins?.["oh-my-droid@oh-my-droid"] ?? [];
+    const install = installs.find((item) => item.scope === registry.scope) ?? installs[0];
+    if (install?.installPath) {
+      console.log(install.installPath);
+      process.exit(0);
+    }
+  } catch {}
+}
+console.log("");
+NODE
+)
+
+if [ -n "$PLUGIN_DIR" ]; then
+  echo "Active plugin install: $PLUGIN_DIR"
 else
-  echo "No cache directory found (normal for new installs)"
+  echo "No active plugin install found (normal for new installs)"
 fi
 ```
 
@@ -535,10 +550,33 @@ Notify user if a newer version is available:
 ```bash
 # Detect installed version
 INSTALLED_VERSION=""
+PLUGIN_DIR=$(node --input-type=module - <<'NODE'
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-# Try cache directory first
-if [ -d "$HOME/.factory/plugins/cache/oh-my-droid/oh-my-droid" ]; then
-  INSTALLED_VERSION=$(ls -1 "$HOME/.factory/plugins/cache/oh-my-droid/oh-my-droid" | sort -V | tail -1)
+const registries = [
+  { path: join(process.cwd(), ".factory/plugins/installed_plugins.json"), scope: "project" },
+  { path: join(homedir(), ".factory/plugins/installed_plugins.json"), scope: "user" },
+];
+for (const registry of registries) {
+  try {
+    const metadata = JSON.parse(readFileSync(registry.path, "utf-8"));
+    const installs = metadata.plugins?.["oh-my-droid@oh-my-droid"] ?? [];
+    const install = installs.find((item) => item.scope === registry.scope) ?? installs[0];
+    if (install?.installPath) {
+      console.log(install.installPath);
+      process.exit(0);
+    }
+  } catch {}
+}
+console.log("");
+NODE
+)
+
+# Try the metadata-resolved plugin directory first
+if [ -n "$PLUGIN_DIR" ] && [ -f "$PLUGIN_DIR/package.json" ]; then
+  INSTALLED_VERSION=$(node -p "require(process.argv[1]).version" "$PLUGIN_DIR/package.json" 2>/dev/null)
 fi
 
 # Try .omd-version.json second
