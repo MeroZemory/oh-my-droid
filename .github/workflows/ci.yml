@@ -27,7 +27,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm run lint
-      # Temporary main-branch baseline exclusions are tracked in Issue #14.
+      # Temporary main-branch baseline exclusions are tracked in Issue #19.
       # Remove each exclusion when its underlying failure is fixed.
       - run: >-
           npx vitest run
