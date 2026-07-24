@@ -18,6 +18,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const packageRoot = join(__dirname, '..', '..');
 
+/**
+ * On Windows a rooted path carrying no drive (`/home/user/test.js`) resolves
+ * against the drive of the current working directory. That is `C:` on a typical
+ * developer machine but `D:` on GitHub's hosted Windows runners, so the drive
+ * has to be derived rather than assumed.
+ */
+function currentDriveLetter(): string {
+  return process.cwd().slice(0, 2);
+}
+
 describe('HUD Windows Compatibility', () => {
   describe('File Naming', () => {
     it('session-start.mjs should reference omd-hud.mjs', () => {
@@ -68,7 +78,7 @@ describe('HUD Windows Compatibility', () => {
       const unixPath = '/home/user/test.js';
       expect(pathToFileURL(unixPath).href).toBe(
         process.platform === 'win32'
-          ? 'file:///C:/home/user/test.js'
+          ? `file:///${currentDriveLetter()}/home/user/test.js`
           : 'file:///home/user/test.js'
       );
     });
@@ -77,7 +87,7 @@ describe('HUD Windows Compatibility', () => {
       const spacePath = '/path/with spaces/file.js';
       expect(pathToFileURL(spacePath).href).toBe(
         process.platform === 'win32'
-          ? 'file:///C:/path/with%20spaces/file.js'
+          ? `file:///${currentDriveLetter()}/path/with%20spaces/file.js`
           : 'file:///path/with%20spaces/file.js'
       );
     });
