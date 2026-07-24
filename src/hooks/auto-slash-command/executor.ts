@@ -227,10 +227,13 @@ export function findCommand(commandName: string): CommandInfo | null {
 }
 
 /**
- * Resolve $ARGUMENTS placeholder in command content
+ * Resolve $ARGUMENTS placeholder in command content.
+ * Uses a replacement callback so user text is inserted literally without
+ * JavaScript replacement-string token expansion ($&, $$, $`, $', $n).
  */
 function resolveArguments(content: string, args: string): string {
-  return content.replace(/\$ARGUMENTS/g, args || '(no arguments provided)');
+  const replacement = args || '(no arguments provided)';
+  return content.replace(/\$ARGUMENTS/g, () => replacement);
 }
 
 /**
