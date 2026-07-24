@@ -11,12 +11,13 @@ permissions:
 
 jobs:
   test:
-    name: Build & Test (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    name: Build & Test (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         node-version: ["22.13", "24", "26"]
     steps:
       - uses: actions/checkout@v4
