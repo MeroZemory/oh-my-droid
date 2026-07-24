@@ -21135,6 +21135,10 @@ function poisonDb() {
   }
   db = null;
 }
+function isNoActiveTransactionError(error2) {
+  const message = error2 instanceof Error ? error2.message : String(error2);
+  return message.toLowerCase().includes("no transaction is active");
+}
 function runImmediateTransaction(executor, fn, onPoison) {
   if (inTransaction) {
     throw new Error("Nested transactions are not supported");
@@ -21163,11 +21167,13 @@ function runImmediateTransaction(executor, fn, onPoison) {
       try {
         executor.exec("ROLLBACK");
       } catch (rollbackError) {
-        onPoison();
-        throw new AggregateError(
-          [commitError, rollbackError],
-          "Transaction commit failed and rollback also failed"
-        );
+        if (!isNoActiveTransactionError(rollbackError)) {
+          onPoison();
+          throw new AggregateError(
+            [commitError, rollbackError],
+            "Transaction commit failed and rollback also failed"
+          );
+        }
       }
       throw commitError;
     }
@@ -21176,8 +21182,18 @@ function runImmediateTransaction(executor, fn, onPoison) {
     inTransaction = false;
   }
 }
+function normalizeProjectCwd(cwd) {
+  const resolved = (0, import_path7.resolve)(cwd);
+  if (process.platform !== "win32") {
+    return resolved;
+  }
+  return resolved.replace(/^([a-z]):/, (_match, drive) => `${drive.toUpperCase()}:`);
+}
 function getDbPath(cwd) {
   return (0, import_path7.join)(cwd, ".omd", "state", "swarm.db");
+}
+function swarmDbExists(cwd) {
+  return (0, import_fs6.existsSync)(getDbPath(normalizeProjectCwd(cwd)));
 }
 function ensureStateDir(cwd) {
   const stateDir = (0, import_path7.join)(cwd, ".omd", "state");
@@ -21461,7 +21477,11 @@ function writeSwarmSummary(cwd) {
 // src/hooks/swarm/claiming.ts
 function isBusyError(error2) {
   if (error2 && typeof error2 === "object" && "errcode" in error2) {
-    return error2.errcode === 5;
+    const errcode = error2.errcode;
+    if (typeof errcode !== "number") {
+      return false;
+    }
+    return (errcode & 255) === 5;
   }
   return false;
 }
@@ -21901,6 +21921,7 @@ function startCleanupTimer(leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout) {
   cleanupIntervalHandle = setInterval(() => {
     cleanupStaleClaims(leaseTimeout);
   }, 60 * 1e3);
+  cleanupIntervalHandle.unref?.();
 }
 function cleanupOnFailure(cwd) {
   stopCleanupTimer();
@@ -21916,7 +21937,7 @@ async function startSwarm(config2) {
     cwd = process.cwd(),
     leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout
   } = config2;
-  const resolvedCwd = (0, import_path9.resolve)(cwd);
+  const resolvedCwd = normalizeProjectCwd(cwd);
   if (tasks.length === 0) {
     console.error("Cannot start swarm with no tasks");
     return false;
@@ -22010,7 +22031,7 @@ function cleanupStaleClaims2(leaseTimeout) {
   return cleanupStaleClaims(leaseTimeout);
 }
 async function connectToSwarm(cwd) {
-  const resolvedCwd = (0, import_path9.resolve)(cwd);
+  const resolvedCwd = normalizeProjectCwd(cwd);
   if (isDbInitialized()) {
     if (currentCwd2 === resolvedCwd) {
       return true;
@@ -22149,10 +22170,16 @@ async function executeAction(params) {
       return { started: ok };
     }
     case "connect": {
+      if (!swarmDbExists(params.cwd)) {
+        return { connected: false };
+      }
       const ok = await connectToSwarm(params.cwd);
       return { connected: ok };
     }
     case "status": {
+      if (!swarmDbExists(params.cwd)) {
+        return { state: null, stats: null };
+      }
       await requireConnection(params.cwd);
       const state = getSwarmStatus();
       const stats = getSwarmStats();

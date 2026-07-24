@@ -33,7 +33,7 @@
 
 import { randomUUID } from 'crypto';
 import { existsSync, statSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import type {
   SwarmConfig,
   SwarmState,
@@ -74,6 +74,7 @@ import {
   reclaimFailedTask,
   setSwarmCwd
 } from './claiming.js';
+import { normalizeProjectCwd } from './state.js';
 import { canStartMode, createModeMarker, removeModeMarker } from '../mode-registry/index.js';
 
 // Current working directory for the swarm
@@ -94,6 +95,10 @@ function startCleanupTimer(leaseTimeout: number = DEFAULT_SWARM_CONFIG.leaseTime
   cleanupIntervalHandle = setInterval(() => {
     cleanupStaleClaimsInternal(leaseTimeout);
   }, 60 * 1000);
+  // Housekeeping must never keep a host process alive on its own: a single
+  // `status` query through the MCP server would otherwise block clean exit
+  // after stdin closes.
+  cleanupIntervalHandle.unref?.();
 }
 
 /**
@@ -127,7 +132,7 @@ export async function startSwarm(config: SwarmConfig): Promise<boolean> {
     cwd = process.cwd(),
     leaseTimeout = DEFAULT_SWARM_CONFIG.leaseTimeout
   } = config;
-  const resolvedCwd = resolve(cwd);
+  const resolvedCwd = normalizeProjectCwd(cwd);
 
   if (tasks.length === 0) {
     console.error('Cannot start swarm with no tasks');
@@ -436,7 +441,7 @@ export function isSwarmReady(): boolean {
  * @returns true if database was initialized
  */
 export async function connectToSwarm(cwd: string): Promise<boolean> {
-  const resolvedCwd = resolve(cwd);
+  const resolvedCwd = normalizeProjectCwd(cwd);
 
   if (isDbInitialized()) {
     if (currentCwd === resolvedCwd) {
@@ -478,7 +483,7 @@ export function disconnectFromSwarm(): boolean {
  * @returns true if swarm is active
  */
 export function isSwarmActive(cwd: string): boolean {
-  const resolvedCwd = resolve(cwd);
+  const resolvedCwd = normalizeProjectCwd(cwd);
 
   // If database is already connected, check state directly
   if (isDbInitialized() && currentCwd === resolvedCwd) {

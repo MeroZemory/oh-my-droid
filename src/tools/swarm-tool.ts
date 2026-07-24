@@ -25,6 +25,7 @@ import {
   getSwarmStatus,
   getSwarmStats,
 } from '../hooks/swarm/index.js';
+import { swarmDbExists } from '../hooks/swarm/state.js';
 
 // -- Registry-facing schema (raw shape) ---------------------------------------
 
@@ -163,10 +164,21 @@ async function executeAction(params: SwarmAction): Promise<unknown> {
       return { started: ok };
     }
     case 'connect': {
+      // `connect` joins an existing swarm; it must not bring one into being.
+      if (!swarmDbExists(params.cwd)) {
+        return { connected: false };
+      }
       const ok = await connectToSwarm(params.cwd);
       return { connected: ok };
     }
     case 'status': {
+      // Probe before connecting so querying a project that never ran a swarm
+      // does not leave an empty database (and .omd/state tree) behind. Answer
+      // from the probe rather than the currently-open database, which may
+      // belong to a different project.
+      if (!swarmDbExists(params.cwd)) {
+        return { state: null, stats: null };
+      }
       await requireConnection(params.cwd);
       const state = getSwarmStatus();
       const stats = getSwarmStats();
