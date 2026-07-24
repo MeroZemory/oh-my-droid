@@ -11,7 +11,7 @@ Chain multiple agents together in sequential workflows where output from one age
 
 ## User's Request
 
-{{ARGUMENTS}}
+$ARGUMENTS
 
 ## Mission
 

@@ -56,4 +56,4 @@ Started: [ISO timestamp]
 After creating files, report summary and suggest running `/ralph-loop` to start.
 
 Task to break down:
-{{ARGUMENTS}}
+$ARGUMENTS

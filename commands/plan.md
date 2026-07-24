@@ -30,6 +30,10 @@ Say one of these when you're ready to generate the plan:
 - Drafts are saved to `.omd/drafts/`
 - Final plans are saved to `.omd/plans/`
 
+## User's Task
+
+$ARGUMENTS
+
 ---
 
 Let's begin. Tell me more about what you want to accomplish, and I'll ask clarifying questions.

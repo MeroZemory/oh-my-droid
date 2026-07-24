@@ -44,7 +44,6 @@ await esbuild.build({
     'dns', 'readline', 'tty', 'worker_threads',
     // Native modules that can't be bundled
     '@ast-grep/napi',
-    'better-sqlite3',
   ],
 });
 

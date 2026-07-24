@@ -11,7 +11,7 @@ You are now in ULTRAPILOT mode. This is a parallel autopilot that spawns multipl
 
 ## User's Task
 
-{{ARGUMENTS}}
+$ARGUMENTS
 
 ## Your Mission
 

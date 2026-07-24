@@ -6,8 +6,12 @@ import {
   startSwarm,
   stopSwarm,
   getSwarmStatus,
-  isSwarmActive
+  isSwarmActive,
+  claimTask,
+  connectToSwarm,
+  disconnectFromSwarm
 } from '../index.js';
+import { getDb } from '../state.js';
 
 describe('Swarm Lifecycle', () => {
   let testDir: string;
@@ -152,6 +156,30 @@ describe('Swarm Lifecycle', () => {
       expect(status).not.toBeNull();
       expect(status?.active).toBe(true);
       expect(status?.agentCount).toBe(5);
+    });
+  });
+
+  describe('connectToSwarm', () => {
+    it('should clean stale claims when reconnecting', async () => {
+      await startSwarm({
+        agentCount: 2,
+        tasks: ['task 1'],
+        cwd: testDir
+      });
+
+      expect(claimTask('agent-1').success).toBe(true);
+      getDb()?.prepare('UPDATE tasks SET claimed_at = ? WHERE id = ?')
+        .run(Date.now() - 10 * 60 * 1000, 'task-1');
+      getDb()?.prepare('UPDATE heartbeats SET last_heartbeat = ? WHERE agent_id = ?')
+        .run(Date.now() - 10 * 60 * 1000, 'agent-1');
+
+      disconnectFromSwarm();
+      expect(await connectToSwarm(testDir)).toBe(true);
+
+      expect(claimTask('agent-2')).toMatchObject({
+        success: true,
+        taskId: 'task-1'
+      });
     });
   });
 
