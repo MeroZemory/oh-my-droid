@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { executeSlashCommand } from '../hooks/auto-slash-command/executor.js';
+import { parseSlashCommand } from '../hooks/auto-slash-command/detector.js';
 
 /**
  * Tests for literal $ARGUMENTS substitution through the exported
@@ -35,11 +36,19 @@ describe('slash command argument substitution', () => {
     return result.replacementText ?? '';
   }
 
+  function executeInput(input: string): string {
+    const parsed = parseSlashCommand(input);
+    expect(parsed).not.toBeNull();
+    const result = executeSlashCommand(parsed!);
+    expect(result.success).toBe(true);
+    return result.replacementText ?? '';
+  }
+
   it('should preserve JavaScript replacement tokens literally', () => {
-    createCommand('test-args-tokens', 'Args: $ARGUMENTS');
+    createCommand('test-args-tokens', '__BEGIN__\n$ARGUMENTS\n__END__');
     const special = "$& $$ $` $' line1\nline2";
     const output = execute('test-args-tokens', special);
-    expect(output).toContain(special);
+    expect(output).toContain(`__BEGIN__\n${special}\n__END__`);
   });
 
   it('should pass complete arguments to every placeholder', () => {
@@ -50,10 +59,10 @@ describe('slash command argument substitution', () => {
   });
 
   it('should preserve multiline arguments with line breaks', () => {
-    createCommand('test-args-ml', 'Args: $ARGUMENTS');
+    createCommand('test-args-ml', '__BEGIN__\n$ARGUMENTS\n__END__');
     const multiline = 'line one\nline two\nline three';
-    const output = execute('test-args-ml', multiline);
-    expect(output).toContain(multiline);
+    const output = executeInput(`/test-args-ml ${multiline}`);
+    expect(output).toContain(`__BEGIN__\n${multiline}\n__END__`);
   });
 
   it('should show (no arguments provided) for empty args', () => {
