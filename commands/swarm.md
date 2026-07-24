@@ -11,7 +11,7 @@ Spawn N coordinated agents working on a shared task list with SQLite-based atomi
 
 ## User's Request
 
-{{ARGUMENTS}}
+$ARGUMENTS
 
 ## Usage Pattern
 
@@ -77,7 +77,7 @@ User: "/swarm 5:executor fix all TypeScript errors"
 
 ### 1. Parse Input
 
-From `{{ARGUMENTS}}`, extract:
+From `$ARGUMENTS`, extract:
 - N (agent count, validate <= 5)
 - agent-type (executor, build-fixer, etc.)
 - task description

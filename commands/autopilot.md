@@ -11,7 +11,7 @@ You are now in AUTOPILOT mode. This is a full autonomous execution workflow that
 
 ## User's Idea
 
-{{ARGUMENTS}}
+$ARGUMENTS
 
 ## Your Mission
 
@@ -37,7 +37,7 @@ Task(
   model="claude-opus-4-5-20251101",
   prompt="REQUIREMENTS ANALYSIS
 
-Analyze this product idea: {{ARGUMENTS}}
+Analyze this product idea: $ARGUMENTS
 
 Extract:
 1. Functional requirements - what it must do

@@ -11,7 +11,7 @@ You are managing isolated development environments using git worktrees and tmux 
 
 ## User's Command
 
-{{ARGUMENTS}}
+$ARGUMENTS
 
 ## Parse Command
 

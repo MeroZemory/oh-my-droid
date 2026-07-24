@@ -9,7 +9,7 @@ aliases: [rp, planloop]
 
 ## User's Task
 
-{{ARGUMENTS}}
+$ARGUMENTS
 
 ## Overview
 

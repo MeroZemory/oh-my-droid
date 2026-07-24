@@ -76,7 +76,7 @@ When the user invokes a PSM command, follow this protocol:
 
 ### Parse Arguments
 
-Parse `{{ARGUMENTS}}` to determine:
+Parse `$ARGUMENTS` to determine:
 1. **Subcommand**: review, fix, feature, list, attach, kill, cleanup, status
 2. **Reference**: project#number, URL, or session ID
 3. **Options**: --branch, --base, --no-droid, --no-tmux, etc.

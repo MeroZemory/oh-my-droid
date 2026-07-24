@@ -36,7 +36,7 @@ Force clear ALL state files:
 
 ## User Arguments
 
-{{ARGUMENTS}}
+$ARGUMENTS
 
 ## State Files Checked
 
