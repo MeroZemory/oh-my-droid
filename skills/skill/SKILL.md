@@ -15,10 +15,17 @@ Meta-skill for managing oh-my-droid skills via CLI-like commands.
 Show all local skills organized by scope.
 
 **Behavior:**
-1. Scan user skills at `~/.agents/skills/droid-learned/`
-2. Scan project skills at `.agents/skills/droid-learned/`
-3. Parse YAML frontmatter for metadata
-4. Display in organized table format:
+1. Scan user skills in canonical-first order:
+   - `~/.agents/skills/droid-learned/`
+   - `~/.factory/skills/droid-learned/`
+   - `~/.factory/skills/omc-learned/`
+   - `~/.omd/skills/`
+2. Scan project skills in canonical-first order:
+   - `.agents/skills/droid-learned/`
+   - `.omd/skills/`
+3. Deduplicate within each scope by normalized relative path, preserving the canonical copy
+4. Parse YAML frontmatter for metadata
+5. Display in organized table format:
 
 ```
 USER SKILLS (~/.agents/skills/droid-learned/):
@@ -119,6 +126,7 @@ Remove a skill by name.
 1. **Search for skill** in both scopes:
    - `~/.agents/skills/droid-learned/<name>/SKILL.md`
    - `.agents/skills/droid-learned/<name>/SKILL.md`
+   - Then the legacy user and project directories listed under `/skill list`
 2. **If found:**
    - Display skill info (name, description, scope)
    - **Ask for confirmation:** "Delete '<name>' skill from <scope>? (yes/no)"
@@ -150,7 +158,7 @@ Assistant: ✓ Removed skill 'old-logger' from user scope
 Edit an existing skill interactively.
 
 **Behavior:**
-1. **Find skill** by name (search both scopes)
+1. **Find skill** by name (search canonical then legacy directories in both scopes)
 2. **Read current content** via Read tool
 3. **Display current values:**
    ```
@@ -198,7 +206,7 @@ New triggers (comma-separated): log, logger, logging, trace
 Search skills by content, triggers, name, or description.
 
 **Behavior:**
-1. **Scan all skills** in both scopes
+1. **Scan all skills** in canonical and legacy directories for both scopes
 2. **Match query** (case-insensitive) against:
    - Skill name
    - Description
@@ -245,7 +253,7 @@ Assistant: Found 2 skills matching "api endpoint":
 Show detailed information about a skill.
 
 **Behavior:**
-1. **Find skill** by name (search both scopes)
+1. **Find skill** by name (search canonical then legacy directories in both scopes)
 2. **Parse YAML frontmatter** and content
 3. **Display complete details:**
 
@@ -290,8 +298,9 @@ Sync skills between user and project scopes.
 
 **Behavior:**
 1. **Scan both scopes:**
-   - User skills: `~/.agents/skills/droid-learned/`
-   - Project skills: `.agents/skills/droid-learned/`
+   - User skills: canonical `~/.agents/skills/droid-learned/`, then legacy user directories
+   - Project skills: canonical `.agents/skills/droid-learned/`, then `.omd/skills/`
+   - Deduplicate by normalized relative path, preserving canonical copies
 2. **Compare and categorize:**
    - User-only skills (not in project)
    - Project-only skills (not in user)

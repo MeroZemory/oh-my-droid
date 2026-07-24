@@ -2,7 +2,7 @@
  * Skills Tools
  *
  * MCP tools for loading and listing OMC learned skills
- * from local (.omd/skills/) and global (~/.omd/skills/) directories.
+ * from canonical .agents directories with backward-compatible legacy fallbacks.
  */
 
 import { z } from 'zod';
@@ -102,7 +102,7 @@ function formatSkillOutput(skills: LearnedSkill[]): string {
 // Tool 1: load_omc_skills_local
 export const loadLocalTool = {
   name: 'load_omc_skills_local',
-  description: 'Load and list skills from the project-local .omd/skills/ directory. Returns skill metadata (id, name, description, triggers, tags) for all discovered project-scoped skills.',
+  description: 'Load and list project-local skills from .agents/skills/droid-learned/ with .omd/skills/ as a legacy fallback. Returns skill metadata (id, name, description, triggers, tags) for all discovered project-scoped skills.',
   schema: loadLocalSchema,
   handler: async (args: { projectRoot?: string }) => {
     const projectRoot = args.projectRoot ? validateProjectRoot(args.projectRoot) : process.cwd();
@@ -121,7 +121,7 @@ export const loadLocalTool = {
 // Tool 2: load_omc_skills_global
 export const loadGlobalTool = {
   name: 'load_omc_skills_global',
-  description: 'Load and list skills from global user directories (~/.omd/skills/ and ~/.factory/skills/omc-learned/). Returns skill metadata for all discovered user-scoped skills.',
+  description: 'Load and list global user skills from ~/.agents/skills/droid-learned/ with ~/.factory/skills/{droid,omc}-learned/ and ~/.omd/skills/ as legacy fallbacks. Returns skill metadata for all discovered user-scoped skills.',
   schema: loadGlobalSchema,
   handler: async (_args: Record<string, never>) => {
     const allSkills = loadAllSkills(null);
@@ -158,7 +158,7 @@ export const listSkillsTool = {
     }
 
     if (skills.length === 0) {
-      output = '## No Skills Found\n\nNo skill files were discovered in any searched directories.\n\nSearched:\n- Project: .omd/skills/\n- Global: ~/.omd/skills/\n- Legacy: ~/.factory/skills/omc-learned/';
+      output = '## No Skills Found\n\nNo skill files were discovered in any searched directories.\n\nSearched:\n- Project: .agents/skills/droid-learned/\n- User: ~/.agents/skills/droid-learned/\n- Legacy project: .omd/skills/\n- Legacy user: ~/.factory/skills/{droid,omc}-learned/ and ~/.omd/skills/';
     }
 
     return {

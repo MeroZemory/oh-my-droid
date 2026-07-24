@@ -44,58 +44,48 @@ fi
 
 ### Step 2: Skill Scan and Inventory
 
-Scan both directories and show a comprehensive inventory:
+Scan canonical directories first, then legacy fallbacks. Deduplicate by the
+path relative to each source directory so migrated copies win while distinct
+nested skills remain visible.
 
 ```bash
-# Scan user-level skills
-echo "=== USER-LEVEL SKILLS (~/.agents/skills/droid-learned/) ==="
-if [ -d "$HOME/.agents/skills/droid-learned" ]; then
-  USER_COUNT=$(find "$HOME/.agents/skills/droid-learned" -name "*.md" 2>/dev/null | wc -l)
-  echo "Total skills: $USER_COUNT"
+SEEN_FILE=$(mktemp)
+trap 'rm -f "$SEEN_FILE"' EXIT
 
-  if [ $USER_COUNT -gt 0 ]; then
+scan_skill_dir() {
+  SCOPE="$1"
+  DIR="$2"
+  [ -d "$DIR" ] || return
+
+  while IFS= read -r FILE; do
+    RELATIVE_PATH="${FILE#"$DIR"/}"
+    IDENTITY="$SCOPE:$RELATIVE_PATH"
+    grep -Fqx "$IDENTITY" "$SEEN_FILE" && continue
+    printf '%s\n' "$IDENTITY" >> "$SEEN_FILE"
+
+    NAME=$(grep -m1 "^name:" "$FILE" 2>/dev/null | sed "s/name: //")
+    DESC=$(grep -m1 "^description:" "$FILE" 2>/dev/null | sed "s/description: //")
+    MODIFIED=$(stat -c "%y" "$FILE" 2>/dev/null || stat -f "%Sm" "$FILE" 2>/dev/null)
+    echo "  - ${NAME:-$(basename "$FILE")}"
+    [ -n "$DESC" ] && echo "    Description: $DESC"
+    echo "    Path: $FILE"
+    echo "    Modified: $MODIFIED"
     echo ""
-    echo "Skills found:"
-    find "$HOME/.agents/skills/droid-learned" -name "*.md" -type f -exec sh -c '
-      FILE="$1"
-      NAME=$(grep -m1 "^name:" "$FILE" 2>/dev/null | sed "s/name: //")
-      DESC=$(grep -m1 "^description:" "$FILE" 2>/dev/null | sed "s/description: //")
-      MODIFIED=$(stat -c "%y" "$FILE" 2>/dev/null || stat -f "%Sm" "$FILE" 2>/dev/null)
-      echo "  - $NAME"
-      [ -n "$DESC" ] && echo "    Description: $DESC"
-      echo "    Modified: $MODIFIED"
-      echo ""
-    ' sh {} \;
-  fi
-else
-  echo "Directory not found"
-fi
+  done < <(find "$DIR" -name "*.md" -type f 2>/dev/null)
+}
 
-echo ""
-echo "=== PROJECT-LEVEL SKILLS (.agents/skills/droid-learned/) ==="
-if [ -d ".agents/skills/droid-learned" ]; then
-  PROJECT_COUNT=$(find ".agents/skills/droid-learned" -name "*.md" 2>/dev/null | wc -l)
-  echo "Total skills: $PROJECT_COUNT"
+echo "=== USER-LEVEL SKILLS ==="
+scan_skill_dir user "$HOME/.agents/skills/droid-learned"
+scan_skill_dir user "$HOME/.factory/skills/droid-learned"
+scan_skill_dir user "$HOME/.factory/skills/omc-learned"
+scan_skill_dir user "$HOME/.omd/skills"
 
-  if [ $PROJECT_COUNT -gt 0 ]; then
-    echo ""
-    echo "Skills found:"
-    find ".agents/skills/droid-learned" -name "*.md" -type f -exec sh -c '
-      FILE="$1"
-      NAME=$(grep -m1 "^name:" "$FILE" 2>/dev/null | sed "s/name: //")
-      DESC=$(grep -m1 "^description:" "$FILE" 2>/dev/null | sed "s/description: //")
-      MODIFIED=$(stat -c "%y" "$FILE" 2>/dev/null || stat -f "%Sm" "$FILE" 2>/dev/null)
-      echo "  - $NAME"
-      [ -n "$DESC" ] && echo "    Description: $DESC"
-      echo "    Modified: $MODIFIED"
-      echo ""
-    ' sh {} \;
-  fi
-else
-  echo "Directory not found"
-fi
+echo "=== PROJECT-LEVEL SKILLS ==="
+scan_skill_dir project ".agents/skills/droid-learned"
+scan_skill_dir project ".omd/skills"
 
-# Summary
+USER_COUNT=$(grep -c '^user:' "$SEEN_FILE" 2>/dev/null || true)
+PROJECT_COUNT=$(grep -c '^project:' "$SEEN_FILE" 2>/dev/null || true)
 TOTAL=$((USER_COUNT + PROJECT_COUNT))
 echo "=== SUMMARY ==="
 echo "Total skills across all directories: $TOTAL"
@@ -161,17 +151,32 @@ show_skill_details() {
 # Export function for subshell
 export -f show_skill_details
 
-# Show user-level skills
-if [ -d "$HOME/.agents/skills/droid-learned" ]; then
-  echo "USER-LEVEL SKILLS:"
-  find "$HOME/.agents/skills/droid-learned" -name "*.md" -type f -exec bash -c 'show_skill_details "$0" "user-level"' {} \;
-fi
+# Show canonical skills first, then legacy fallbacks. Skip a legacy file when
+# its relative path has already been shown for the same scope.
+SEEN_FILE=$(mktemp)
+trap 'rm -f "$SEEN_FILE"' EXIT
 
-# Show project-level skills
-if [ -d ".agents/skills/droid-learned" ]; then
-  echo "PROJECT-LEVEL SKILLS:"
-  find ".agents/skills/droid-learned" -name "*.md" -type f -exec bash -c 'show_skill_details "$0" "project-level"' {} \;
-fi
+show_scope() {
+  SCOPE="$1"
+  LOCATION="$2"
+  DIR="$3"
+  [ -d "$DIR" ] || return
+
+  while IFS= read -r FILE; do
+    RELATIVE_PATH="${FILE#"$DIR"/}"
+    IDENTITY="$SCOPE:$RELATIVE_PATH"
+    grep -Fqx "$IDENTITY" "$SEEN_FILE" && continue
+    printf '%s\n' "$IDENTITY" >> "$SEEN_FILE"
+    show_skill_details "$FILE" "$LOCATION"
+  done < <(find "$DIR" -name "*.md" -type f 2>/dev/null)
+}
+
+show_scope user "user-level" "$HOME/.agents/skills/droid-learned"
+show_scope user "user-level (legacy)" "$HOME/.factory/skills/droid-learned"
+show_scope user "user-level (legacy)" "$HOME/.factory/skills/omc-learned"
+show_scope user "user-level (legacy)" "$HOME/.omd/skills"
+show_scope project "project-level" ".agents/skills/droid-learned"
+show_scope project "project-level (legacy)" ".omd/skills"
 ```
 
 #### Option 3: Scan Conversation for Patterns
