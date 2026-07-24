@@ -228,11 +228,27 @@ export function getFallbackPricing(modelName: string): ModelPricing {
 }
 
 /**
+ * Reports whether a pricing entry carries rates usable for cost calculation.
+ *
+ * @param pricing - Pricing entry to validate
+ * @returns True when both input and output rates are positive finite numbers
+ */
+function hasUsableRates(pricing: ModelPricing): boolean {
+  return (
+    Number.isFinite(pricing.inputPerMillion) &&
+    Number.isFinite(pricing.outputPerMillion) &&
+    pricing.inputPerMillion > 0 &&
+    pricing.outputPerMillion > 0
+  );
+}
+
+/**
  * Looks up pricing for a model, preferring tokscale's database with fallback
  *
  * This function provides the best available pricing:
  * 1. If tokscale is available, uses its up-to-date pricing database
- * 2. Falls back to static PRICING table if tokscale unavailable or model not found
+ * 2. Falls back to static PRICING table if tokscale unavailable, the model is
+ *    not found, or the live entry carries no usable rates
  *
  * @param modelName - Model name to look up pricing for
  * @returns Promise resolving to ModelPricing
@@ -244,7 +260,10 @@ export async function lookupPricingWithFallback(modelName: string): Promise<Mode
   if (adapter.isAvailable && adapter.lookupPricing) {
     try {
       const pricing = await adapter.lookupPricing(modelName);
-      if (pricing !== null) {
+      // A non-null result can still carry zeroed rates when the upstream
+      // database has an entry for the model but no cost data for it (observed
+      // for Haiku). Treat that as a miss so callers never bill usage at $0.
+      if (pricing !== null && hasUsableRates(pricing)) {
         return pricing;
       }
     } catch {

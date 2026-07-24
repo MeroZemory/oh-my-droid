@@ -5,6 +5,14 @@ import { tmpdir } from 'os';
 import { findSkillFiles, getSkillsDir, ensureSkillsDir } from '../../hooks/learner/finder.js';
 import { PROJECT_SKILLS_SUBDIR } from '../../hooks/learner/constants.js';
 
+/**
+ * Normalizes a filesystem path to forward slashes so suffix assertions hold on
+ * Windows, where `join` yields backslash-separated paths.
+ */
+function toPosix(filePath: string): string {
+  return filePath.replace(/\\/g, '/');
+}
+
 describe('Skill Finder', () => {
   let testDir: string;
   let projectRoot: string;
@@ -189,7 +197,7 @@ describe('Skill Finder', () => {
     writeFileSync(join(legacyDir, 'alpha', 'SKILL.md'), '# Legacy Alpha');
 
     const candidates = findSkillFiles(projectRoot, { scope: 'project' });
-    const alphas = candidates.filter((c) => c.path.endsWith('alpha/SKILL.md'));
+    const alphas = candidates.filter((c) => toPosix(c.path).endsWith('alpha/SKILL.md'));
 
     expect(alphas).toHaveLength(1);
     expect(alphas[0].sourceDir).toBe(newDir);
@@ -202,7 +210,7 @@ describe('Skill Finder', () => {
 
     const candidates = findSkillFiles(projectRoot);
     const projectShared = candidates.find(
-      (c) => c.scope === 'project' && c.path.endsWith('shared/SKILL.md')
+      (c) => c.scope === 'project' && toPosix(c.path).endsWith('shared/SKILL.md')
     );
 
     // Project skill should be present even if a user skill with the same

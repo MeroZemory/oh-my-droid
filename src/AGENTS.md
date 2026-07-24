@@ -74,7 +74,7 @@ This directory contains all TypeScript source code organized into modules:
      return {
        architect: architectAgent,
        executor: executorAgent,
-       // ... all 32 agents
+       // ... all 33 agents
      };
    }
    ```

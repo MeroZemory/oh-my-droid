@@ -27,11 +27,4 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm run lint
-      # Temporary main-branch baseline exclusions are tracked in Issue #19.
-      # Remove each exclusion when its underlying failure is fixed.
-      - run: >-
-          npx vitest run
-          --exclude src/__tests__/agent-registry.test.ts
-          --exclude src/__tests__/installer.test.ts
-          --exclude src/__tests__/skills.test.ts
-          --exclude src/__tests__/analytics/tokscale-adapter.test.ts
+      - run: npx vitest run
