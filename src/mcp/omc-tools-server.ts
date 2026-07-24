@@ -10,6 +10,7 @@ import { lspTools } from "../tools/lsp-tools.js";
 import { astTools } from "../tools/ast-tools.js";
 import { pythonReplTool } from "../tools/python-repl/index.js";
 import { skillsTools } from "../tools/skills-tools.js";
+import { swarmTool } from "../tools/swarm-tool.js";
 
 // Type for our tool definitions
 interface ToolDef {
@@ -24,7 +25,8 @@ const allTools: ToolDef[] = [
   ...(lspTools as unknown as ToolDef[]),
   ...(astTools as unknown as ToolDef[]),
   pythonReplTool as unknown as ToolDef,
-  ...(skillsTools as unknown as ToolDef[])
+  ...(skillsTools as unknown as ToolDef[]),
+  swarmTool as unknown as ToolDef
 ];
 
 // Convert to SDK tool format

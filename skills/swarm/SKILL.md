@@ -301,32 +301,36 @@ Agents interact with the swarm via a TypeScript API:
 
 ### Initialization
 
-```typescript
-import { startSwarm, connectToSwarm } from './swarm';
+Workers and coordinators interact with the swarm through the `mcp__t__swarm` MCP tool.
+This tool is available to executor, executor-low, and executor-high agents.
 
-// Orchestrator starts the swarm
-await startSwarm({
+```typescript
+// Orchestrator starts the swarm via the MCP tool
+await mcp__t__swarm({
+  action: 'start',
+  cwd: process.cwd(),
   agentCount: 5,
   tasks: ['fix a.ts', 'fix b.ts', ...],
-  leaseTimeout: 5 * 60 * 1000,      // 5 minutes (default)
-  heartbeatInterval: 60 * 1000      // 60 seconds (default)
 });
 
-// Agents join existing swarm
-await connectToSwarm(process.cwd());
+// Agents connect to the existing swarm
+await mcp__t__swarm({ action: 'connect', cwd: process.cwd() });
 ```
 
 ### Agent Loop Pattern
 
 ```typescript
-import {
-  claimTask,
-  completeTask,
-  failTask,
-  heartbeat,
-  hasPendingWork,
-  disconnectFromSwarm
-} from './swarm';
+// Claim a task
+const claim = await mcp__t__swarm({ action: 'claim', cwd: process.cwd(), agentId: 'agent-1' });
+
+// Complete the task
+await mcp__t__swarm({
+  action: 'complete',
+  cwd: process.cwd(),
+  agentId: 'agent-1',
+  taskId: claim.taskId,
+  result: 'Fixed the bug',
+});
 
 const agentId = 'agent-1';
 
@@ -668,6 +672,6 @@ The orchestrator (main skill handler) is responsible for:
 Each agent is a standard Task invocation with:
 - `run_in_background: true`
 - Agent-specific prompt with work loop instructions
-- API import: `import { claimTask, completeTask, ... } from './swarm'`
-- Connection: `await connectToSwarm(cwd)` to join existing swarm
-- Loop: repeatedly call `claimTask()` → do work → `completeTask()` or `failTask()`
+- MCP tool: `mcp__t__swarm` (available to executor, executor-low, executor-high)
+- Connection: `mcp__t__swarm({ action: 'connect', cwd })` to join existing swarm
+- Loop: `mcp__t__swarm({ action: 'claim', ... })` → do work → `mcp__t__swarm({ action: 'complete', ... })` or `mcp__t__swarm({ action: 'fail', ... })`

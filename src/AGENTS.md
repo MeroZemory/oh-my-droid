@@ -133,7 +133,7 @@ This directory contains all TypeScript source code organized into modules:
 
 ### External
 
-Key packages by module: `zod` (tools, features), `@ast-grep/napi` (tools/ast), `vscode-languageserver-protocol` (tools/lsp), `better-sqlite3` (hooks/swarm), `chalk` (cli, hud). See root AGENTS.md for full dependency list.
+Key packages by module: `zod` (tools, features), `@ast-grep/napi` (tools/ast), `vscode-languageserver-protocol` (tools/lsp), `node:sqlite` (hooks/swarm), `chalk` (cli, hud). See root AGENTS.md for full dependency list.
 
 ## Module Dependency Graph
 

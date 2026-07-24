@@ -45,19 +45,14 @@ fi
 
 **⚠️ CRITICAL: If NOT_BUILT, the plugin MUST be compiled before the HUD can work!**
 
-**WHY THIS HAPPENS:** The `dist/` directory contains compiled TypeScript code and is NOT stored on GitHub (it's in .gitignore). When you install the plugin from the marketplace, the build step happens automatically via the `prepare` script during `npm install`. However, if the plugin wasn't properly installed or the build failed, you'll get this error.
+**WHY THIS HAPPENS:** The `dist/` directory contains compiled JavaScript that is tracked in Git. When you install the plugin from the marketplace, the compiled files should already be present. However, if the plugin cache is corrupted or the install was incomplete, you'll get this error.
 
-**THE FIX:** Run npm install in the plugin directory to build it:
+**THE FIX:** Reinstall the plugin to restore the compiled files:
 ```bash
-cd ~/.factory/plugins/cache/oh-my-droid/oh-my-droid/$PLUGIN_VERSION && npm install
+droid plugin uninstall oh-my-droid && droid plugin install oh-my-droid
 ```
 
-This will:
-1. Install all dependencies
-2. Run the `prepare` script which executes `npm run build`
-3. Generate the `dist/hud/index.js` file that the HUD wrapper needs
-
-**DO NOT** try to download `dist/hud/index.js` from GitHub raw URLs - it doesn't exist there!
+The compiled `dist/hud/index.js` file is included in the Git repository and should be present after a clean install. No manual build step is needed.
 
 **Step 3:** If omd-hud.mjs is MISSING or argument is `setup`, create the HUD directory and script:
 

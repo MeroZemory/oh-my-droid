@@ -32,7 +32,7 @@ const hudScript = `#!/usr/bin/env node
  * Wrapper that imports from dev paths, plugin cache, or npm package
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -56,19 +56,21 @@ async function main() {
     }
   }
 
-  // 2. Plugin cache (for production installs)
-  const pluginCacheBase = join(home, ".factory/plugins/cache/oh-my-droid/oh-my-droid");
-  if (existsSync(pluginCacheBase)) {
+  // 2. Plugin cache (for production installs) - resolve from Factory metadata (KTD14)
+  const installedPluginsPath = join(home, ".factory/plugins/installed_plugins.json");
+  if (existsSync(installedPluginsPath)) {
     try {
-      const versions = readdirSync(pluginCacheBase);
-      if (versions.length > 0) {
-        const latestVersion = versions
-          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-          .reverse()[0];
-        const pluginPath = join(pluginCacheBase, latestVersion, "dist/hud/index.js");
-        if (existsSync(pluginPath)) {
-          await import(pathToFileURL(pluginPath).href);
-          return;
+      const pluginsData = JSON.parse(readFileSync(installedPluginsPath, "utf-8"));
+      const entries = Object.entries(pluginsData.plugins || {})
+        .filter(([key]) => key.startsWith("oh-my-droid@"));
+      if (entries.length > 0) {
+        const installPath = entries[0][1][0]?.installPath;
+        if (installPath) {
+          const pluginPath = join(installPath, "dist/hud/index.js");
+          if (existsSync(pluginPath)) {
+            await import(pathToFileURL(pluginPath).href);
+            return;
+          }
         }
       }
     } catch { /* continue */ }

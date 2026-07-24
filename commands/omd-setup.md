@@ -323,7 +323,7 @@ else
 fi
 ```
 
-**Note:** The `npm install` command triggers the `prepare` script which runs `npm run build`, creating the dist/ directory with all compiled HUD files.
+**Note:** The compiled `dist/` directory is tracked in Git and included in the plugin cache. No manual build step is needed during installation.
 
 ## Step 3.6: Enable Background Processes (Required)
 
