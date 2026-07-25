@@ -34,5 +34,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      - name: Verify generated runtime bundles
+        run: >-
+          node -e 'const {execFileSync}=require("node:child_process");const dirty=execFileSync("git",["status","--porcelain","--","bridge/mcp-server.cjs","bridge/hud.cjs"],{encoding:"utf8"}).trim();if(dirty)throw new Error("Generated runtime bundles are stale:\n"+dirty)'
       - run: npm run lint
       - run: npx vitest run

@@ -29,48 +29,38 @@ const hudScriptPath = join(HUD_DIR, 'omd-hud.mjs');
 const hudScript = `#!/usr/bin/env node
 /**
  * OMD HUD - Statusline Script
- * Wrapper that imports from dev paths, plugin cache, or npm package
+ * Wrapper that imports from the user plugin cache or development paths
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 
 async function main() {
   const home = homedir();
 
-  // 1. Resolve the active plugin install from Factory metadata
-  const pluginRegistries = [
-    {
-      path: join(process.cwd(), ".factory/plugins/installed_plugins.json"),
-      scope: "project",
-    },
-    {
-      path: join(home, ".factory/plugins/installed_plugins.json"),
-      scope: "user",
-    },
-  ];
-  let activeInstallPath = null;
-  for (const registry of pluginRegistries) {
-    if (!existsSync(registry.path)) continue;
-    try {
-      const pluginsData = JSON.parse(readFileSync(registry.path, "utf-8"));
-      const installs = pluginsData.plugins?.["oh-my-droid@oh-my-droid"] ?? [];
-      const install = installs.find((item) => item.scope === registry.scope) ?? installs[0];
-      if (install?.installPath) {
-        activeInstallPath = install.installPath;
-        break;
+  // 1. Resolve only the user-scoped install under Factory's plugin cache.
+  try {
+    const registryPath = join(home, ".factory/plugins/installed_plugins.json");
+    const cacheRoot = realpathSync(join(home, ".factory/plugins/cache/oh-my-droid/oh-my-droid"));
+    const pluginsData = JSON.parse(readFileSync(registryPath, "utf-8"));
+    const installs = pluginsData.plugins?.["oh-my-droid@oh-my-droid"] ?? [];
+    const install = installs.find((item) => item.scope === "user");
+    const installPath = realpathSync(install?.installPath);
+    const installRelative = relative(cacheRoot, installPath);
+    if (installRelative && !installRelative.startsWith("..") && !isAbsolute(installRelative)) {
+      const bundlePath = join(installPath, "bridge/hud.cjs");
+      if (!lstatSync(bundlePath).isSymbolicLink()) {
+        const bundleRealPath = realpathSync(bundlePath);
+        const bundleRelative = relative(installPath, bundleRealPath);
+        if (bundleRelative && !bundleRelative.startsWith("..") && !isAbsolute(bundleRelative)) {
+          await import(pathToFileURL(bundleRealPath).href);
+          return;
+        }
       }
-    } catch { /* continue */ }
-  }
-  if (activeInstallPath) {
-    const pluginPath = join(activeInstallPath, "dist/hud/index.js");
-    if (existsSync(pluginPath)) {
-      await import(pathToFileURL(pluginPath).href);
-      return;
     }
-  }
+  } catch { /* continue */ }
 
   // 2. Development paths
   const devPaths = [
@@ -88,13 +78,7 @@ async function main() {
     }
   }
 
-  // 3. npm package (global or local install)
-  try {
-    await import("oh-my-droid/dist/hud/index.js");
-    return;
-  } catch { /* continue */ }
-
-  // 4. Fallback
+  // 3. Fallback
   console.log("[OMD HUD] run /omd-setup to install properly");
 }
 

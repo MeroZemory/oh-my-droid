@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
  * These tests verify Windows compatibility fixes for HUD:
  * - File naming (omd-hud.mjs)
  * - Windows dynamic import() requires file:// URLs (pathToFileURL)
- * - Version sorting (numeric vs lexicographic)
+ * - Trusted user-cache bundle resolution
  *
  * Related: GitHub Issue #138, PR #139, PR #140
  */
@@ -66,12 +66,11 @@ describe('HUD Windows Compatibility', () => {
       expect(content).toContain('pathToFileURL(devPath).href');
     });
 
-    it('installer HUD script should use pathToFileURL for plugin path import', () => {
+    it('installer HUD script should use pathToFileURL for the bundled plugin path', () => {
       const installerPath = join(packageRoot, 'src', 'installer', 'index.ts');
       const content = readFileSync(installerPath, 'utf-8');
 
-      // Should use pathToFileURL for pluginPath
-      expect(content).toContain('pathToFileURL(pluginPath).href');
+      expect(content).toContain('pathToFileURL(bundleRealPath).href');
     });
 
     it('pathToFileURL should correctly convert Unix paths', () => {
@@ -93,43 +92,15 @@ describe('HUD Windows Compatibility', () => {
     });
   });
 
-  describe('Numeric Version Sorting', () => {
-    it('installer HUD script should use numeric version sorting', () => {
+  describe('Trusted Plugin Cache Resolution', () => {
+    it('installer HUD script should resolve the user-scoped bundled runtime', () => {
       const installerPath = join(packageRoot, 'src', 'installer', 'index.ts');
       const content = readFileSync(installerPath, 'utf-8');
 
-      // Should use localeCompare with numeric option
-      expect(content).toContain('localeCompare(b, undefined, { numeric: true })');
-    });
-
-    it('numeric sort should correctly order versions', () => {
-      const versions = ['3.5.0', '3.10.0', '3.9.0'];
-
-      // Incorrect lexicographic sort
-      const lexSorted = [...versions].sort().reverse();
-      expect(lexSorted[0]).toBe('3.9.0'); // Wrong! 9 > 1 lexicographically
-
-      // Correct numeric sort
-      const numSorted = [...versions].sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true })
-      ).reverse();
-      expect(numSorted[0]).toBe('3.10.0'); // Correct! 10 > 9 > 5 numerically
-    });
-
-    it('should handle single-digit and double-digit versions', () => {
-      const versions = ['1.0.0', '10.0.0', '2.0.0', '9.0.0'];
-      const sorted = [...versions].sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true })
-      ).reverse();
-      expect(sorted).toEqual(['10.0.0', '9.0.0', '2.0.0', '1.0.0']);
-    });
-
-    it('should handle patch version comparison', () => {
-      const versions = ['1.0.1', '1.0.10', '1.0.9', '1.0.2'];
-      const sorted = [...versions].sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true })
-      ).reverse();
-      expect(sorted).toEqual(['1.0.10', '1.0.9', '1.0.2', '1.0.1']);
+      expect(content).toContain('item.scope === "user"');
+      expect(content).toContain('bridge/hud.cjs');
+      expect(content).toContain('lstatSync(bundlePath).isSymbolicLink()');
+      expect(content).toContain('relative(cacheRoot, installPath)');
     });
   });
 });
