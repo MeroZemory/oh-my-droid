@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# Supersede in-flight runs for the same PR: the matrix is 6 jobs, so pushing a
+# fixup while an earlier run is still going doubles the cost for a result
+# nobody reads. Pushes to main are never cancelled - that history stays intact.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: Build & Test (${{ matrix.os }}, Node ${{ matrix.node-version }})
