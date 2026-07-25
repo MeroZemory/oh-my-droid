@@ -5,6 +5,8 @@ dist/
 .omc/
 .omd/
 .sisyphus/
+.factory/
+.serena/
 __pycache__/
 *.pyc
 
