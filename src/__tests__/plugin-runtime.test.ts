@@ -75,7 +75,7 @@ describe('plugin runtime', () => {
       'node',
       [
         '--import',
-        join(process.cwd(), 'node_modules', 'tsx', 'dist', 'loader.mjs'),
+        pathToFileURL(join(process.cwd(), 'node_modules', 'tsx', 'dist', 'loader.mjs')).href,
         '--input-type=module',
         '--eval',
         `import { install } from ${JSON.stringify(installerUrl)}; install({ force: true, skipClaudeCheck: true });`,
